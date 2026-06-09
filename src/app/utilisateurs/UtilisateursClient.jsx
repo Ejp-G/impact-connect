@@ -12,10 +12,9 @@ export default function UtilisateursClient({ users, fis }) {
   const router = useRouter()
   async function saveUser() {
     setSaving(true)
-    const url = editUser ? '/api/users' : '/api/users'
     const method = editUser ? 'PATCH' : 'POST'
     const body = editUser ? { id: editUser.id, ...form } : form
-    const res = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+    const res = await fetch('/api/users', { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
     const { error } = await res.json()
     if (error) { alert(error); setSaving(false); return }
     setShowModal(false); setSaving(false); router.refresh()
@@ -34,15 +33,16 @@ export default function UtilisateursClient({ users, fis }) {
     setForm({ name:'', email:'', password:'', role:'equipe_integration', sex:'F', fi_id:'', active:true })
     setShowModal(true)
   }
+  const btnLabel = saving ? 'Enregistrement...' : editUser ? 'Mettre a jour' : 'Creer le compte'
   return (
     <div style={{maxWidth:1000}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
         <div style={{fontSize:14,color:'var(--gy)'}}>{users.length} utilisateur(s)</div>
-        <button onClick={openAdd} className="btn btn-primary">✚ Nouvel utilisateur</button>
+        <button onClick={openAdd} className="btn btn-primary">+ Nouvel utilisateur</button>
       </div>
       <div className="card" style={{padding:0,overflow:'hidden'}}>
         <table>
-          <thead><tr><th>Utilisateur</th><th>Email</th><th>Rôle</th><th>FI</th><th>Statut</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Utilisateur</th><th>Email</th><th>Role</th><th>FI</th><th>Statut</th><th>Actions</th></tr></thead>
           <tbody>
             {users.map(u=>(
               <tr key={u.id}>
@@ -71,36 +71,37 @@ export default function UtilisateursClient({ users, fis }) {
           <div className="modal">
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
               <div style={{fontSize:18,fontWeight:700}}>{editUser?'Modifier utilisateur':'Nouvel utilisateur'}</div>
-              <button onClick={()=>setShowModal(false)} style={{width:32,height:32,borderRadius:8,background:'#F1F5F9',border:'none',cursor:'pointer',fontSize:16}}>✕</button>
+              <button onClick={()=>setShowModal(false)} style={{width:32,height:32,borderRadius:8,background:'#F1F5F9',border:'none',cursor:'pointer',fontSize:16}}>x</button>
             </div>
             <div className="form-group"><label className="form-label">Nom complet</label><input className="form-input" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} /></div>
             <div className="form-group"><label className="form-label">Email</label><input type="email" className="form-input" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} disabled={!!editUser} /></div>
-            <div className="form-group"><label className="form-label">{editUser?'Nouveau mot de passe (laisser vide = inchangé)':'Mot de passe *'}</label><input type="password" className="form-input" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder={editUser?'Laisser vide pour ne pas changer':'••••••••'} /></div>
-            <div className="form-group"><label className="form-label">Rôle</label>
+            <div className="form-group">
+              <label className="form-label">{editUser ? 'Nouveau mot de passe (vide = inchange)' : 'Mot de passe *'}</label>
+              <input type="password" className="form-input" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} />
+            </div>
+            <div className="form-group"><label className="form-label">Role</label>
               <select className="form-input" value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>
                 {Object.entries(ROLES).map(([v,l])=><option key={v} value={v}>{l}</option>)}
               </select>
             </div>
             <div className="form-group"><label className="form-label">Sexe</label>
               <div style={{display:'flex',gap:8}}>
-                {[['F','👩 Femme'],['M','👨 Homme']].map(([v,l])=>(
+                {[['F','Femme'],['M','Homme']].map(([v,l])=>(
                   <div key={v} onClick={()=>setForm({...form,sex:v})} style={{flex:1,padding:10,borderRadius:10,border:`2px solid ${form.sex===v?'var(--n)':'var(--br)'}`,background:form.sex===v?'rgba(11,61,145,.08)':'#fff',textAlign:'center',fontSize:13,fontWeight:600,color:form.sex===v?'var(--n)':'#64748B',cursor:'pointer'}}>{l}</div>
                 ))}
               </div>
             </div>
             {form.role === 'pilote_fi' && (
-              <div className="form-group"><label className="form-label">Famille d'Impact assignée</label>
+              <div className="form-group"><label className="form-label">Famille Impact assignee</label>
                 <select className="form-input" value={form.fi_id} onChange={e=>setForm({...form,fi_id:e.target.value})}>
-                  <option value="">— Sélectionner —</option>
+                  <option value="">Selectionner...</option>
                   {fis.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
                 </select>
               </div>
             )}
             <div style={{display:'flex',gap:12,marginTop:8}}>
               <button onClick={()=>setShowModal(false)} className="btn btn-secondary" style={{flex:1}}>Annuler</button>
-              <button onClick={saveUser} disabled={saving} className="btn btn-primary" style={{flex:2}}>
-                {saving?'⏳ Enregistrement…':editUser?'Mettre à jour':'Créer l'utilisateur'}
-              </button>
+              <button onClick={saveUser} disabled={saving} className="btn btn-primary" style={{flex:2}}>{btnLabel}</button>
             </div>
           </div>
         </div>

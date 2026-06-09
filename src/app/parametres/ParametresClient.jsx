@@ -99,7 +99,7 @@ export default function ParametresClient({ settings, communes, profile }) {
           {tab === 'notifications' && (
             <div className="card">
               <div style={{fontSize:16,fontWeight:700,marginBottom:20}}>🔔 Notifications</div>
-              {[['nouveau_visiteur','Nouveau visiteur','Notifier les responsables à chaque nouveau visiteur'],['rappel_mardi','Rappel du mardi','Rappel pilotes FI chaque mardi pour les FI du jeudi'],['rapport_hebdo','Rapport hebdomadaire','Résumé d'activité chaque lundi matin']].map(([k,l,d])=>(
+              {[['nouveau_visiteur','Nouveau visiteur',"Notifier les responsables a chaque nouveau visiteur"],['rappel_mardi','Rappel du mardi',"Rappel pilotes FI chaque mardi pour les FI du jeudi"],['rapport_hebdo','Rapport hebdomadaire','Résumé d'activité chaque lundi matin']].map(([k,l,d])=>(
                 <Row key={k} label={l} desc={d}>
                   <Toggle checked={notifs[k]} onChange={()=>{ if(!isAdmin)return; const n={...notifs,[k]:!notifs[k]}; setNotifs(n); saveSettings('notifications',n) }} />
                 </Row>

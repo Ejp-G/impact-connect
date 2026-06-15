@@ -213,6 +213,19 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed }) 
                 </div>
               )}
 
+              {/* Option mot de passe oublie */}
+              <div style={{textAlign:'center',marginBottom:16}}>
+                <span onClick={async()=>{
+                  const {error} = await supabase.auth.resetPasswordForEmail(profile.email, {
+                    redirectTo: window.location.origin+'/reset-password'
+                  })
+                  if(!error) { setPwSuccess(true); setPwError('') }
+                  else setPwError(error.message)
+                }} style={{fontSize:12,color:'#0B3D91',cursor:'pointer',fontWeight:600,textDecoration:'underline'}}>
+                  J ai oublie mon mot de passe — recevoir un lien par email
+                </span>
+              </div>
+
               {pwSuccess && (
                 <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:10,padding:'10px 14px',marginBottom:16,fontSize:13,color:'#16A34A',fontWeight:500}}>
                   Mot de passe modifie avec succes !

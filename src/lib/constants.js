@@ -30,7 +30,7 @@ export const ROLE_NAV = {
   responsable_suivi:       ['dashboard','visiteurs','suivi','communications','rapports'],
   equipe_suivi:            ['visiteurs','suivi','communications'],
   pilote_fi:               ['fi','suivi','communications','qrcode'],
-  superviseur:             ['dashboard','visiteurs','fi','rapports','carte','communications'],
+  superviseur:             ['dashboard','visiteurs','pipeline','fi','suivi','rapports','carte','communications'],
   responsable_jeunesse:    ['jeunesse','visiteurs','communications'],
 }
 

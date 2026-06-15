@@ -1,4 +1,4 @@
-# 🕊️ IMPACT CONNECT — Guide de déploiement complet
+# 🕊️ IMPACT CONNECT — Guide de déploiement complet 
 
 > Application SaaS de suivi pastoral — Next.js 14 + Supabase + Vercel
 

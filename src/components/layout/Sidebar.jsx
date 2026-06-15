@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PasswordInput from '@/components/ui/PasswordInput'
 import { NAV_ITEMS, ROLE_NAV, ROLES } from '@/lib/constants'
 
 const ini = (nm) => nm?.split(' ').map(w=>w[0]).slice(0,2).join('') || 'U'
@@ -172,39 +173,21 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed }) 
                 <label style={{fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:6}}>
                   Mot de passe actuel *
                 </label>
-                <input type="password" value={pwForm.current}
-                  onChange={e=>setPwForm({...pwForm,current:e.target.value})}
-                  placeholder="Votre mot de passe actuel"
-                  style={{width:'100%',padding:'10px 14px',borderRadius:10,border:'2px solid #E2E8F0',fontFamily:'inherit',fontSize:14,outline:'none'}}
-                  onFocus={e=>e.target.style.borderColor='var(--n)'}
-                  onBlur={e=>e.target.style.borderColor='#E2E8F0'}
-                  required />
+                <PasswordInput value={pwForm.current} onChange={e=>setPwForm({...pwForm,current:e.target.value})} placeholder="Votre mot de passe actuel" required />
               </div>
 
               <div style={{marginBottom:14}}>
                 <label style={{fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:6}}>
                   Nouveau mot de passe * (min. 8 caracteres)
                 </label>
-                <input type="password" value={pwForm.newPw}
-                  onChange={e=>setPwForm({...pwForm,newPw:e.target.value})}
-                  placeholder="Nouveau mot de passe"
-                  style={{width:'100%',padding:'10px 14px',borderRadius:10,border:'2px solid #E2E8F0',fontFamily:'inherit',fontSize:14,outline:'none'}}
-                  onFocus={e=>e.target.style.borderColor='var(--n)'}
-                  onBlur={e=>e.target.style.borderColor='#E2E8F0'}
-                  required minLength={8} />
+                <PasswordInput value={pwForm.newPw} onChange={e=>setPwForm({...pwForm,newPw:e.target.value})} placeholder="Nouveau mot de passe" required minLength={8} />
               </div>
 
               <div style={{marginBottom:20}}>
                 <label style={{fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:6}}>
                   Confirmer le nouveau mot de passe *
                 </label>
-                <input type="password" value={pwForm.confirm}
-                  onChange={e=>setPwForm({...pwForm,confirm:e.target.value})}
-                  placeholder="Confirmer le mot de passe"
-                  style={{width:'100%',padding:'10px 14px',borderRadius:10,border:'2px solid #E2E8F0',fontFamily:'inherit',fontSize:14,outline:'none'}}
-                  onFocus={e=>e.target.style.borderColor='var(--n)'}
-                  onBlur={e=>e.target.style.borderColor='#E2E8F0'}
-                  required />
+                <PasswordInput value={pwForm.confirm} onChange={e=>setPwForm({...pwForm,confirm:e.target.value})} placeholder="Confirmer le mot de passe" required />
               </div>
 
               {pwError && (

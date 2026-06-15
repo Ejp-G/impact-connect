@@ -1,0 +1,97 @@
+'use client'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+
+function ResetForm() {
+  const [newPw, setNewPw]       = useState('')
+  const [confirm, setConfirm]   = useState('')
+  const [error, setError]       = useState('')
+  const [success, setSuccess]   = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [validLink, setValidLink] = useState(true)
+  const router     = useRouter()
+  const supabase   = createClient()
+
+  useEffect(() => {
+    // Supabase injecte automatiquement la session depuis le lien email
+    supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setValidLink(true)
+    })
+  }, [])
+
+  async function handleReset(e) {
+    e.preventDefault()
+    setError('')
+    if (newPw.length < 8) { setError('Le mot de passe doit contenir au moins 8 caracteres.'); return }
+    if (newPw !== confirm) { setError('Les mots de passe ne correspondent pas.'); return }
+    setSaving(true)
+    const { error: err } = await supabase.auth.updateUser({ password: newPw })
+    if (err) { setError(err.message); setSaving(false); return }
+    setSuccess(true)
+    setSaving(false)
+    setTimeout(() => router.push('/login'), 3000)
+  }
+
+  if (success) return (
+    <div style={{minHeight:'100vh',background:'linear-gradient(145deg,#072B6A,#0B3D91)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{background:'#fff',borderRadius:24,padding:48,textAlign:'center',maxWidth:380}}>
+        <div style={{fontSize:56,marginBottom:16}}>✅</div>
+        <div style={{fontSize:22,fontWeight:800,color:'var(--n)',marginBottom:8}}>Mot de passe modifie !</div>
+        <div style={{fontSize:14,color:'#64748B'}}>Vous allez etre redirige vers la connexion...</div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{minHeight:'100vh',background:'linear-gradient(145deg,#072B6A,#0B3D91)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{background:'#fff',borderRadius:24,padding:40,width:'100%',maxWidth:380}}>
+        <div style={{textAlign:'center',marginBottom:28}}>
+          <div style={{fontSize:40,marginBottom:12}}>🔐</div>
+          <div style={{fontSize:22,fontWeight:800,color:'#1E293B'}}>Nouveau mot de passe</div>
+          <div style={{fontSize:13,color:'#64748B',marginTop:6}}>Choisissez un mot de passe securise</div>
+        </div>
+
+        <form onSubmit={handleReset}>
+          <div style={{marginBottom:16}}>
+            <label style={{fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:6}}>
+              Nouveau mot de passe *
+            </label>
+            <input type="password" value={newPw} onChange={e=>setNewPw(e.target.value)}
+              placeholder="Minimum 8 caracteres"
+              style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'2px solid #E2E8F0',fontFamily:'inherit',fontSize:14,outline:'none',boxSizing:'border-box'}}
+              onFocus={e=>e.target.style.borderColor='#0B3D91'}
+              onBlur={e=>e.target.style.borderColor='#E2E8F0'}
+              required minLength={8} />
+          </div>
+          <div style={{marginBottom:20}}>
+            <label style={{fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:6}}>
+              Confirmer le mot de passe *
+            </label>
+            <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)}
+              placeholder="Confirmer le mot de passe"
+              style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'2px solid #E2E8F0',fontFamily:'inherit',fontSize:14,outline:'none',boxSizing:'border-box'}}
+              onFocus={e=>e.target.style.borderColor='#0B3D91'}
+              onBlur={e=>e.target.style.borderColor='#E2E8F0'}
+              required />
+          </div>
+
+          {error && (
+            <div style={{background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:10,padding:'10px 14px',marginBottom:16,fontSize:13,color:'#DC2626',fontWeight:500}}>
+              {error}
+            </div>
+          )}
+
+          <button type="submit" disabled={saving}
+            style={{width:'100%',padding:14,borderRadius:12,border:'none',cursor:saving?'not-allowed':'pointer',background:'linear-gradient(135deg,#0B3D91,#1452B5)',color:'#fff',fontFamily:'inherit',fontSize:15,fontWeight:700,opacity:saving?.7:1}}>
+            {saving ? 'Modification...' : 'Confirmer le nouveau mot de passe'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return <Suspense fallback={<div>Chargement...</div>}><ResetForm /></Suspense>
+}

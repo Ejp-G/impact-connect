@@ -8,7 +8,7 @@ import { NAV_ITEMS, ROLE_NAV, ROLES } from '@/lib/constants'
 
 const ini = (nm) => nm?.split(' ').map(w=>w[0]).slice(0,2).join('') || 'U'
 
-export default function Sidebar({ profile, activeId, collapsed, setCollapsed }) {
+export default function Sidebar({ profile, activeId, collapsed, setCollapsed, mobileOpen, isMobile }) {
   const router = useRouter()
   const supabase = createClient()
   const [showProfile, setShowProfile] = useState(false)
@@ -75,7 +75,7 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed }) 
 
   return (
     <>
-      <div className={`sb${collapsed?' col':''}`}>
+      <div className={`sb${!isMobile && collapsed?' col':''} ${isMobile && mobileOpen?' mobile-open':''}`}>
         {/* Logo */}
         <div className="sbh">
           <div className="sbh-ic">
@@ -87,10 +87,10 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed }) 
           {!collapsed && <div><div className="sb-nm">IMPACT</div><div className="sb-sm">CONNECT</div></div>}
         </div>
 
-        {/* Toggle */}
-        <button className="sbt" onClick={()=>setCollapsed(!collapsed)}>
+        {/* Toggle — desktop seulement */}
+        {!isMobile && <button className="sbt" onClick={()=>setCollapsed(!collapsed)}>
           {collapsed ? '›' : '‹'}
-        </button>
+        </button>}
 
         {/* Nav */}
         <nav className="sbn">

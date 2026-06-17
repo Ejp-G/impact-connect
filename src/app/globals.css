@@ -1,10 +1,16 @@
 :root{--n:#0B3D91;--nd:#072B6A;--nl:#1452B5;--bl:#3B82F6;--gr:#22C55E;--or:#F97316;--re:#EF4444;--go:#F59E0B;--pu:#8B5CF6;--gy:#94A3B8;--gd:#475569;--tx:#1E293B;--bg:#F8FAFC;--wh:#FFFFFF;--br:#E2E8F0}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
+@supports (height:100dvh){html,body{height:100dvh}}
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--tx)}
+
+/* ── APP SHELL (pages internes avec scroll gere par .main-area) ── */
+.app-shell{display:flex;height:100vh;overflow:hidden}
+@supports (height:100dvh){.app-shell{height:100dvh}}
 
 /* ── SIDEBAR ── */
 .sb{width:240px;flex-shrink:0;background:var(--nd);display:flex;flex-direction:column;height:100vh;box-shadow:4px 0 24px rgba(0,0,0,.2);z-index:200;transition:width .2s,left .3s;position:relative;overflow:hidden}
+@supports (height:100dvh){.sb{height:100dvh}}
 .sb.col{width:68px}
 .sbh{padding:18px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:12px}
 .sbh-ic{width:36px;height:36px;flex-shrink:0;border-radius:10px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center}
@@ -33,7 +39,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 .cw{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .tb{height:64px;background:var(--wh);border-bottom:1px solid #F1F5F9;display:flex;align-items:center;padding:0 24px;gap:12px;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .tb-t{font-size:18px;font-weight:700;color:var(--tx)}
-.main-area{flex:1;overflow-y:auto;padding:24px}
+.main-area{flex:1;overflow-y:auto;padding:24px;-webkit-overflow-scrolling:touch}
 
 /* ── CARDS & GRIDS ── */
 .card{background:var(--wh);border-radius:16px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(11,61,145,.06)}
@@ -85,20 +91,37 @@ tbody tr:hover td{background:#F0F7FF}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px}
 
-/* ── MOBILE OVERLAY ── */
+/* ── MOBILE OVERLAY (sidebar tiroir) ── */
 .mobile-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;display:none}
 .mobile-overlay.on{display:block}
+
+/* ── PAGES PUBLIQUES (login, QR, reset password) ── */
+.auth-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.auth-card{width:100%;max-width:440px;background:#fff;border-radius:24px;padding:32px 28px;box-sizing:border-box}
+.auth-emoji{font-size:48px;margin-bottom:16px}
+.auth-title{font-size:18px;font-weight:700;margin-bottom:12px}
+.auth-checklist label{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;cursor:pointer;margin-bottom:10px}
+.auth-cta{width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;font-family:inherit;font-size:15px;font-weight:700;color:#fff}
+
+/* Login — panneau de marque masque sur mobile */
+.login-aside{width:45%;flex-shrink:0}
+.login-main{flex:1;display:flex;align-items:center;justify-content:center;padding:48px;background:#F8FAFC}
+
+/* ── ACCORDEON PARAMETRES MOBILE ── */
+.acc-item{border:1px solid #F1F5F9;border-radius:14px;margin-bottom:10px;overflow:hidden;background:#fff}
+.acc-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;font-size:14px;font-weight:700;cursor:pointer;color:#1E293B}
+.acc-chev{font-size:18px;color:#0B3D91;font-weight:800;flex-shrink:0}
+.acc-panel{padding:0 18px 18px}
+.acc-panel .card{box-shadow:none;padding:0;border-radius:0}
+
+@media(max-width:1100px){.g4{grid-template-columns:repeat(2,1fr)}}
 
 /* ═══ RESPONSIVE MOBILE ══════════════════════════════════════ */
 @media(max-width:768px){
   html,body{overflow:hidden}
 
-  /* Sidebar en tiroir sur mobile */
-  .sb{
-    position:fixed;left:-280px;top:0;width:280px !important;
-    height:100vh;z-index:200;transition:left .3s ease;
-    box-shadow:none
-  }
+  .sb{position:fixed;left:-280px;top:0;width:280px !important;height:100vh;z-index:200;transition:left .3s ease;box-shadow:none}
+  @supports (height:100dvh){.sb{height:100dvh}}
   .sb.mobile-open{left:0;box-shadow:8px 0 32px rgba(0,0,0,.3)}
   .sb.col{width:280px !important}
   .sb.col .si-lb,.sb.col .sb-nm,.sb.col .sb-sm,.sb.col .sbu-n,.sb.col .sbu-r{display:block}
@@ -107,38 +130,42 @@ tbody tr:hover td{background:#F0F7FF}
   .sb.col .sbf{padding:12px 16px;justify-content:flex-start}
   .sbt{display:none}
 
-  /* Contenu pleine largeur */
   .cw{width:100%;margin-left:0 !important}
   .main-area{padding:16px}
 
-  /* TopBar mobile */
   .tb{padding:0 16px;gap:8px;height:56px}
   .tb-t{font-size:16px}
   .tb-search{display:none}
 
-  /* Grilles adaptées */
   .g4{grid-template-columns:repeat(2,1fr);gap:10px}
   .g3{grid-template-columns:1fr 1fr;gap:10px}
   .g2{grid-template-columns:1fr;gap:10px}
   .g2r{grid-template-columns:1fr;gap:10px}
 
-  /* Cards */
   .card{padding:16px;border-radius:12px}
 
-  /* Modal plein écran mobile */
   .modal-overlay{padding:0;align-items:flex-end}
   .modal{border-radius:20px 20px 0 0;max-height:92vh;padding:24px 20px;max-width:100%}
 
-  /* Tableaux scroll horizontal */
   table{font-size:12px}
   th,td{padding:8px 10px}
 
-  /* Kanban scroll */
   .kw{min-height:auto}
   .kc{min-width:160px;max-width:160px}
 
-  /* Boutons */
   .btn{padding:8px 14px;font-size:12px}
+
+  /* Pages publiques compactes */
+  .auth-shell{padding:16px;align-items:flex-start;padding-top:28px;padding-bottom:28px}
+  .auth-card{padding:24px 18px;border-radius:18px}
+  .auth-emoji{font-size:36px;margin-bottom:10px}
+  .auth-title{font-size:16px}
+  .auth-checklist label{padding:10px;margin-bottom:8px}
+  .auth-cta{padding:12px;font-size:14px}
+
+  /* Login — masquer le panneau de marque, formulaire plein ecran */
+  .login-aside{display:none}
+  .login-main{padding:24px;background:#fff}
 }
 
 @media(max-width:480px){

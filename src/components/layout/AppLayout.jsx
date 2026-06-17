@@ -2,11 +2,12 @@
 import { useState, useEffect } from 'react'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
+import PushPrompt from '@/components/ui/PushPrompt'
 
 export default function AppLayout({ children, profile, pageId, title }) {
-  const [collapsed, setCollapsed]       = useState(false)
-  const [mobileOpen, setMobileOpen]     = useState(false)
-  const [isMobile, setIsMobile]         = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [isMobile, setIsMobile]   = useState(false)
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768)
@@ -15,12 +16,10 @@ export default function AppLayout({ children, profile, pageId, title }) {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  // Fermer le menu mobile quand on change de page
   useEffect(() => { setMobileOpen(false) }, [pageId])
 
   return (
-    <div style={{ display:'flex', height:'100vh', overflow:'hidden' }}>
-      {/* Overlay mobile */}
+    <div className="app-shell">
       {isMobile && (
         <div
           className={`mobile-overlay${mobileOpen?' on':''}`}
@@ -34,7 +33,6 @@ export default function AppLayout({ children, profile, pageId, title }) {
         collapsed={isMobile ? false : collapsed}
         setCollapsed={setCollapsed}
         mobileOpen={mobileOpen}
-        setMobileOpen={setMobileOpen}
         isMobile={isMobile}
       />
 
@@ -49,6 +47,8 @@ export default function AppLayout({ children, profile, pageId, title }) {
           {children}
         </div>
       </div>
+
+      <PushPrompt />
     </div>
   )
 }

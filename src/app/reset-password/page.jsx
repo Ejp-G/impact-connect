@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/ui/PasswordInput'
+import PublicPageShell from '@/components/ui/PublicPageShell'
 
 function ResetForm() {
   const [newPw, setNewPw]     = useState('')
@@ -14,9 +15,7 @@ function ResetForm() {
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {}
-    })
+    supabase.auth.onAuthStateChange(() => {})
   }, [])
 
   async function handleReset(e) {
@@ -31,9 +30,9 @@ function ResetForm() {
   }
 
   if (success) return (
-    <div style={{minHeight:'100vh',background:'linear-gradient(145deg,#072B6A,#0B3D91)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
-      <div style={{background:'#fff',borderRadius:24,padding:48,textAlign:'center',maxWidth:380}}>
-        <div style={{fontSize:56,marginBottom:16}}>✅</div>
+    <div className="auth-shell" style={{background:'linear-gradient(145deg,#072B6A,#0B3D91)'}}>
+      <div className="auth-card" style={{textAlign:'center'}}>
+        <div className="auth-emoji">✅</div>
         <div style={{fontSize:22,fontWeight:800,color:'#1E293B',marginBottom:8}}>Mot de passe modifie !</div>
         <div style={{fontSize:14,color:'#64748B'}}>Redirection vers la connexion...</div>
       </div>
@@ -41,11 +40,11 @@ function ResetForm() {
   )
 
   return (
-    <div style={{minHeight:'100vh',background:'linear-gradient(145deg,#072B6A,#0B3D91)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
-      <div style={{background:'#fff',borderRadius:24,padding:40,width:'100%',maxWidth:380}}>
-        <div style={{textAlign:'center',marginBottom:28}}>
-          <div style={{fontSize:40,marginBottom:12}}>🔐</div>
-          <div style={{fontSize:22,fontWeight:800,color:'#1E293B'}}>Nouveau mot de passe</div>
+    <div className="auth-shell" style={{background:'linear-gradient(145deg,#072B6A,#0B3D91)'}}>
+      <div className="auth-card">
+        <div style={{textAlign:'center',marginBottom:24}}>
+          <div className="auth-emoji">🔐</div>
+          <div className="auth-title">Nouveau mot de passe</div>
           <div style={{fontSize:13,color:'#64748B',marginTop:6}}>Choisissez un mot de passe securise</div>
         </div>
         <form onSubmit={handleReset}>
@@ -62,8 +61,8 @@ function ResetForm() {
               {error}
             </div>
           )}
-          <button type="submit" disabled={saving}
-            style={{width:'100%',padding:14,borderRadius:12,border:'none',cursor:saving?'not-allowed':'pointer',background:'linear-gradient(135deg,#0B3D91,#1452B5)',color:'#fff',fontFamily:'inherit',fontSize:15,fontWeight:700,opacity:saving?.7:1}}>
+          <button type="submit" disabled={saving} className="auth-cta"
+            style={{background:'linear-gradient(135deg,#0B3D91,#1452B5)',opacity:saving?.7:1}}>
             {saving ? 'Modification...' : 'Confirmer le nouveau mot de passe'}
           </button>
         </form>
@@ -73,5 +72,9 @@ function ResetForm() {
 }
 
 export default function ResetPasswordPage() {
-  return <Suspense fallback={<div>Chargement...</div>}><ResetForm /></Suspense>
+  return (
+    <PublicPageShell>
+      <Suspense fallback={<div>Chargement...</div>}><ResetForm /></Suspense>
+    </PublicPageShell>
+  )
 }

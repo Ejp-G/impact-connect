@@ -4,7 +4,7 @@ html,body{height:100%;overflow:hidden}
 @supports (height:100dvh){html,body{height:100dvh}}
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--tx)}
 
-/* ── APP SHELL (pages internes avec scroll gere par .main-area) ── */
+/* ── APP SHELL ── */
 .app-shell{display:flex;height:100vh;overflow:hidden}
 @supports (height:100dvh){.app-shell{height:100dvh}}
 
@@ -91,11 +91,11 @@ tbody tr:hover td{background:#F0F7FF}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px}
 
-/* ── MOBILE OVERLAY (sidebar tiroir) ── */
+/* ── MOBILE OVERLAY ── */
 .mobile-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;display:none}
 .mobile-overlay.on{display:block}
 
-/* ── PAGES PUBLIQUES (login, QR, reset password) ── */
+/* ── PAGES PUBLIQUES ── */
 .auth-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
 .auth-card{width:100%;max-width:440px;background:#fff;border-radius:24px;padding:32px 28px;box-sizing:border-box}
 .auth-emoji{font-size:48px;margin-bottom:16px}
@@ -104,11 +104,30 @@ tbody tr:hover td{background:#F0F7FF}
 .auth-cta{width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;font-family:inherit;font-size:15px;font-weight:700;color:#fff}
 
 /* ── LOGIN DESKTOP ── */
-.login-aside{width:45%;flex-shrink:0}
-.login-main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px;background:#F8FAFC}
+.login-aside{
+  width:45%;
+  flex-shrink:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+.login-main{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:48px;
+  background:#F8FAFC;
+}
+.login-form-inner{
+  width:100%;
+  max-width:380px;
+}
 .login-mobile-header{display:none}
 
-/* ── ACCORDEON PARAMETRES MOBILE ── */
+/* ── ACCORDEON ── */
 .acc-item{border:1px solid #F1F5F9;border-radius:14px;margin-bottom:10px;overflow:hidden;background:#fff}
 .acc-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;font-size:14px;font-weight:700;cursor:pointer;color:#1E293B}
 .acc-chev{font-size:18px;color:#0B3D91;font-weight:800;flex-shrink:0}
@@ -156,7 +175,6 @@ tbody tr:hover td{background:#F0F7FF}
 
   .btn{padding:8px 14px;font-size:12px}
 
-  /* Pages publiques compactes */
   .auth-shell{padding:16px;align-items:flex-start;padding-top:28px;padding-bottom:28px}
   .auth-card{padding:24px 18px;border-radius:18px}
   .auth-emoji{font-size:36px;margin-bottom:10px}
@@ -165,13 +183,14 @@ tbody tr:hover td{background:#F0F7FF}
   .auth-cta{padding:12px;font-size:14px}
 
   /* ── LOGIN MOBILE ── */
-  .login-aside{display:none}
+  .login-aside{display:none !important}
   .login-main{
     padding:0;
     background:#ffffff;
     justify-content:flex-start;
     align-items:stretch;
     min-height:100vh;
+    min-height:100dvh;
   }
   .login-mobile-header{
     display:flex;
@@ -180,7 +199,7 @@ tbody tr:hover td{background:#F0F7FF}
     background:#ffffff;
     border-bottom:1px solid #F1F5F9;
   }
-  .login-main > div:last-child{
+  .login-form-inner{
     padding:28px 24px 40px;
     max-width:100% !important;
     width:100%;

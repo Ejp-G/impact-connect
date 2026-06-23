@@ -103,9 +103,10 @@ tbody tr:hover td{background:#F0F7FF}
 .auth-checklist label{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;cursor:pointer;margin-bottom:10px}
 .auth-cta{width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;font-family:inherit;font-size:15px;font-weight:700;color:#fff}
 
-/* Login — panneau de marque masque sur mobile */
+/* ── LOGIN DESKTOP ── */
 .login-aside{width:45%;flex-shrink:0}
-.login-main{flex:1;display:flex;align-items:center;justify-content:center;padding:48px;background:#F8FAFC}
+.login-main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px;background:#F8FAFC}
+.login-mobile-header{display:none}
 
 /* ── ACCORDEON PARAMETRES MOBILE ── */
 .acc-item{border:1px solid #F1F5F9;border-radius:14px;margin-bottom:10px;overflow:hidden;background:#fff}
@@ -163,9 +164,28 @@ tbody tr:hover td{background:#F0F7FF}
   .auth-checklist label{padding:10px;margin-bottom:8px}
   .auth-cta{padding:12px;font-size:14px}
 
-  /* Login — masquer le panneau de marque, formulaire plein ecran */
+  /* ── LOGIN MOBILE ── */
   .login-aside{display:none}
-  .login-main{padding:24px;background:#fff}
+  .login-main{
+    padding:0;
+    background:#ffffff;
+    justify-content:flex-start;
+    align-items:stretch;
+    min-height:100vh;
+  }
+  .login-mobile-header{
+    display:flex;
+    align-items:center;
+    padding:20px 24px 16px;
+    background:#ffffff;
+    border-bottom:1px solid #F1F5F9;
+  }
+  .login-main > div:last-child{
+    padding:28px 24px 40px;
+    max-width:100% !important;
+    width:100%;
+    box-sizing:border-box;
+  }
 }
 
 @media(max-width:480px){

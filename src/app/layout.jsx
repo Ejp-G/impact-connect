@@ -16,11 +16,16 @@ const fraunces = Fraunces({
 
 export const metadata = {
   title: 'Impact Connect',
-  description: "Plateforme CRM d'intégration pour église",
+  description: "Plateforme CRM d'integration pour eglise",
   manifest: '/manifest.json',
   themeColor: '#0B3D91',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Impact Connect' },
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({ children }) {

@@ -3,11 +3,14 @@ import { useState, useEffect } from 'react'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import PushPrompt from '@/components/ui/PushPrompt'
+import { useSessionGuard } from '@/hooks/useSessionGuard'
 
 export default function AppLayout({ children, profile, pageId, title }) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isMobile, setIsMobile]   = useState(false)
+
+  useSessionGuard()
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768)
@@ -26,7 +29,6 @@ export default function AppLayout({ children, profile, pageId, title }) {
           onClick={() => setMobileOpen(false)}
         />
       )}
-
       <Sidebar
         profile={profile}
         activeId={pageId}
@@ -35,7 +37,6 @@ export default function AppLayout({ children, profile, pageId, title }) {
         mobileOpen={mobileOpen}
         isMobile={isMobile}
       />
-
       <div className="cw">
         <TopBar
           title={title}
@@ -47,7 +48,6 @@ export default function AppLayout({ children, profile, pageId, title }) {
           {children}
         </div>
       </div>
-
       <PushPrompt />
     </div>
   )

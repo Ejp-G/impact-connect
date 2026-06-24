@@ -7,6 +7,7 @@ const pjs = Plus_Jakarta_Sans({
   variable: '--font-pjs',
   display: 'swap',
 })
+
 const fraunces = Fraunces({
   subsets: ['latin'],
   weight: ['600','700'],
@@ -18,7 +19,6 @@ export const metadata = {
   title: 'Impact Connect',
   description: "Plateforme CRM d'integration pour eglise",
   manifest: '/manifest.json',
-  themeColor: '#0B3D91',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Impact Connect' },
 }
 

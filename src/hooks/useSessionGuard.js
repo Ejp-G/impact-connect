@@ -59,17 +59,25 @@ export function useSessionGuard() {
   }, [logout, showWarning, removeWarning])
 
   useEffect(() => {
-    // Vérifier si la session était active dans cet onglet
-    // sessionStorage est vidé automatiquement à la fermeture de l'onglet
     const wasActive = sessionStorage.getItem('app_active')
+
     if (!wasActive) {
-      // Nouvel onglet ou onglet fermé puis rouvert — déconnecter
-      supabase.current.auth.signOut().then(() => {
-        router.current.push('/login')
+      // Vérifier s'il y a une session Supabase valide
+      supabase.current.auth.getSession().then(({ data: { session } }) => {
+        if (!session) {
+          router.current.push('/login')
+          return
+        }
+        // Session valide — marquer comme actif et démarrer les timers
+        sessionStorage.setItem('app_active', '1')
+        const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
+        events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }))
+        resetTimer()
       })
       return
     }
 
+    // Session déjà marquée active
     const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
     events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }))
     resetTimer()

@@ -75,18 +75,62 @@ export default function LoginPage({ searchParams }) {
 
   return (
     <PublicPageShell>
-      <div style={{ display: 'flex', minHeight: '100vh', fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+      <style>{`
+        .login-wrap { display: flex; min-height: 100vh; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .login-aside-panel {
+          width: 45%;
+          flex-shrink: 0;
+          background: linear-gradient(145deg,#072B6A 0%,#0B3D91 60%,#1452B5 100%);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 48px;
+          position: relative;
+          overflow: hidden;
+        }
+        .login-right-panel {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 48px;
+          background: #F8FAFC;
+        }
+        .login-mobile-top { display: none; }
+        .login-inner { width: 100%; max-width: 380px; }
+        @media (max-width: 768px) {
+          .login-wrap { flex-direction: column; }
+          .login-aside-panel { display: none; }
+          .login-right-panel {
+            flex: 1;
+            padding: 0;
+            background: #ffffff;
+            justify-content: flex-start;
+            align-items: stretch;
+            min-height: 100vh;
+          }
+          .login-mobile-top {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid #F1F5F9;
+            background: #ffffff;
+          }
+          .login-inner {
+            padding: 28px 24px 40px;
+            max-width: 100%;
+            box-sizing: border-box;
+          }
+        }
+      `}</style>
 
-        {/* ── GAUCHE — visible desktop uniquement ── */}
-        <div className="login-aside" style={{
-          background: 'linear-gradient(145deg,#072B6A 0%,#0B3D91 60%,#1452B5 100%)',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 48,
-          position: 'relative',
-          overflow: 'hidden'
-        }}>
+      <div className="login-wrap">
+
+        {/* GAUCHE desktop */}
+        <div className="login-aside-panel">
           <div style={{ position: 'absolute', top: -80, right: -80, width: 300, height: 300, borderRadius: '50%', border: '2px solid rgba(255,255,255,.08)' }} />
           <div style={{ position: 'absolute', bottom: -60, left: -60, width: 240, height: 240, borderRadius: '50%', border: '1px solid rgba(255,255,255,.06)' }} />
           <svg width="60" height="60" viewBox="0 0 60 60" fill="none" style={{ opacity: .9 }}>
@@ -112,26 +156,24 @@ export default function LoginPage({ searchParams }) {
           </div>
         </div>
 
-        {/* ── DROITE — formulaire ── */}
-        <div className="login-main">
+        {/* DROITE */}
+        <div className="login-right-panel">
 
-          {/* Header mobile uniquement */}
-          <div className="login-mobile-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg,#0B3D91,#1452B5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="18" height="18" viewBox="0 0 60 60" fill="none">
-                  <rect x="24" y="4" width="12" height="52" rx="6" fill="white" />
-                  <rect x="4" y="20" width="52" height="12" rx="6" fill="white" />
-                </svg>
-              </div>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#1E293B', lineHeight: 1.1 }}>Impact Connect</div>
-                <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 500 }}>Plateforme Integration et Suivi</div>
-              </div>
+          {/* Header mobile */}
+          <div className="login-mobile-top">
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg,#0B3D91,#1452B5)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="18" height="18" viewBox="0 0 60 60" fill="none">
+                <rect x="24" y="4" width="12" height="52" rx="6" fill="white" />
+                <rect x="4" y="20" width="52" height="12" rx="6" fill="white" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#1E293B', lineHeight: 1.1 }}>Impact Connect</div>
+              <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 500 }}>Plateforme Integration et Suivi</div>
             </div>
           </div>
 
-          <div className="login-form-inner">
+          <div className="login-inner">
             {!resetMode ? (
               <>
                 <div style={{ fontSize: 26, fontWeight: 800, color: '#1E293B', letterSpacing: '-.5px' }}>Bon retour 👋</div>

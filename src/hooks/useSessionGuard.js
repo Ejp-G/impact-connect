@@ -7,11 +7,17 @@ const INACTIVITY_LIMIT = 15 * 60 * 1000
 const WARNING_BEFORE   = 1  * 60 * 1000
 
 export function useSessionGuard() {
-  const router       = useRef(useRouter())
+  const routerRef    = useRef(null)
   const timerRef     = useRef(null)
   const warningRef   = useRef(null)
   const warningElRef = useRef(null)
-  const supabase     = useRef(createClient())
+  const supabaseRef  = useRef(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    routerRef.current  = router
+    supabaseRef.current = createClient()
+  }, [router])
 
   const removeWarning = useCallback(() => {
     if (warningElRef.current) {
@@ -22,62 +28,42 @@ export function useSessionGuard() {
 
   const logout = useCallback(async () => {
     removeWarning()
-    sessionStorage.removeItem('app_active')
-    await supabase.current.auth.signOut()
-    router.current.push('/login')
-  }, [removeWarning])
-
-  const showWarning = useCallback(() => {
-    removeWarning()
-    const el = document.createElement('div')
-    el.style.cssText = `
-      position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-      background:#0B3D91;color:#fff;padding:14px 24px;border-radius:12px;
-      font-size:14px;font-weight:600;z-index:9999;
-      box-shadow:0 4px 20px rgba(0,0,0,.3);
-      display:flex;align-items:center;gap:12px;white-space:nowrap;
-    `
-    el.innerHTML = `
-      <span>⚠️ Session expire dans 1 minute</span>
-      <button style="background:rgba(255,255,255,.2);border:none;color:#fff;
-        padding:6px 14px;border-radius:8px;cursor:pointer;
-        font-weight:700;font-family:inherit;font-size:13px;">
-        Rester connecté
-      </button>
-    `
-    document.body.appendChild(el)
-    warningElRef.current = el
-    el.querySelector('button')?.addEventListener('click', () => resetTimer())
+    clearTimeout(timerRef.current)
+    clearTimeout(warningRef.current)
+    await supabaseRef.current?.auth.signOut()
+    routerRef.current?.push('/login')
   }, [removeWarning])
 
   const resetTimer = useCallback(() => {
     removeWarning()
     clearTimeout(timerRef.current)
     clearTimeout(warningRef.current)
-    warningRef.current = setTimeout(showWarning, INACTIVITY_LIMIT - WARNING_BEFORE)
-    timerRef.current   = setTimeout(logout, INACTIVITY_LIMIT)
-  }, [logout, showWarning, removeWarning])
+    warningRef.current = setTimeout(() => {
+      const el = document.createElement('div')
+      el.style.cssText = `
+        position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+        background:#0B3D91;color:#fff;padding:14px 24px;border-radius:12px;
+        font-size:14px;font-weight:600;z-index:9999;
+        box-shadow:0 4px 20px rgba(0,0,0,.3);
+        display:flex;align-items:center;gap:12px;white-space:nowrap;
+      `
+      el.innerHTML = `
+        <span>⚠️ Session expire dans 1 minute</span>
+        <button style="background:rgba(255,255,255,.2);border:none;color:#fff;
+          padding:6px 14px;border-radius:8px;cursor:pointer;
+          font-weight:700;font-family:inherit;font-size:13px;">
+          Rester connecté
+        </button>
+      `
+      document.body.appendChild(el)
+      warningElRef.current = el
+      el.querySelector('button')?.addEventListener('click', () => resetTimer())
+    }, INACTIVITY_LIMIT - WARNING_BEFORE)
+
+    timerRef.current = setTimeout(logout, INACTIVITY_LIMIT)
+  }, [logout, removeWarning])
 
   useEffect(() => {
-    const wasActive = sessionStorage.getItem('app_active')
-
-    if (!wasActive) {
-      // Vérifier s'il y a une session Supabase valide
-      supabase.current.auth.getSession().then(({ data: { session } }) => {
-        if (!session) {
-          router.current.push('/login')
-          return
-        }
-        // Session valide — marquer comme actif et démarrer les timers
-        sessionStorage.setItem('app_active', '1')
-        const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
-        events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }))
-        resetTimer()
-      })
-      return
-    }
-
-    // Session déjà marquée active
     const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
     events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }))
     resetTimer()

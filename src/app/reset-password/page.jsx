@@ -3,7 +3,6 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/ui/PasswordInput'
-import PublicPageShell from '@/components/ui/PublicPageShell'
 
 function ResetForm() {
   const [newPw, setNewPw]     = useState('')
@@ -73,8 +72,8 @@ function ResetForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <PublicPageShell>
-      <Suspense fallback={<div>Chargement...</div>}><ResetForm /></Suspense>
-    </PublicPageShell>
+    <Suspense fallback={<div>Chargement...</div>}>
+      <ResetForm />
+    </Suspense>
   )
 }

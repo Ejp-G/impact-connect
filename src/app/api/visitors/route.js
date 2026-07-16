@@ -17,7 +17,7 @@ async function sendWelcomeEmail(firstName, email) {
         <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #1E293B;">
           <div style="text-align: center; margin-bottom: 32px;">
             <div style="display: inline-block; background: #0B3D91; color: white; font-size: 20px; font-weight: 800; padding: 10px 20px; border-radius: 12px; letter-spacing: 1px;">
-              IMPACT CONNECT
+              EJP Guadeloupe
             </div>
           </div>
           <p style="font-size: 16px; line-height: 1.7; margin-bottom: 16px;">Coucou <strong>${firstName}</strong>,</p>

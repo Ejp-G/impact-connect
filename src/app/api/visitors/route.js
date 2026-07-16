@@ -10,7 +10,7 @@ async function sendWelcomeEmail(firstName, email) {
   if (!email) return
   try {
     await resend.emails.send({
-      from: 'Impact Connect <onboarding@resend.dev>',
+      from: 'EJP Guadeloupe <onboarding@resend.dev>',
       to: email,
       subject: 'Bienvenue parmi nous 🙏',
       html: `

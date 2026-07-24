@@ -1,3 +1,6 @@
+// 📍 Chemin dans le repo: src/app/import/[batchId]/page.jsx
+'use client';
+
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 
@@ -82,7 +85,7 @@ export default function ImportPreviewPage() {
     }
   }
 
-  if (loading) return <div style={{ padding: 40 }}>Chargement de l'aperçu…</div>;
+  if (loading) return <div style={{ padding: 40 }}>Chargement de l’aperçu…</div>;
 
   if (batch?.status === 'processing') {
     return <div style={{ padding: 40 }}>Analyse du fichier en cours… rechargez dans quelques instants.</div>;
@@ -110,7 +113,7 @@ export default function ImportPreviewPage() {
 
       <div className="preview-header">
         <div>
-          <h1>Aperçu de l'import — {batch?.file_name}</h1>
+          <h1>Aperçu de l’import — {batch?.file_name}</h1>
           <p>{rows.length} ligne(s) détectée(s)</p>
         </div>
         <button className="commit-button" onClick={handleCommit} disabled={committing || validCount === 0}>

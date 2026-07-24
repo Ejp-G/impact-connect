@@ -1,3 +1,6 @@
+// 📍 Chemin dans le repo: src/app/import/page.jsx
+'use client';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -84,7 +87,7 @@ export default function ImportPage() {
       `}</style>
 
       <h1>Import intelligent de visiteurs</h1>
-      <p className="subtitle">Excel (.xlsx), CSV ou PDF — l'analyse est automatique.</p>
+      <p className="subtitle">Excel (.xlsx), CSV ou PDF — l’analyse est automatique.</p>
 
       {error && <div className="import-error">{error}</div>}
 

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { STAGE_LABEL, STAGE_COLOR, STAGES } from '@/lib/constants'
 import { formatDate, scoreColor } from '@/lib/utils'
 import ContactDetailModal from '@/components/contacts/ContactDetailModal'
+import ImportModal from '@/components/contacts/ImportModal'
 
 export default function VisiteursClient({ contacts, stats, fis, communes, profile }) {
   const [filter, setFilter] = useState('all')
@@ -11,6 +12,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selectedContactId, setSelectedContactId] = useState(null)
+  const [showImport, setShowImport] = useState(false)
   const [form, setForm] = useState({
     firstName:'',lastName:'',sex:'F',phone:'',whatsapp:'',email:'',
     commune:'',communeId:'',quartier:'',firstVisit:true,salvationCall:false,
@@ -71,7 +73,10 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher..." style={{ border:'none', outline:'none', fontFamily:'inherit', fontSize:13, color:'var(--gd)', width:160 }} />
           </div>
           {canAdd && (
-            <button onClick={()=>setShowModal(true)} className="btn btn-primary">+ Nouveau visiteur</button>
+            <>
+              <button onClick={() => setShowImport(true)} className="btn" style={{ background: '#16A34A', color: '#fff', border: 'none' }}>📥 Importer</button>
+              <button onClick={()=>setShowModal(true)} className="btn btn-primary">+ Nouveau visiteur</button>
+            </>
           )}
         </div>
       </div>
@@ -178,6 +183,13 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
             </div>
           </div>
         </div>
+      )}
+
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onImported={() => router.refresh()}
+        />
       )}
 
       {selectedContactId && (

@@ -34,7 +34,6 @@ export const ROLE_NAV = {
 export const NAV_ITEMS = [
   { id:'dashboard',       label:"Tableau de bord",      icon:'📊', href:'/dashboard' },
   { id:'visiteurs',       label:'Visiteurs',             icon:'👥', href:'/visiteurs',       badge:'contacts' },
-  { id:'import',          label:'Import',                icon:'📥', href:'/import' },
   { id:'pipeline',        label:'Pipeline',              icon:'🔀', href:'/pipeline' },
   { id:'fi',              label:"Familles d'Impact",     icon:'🏠', href:'/fi' },
   { id:'suivi',           label:'Suivi & Tâches',        icon:'✅', href:'/suivi',            badge:'tasks' },

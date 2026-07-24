@@ -199,7 +199,7 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     setPresenceDate(nextThursday())
     setLoadingMembers(true)
     const { data } = await supabase.from('contacts')
-      .select('id,first_name,last_name,phone,whatsapp,commune,first_visit_date,assignment_date,alert_level,integration_score,fi_contacted,fi_contacted_at,fi_contact_method,fi_contact_responded,fi_will_attend')
+      .select('id,first_name,last_name,phone,whatsapp,commune,first_visit_date,assignment_date,alert_level,integration_score,fi_contacted,fi_contacted_at,fi_contact_method,fi_contact_responded,fi_will_attend,fi_whatsapp_added')
       .eq('fi_id', fi.id)
       .order('assignment_date', { ascending: false })
     setMembers(data || [])
@@ -273,6 +273,12 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     setSavingContact(false)
     if (error) { alert(error.message); return }
     setContactingId(null)
+    await openDetail(detailFi)
+  }
+
+  async function confirmWhatsapp(contactId) {
+    const { error } = await supabase.from('contacts').update({ fi_whatsapp_added: true }).eq('id', contactId)
+    if (error) { alert(error.message); return }
     await openDetail(detailFi)
   }
 
@@ -546,6 +552,8 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {members.map(m => {
                         const late = !m.fi_contacted && hoursSince(m.assignment_date) > 48
+                        const presentCount = attendanceHistory.filter(a => a.contact_id === m.id && a.present).length
+                        const whatsappEligible = presentCount >= 3 && !m.fi_whatsapp_added
                         return (
                           <div key={m.id} style={{ background: '#F8FAFC', borderRadius: 10, padding: '10px 14px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -563,6 +571,12 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                                   <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: '#DC2626', padding: '2px 8px', borderRadius: 999 }}>⏰ +48h sans contact</span>
                                 ) : (
                                   <span style={{ fontSize: 10, fontWeight: 700, color: '#92400E', background: '#FEF3C7', padding: '2px 8px', borderRadius: 999 }}>À contacter</span>
+                                )}
+                                {m.fi_whatsapp_added && (
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#166534', background: '#DCFCE7', padding: '2px 8px', borderRadius: 999 }}>💬 Dans le groupe</span>
+                                )}
+                                {whatsappEligible && (
+                                  <button onClick={() => confirmWhatsapp(m.id)} style={{ ...smallBtnStyle, background: '#DCFCE7', color: '#166534' }}>🎉 Confirmer ajout groupe WhatsApp</button>
                                 )}
                                 {canManage(detailFi) && (
                                   <button onClick={() => openContactForm(m)} style={smallBtnStyle}>{m.fi_contacted ? 'Modifier' : 'Confirmer contact'}</button>

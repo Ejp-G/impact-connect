@@ -15,7 +15,7 @@ export default async function FIPage() {
     .order('name')
 
   const { data: profiles } = await supabase.from('profiles').select('id,name,role').order('name')
-  const { data: communes } = await supabase.from('communes').select('id,name').eq('active', true).order('name')
+  const { data: communes } = await supabase.from('communes').select('id,name,island').eq('active', true).order('name')
 
   const enriched = fis?.map(fi => ({ ...fi, memberCount: fi.members?.[0]?.count || 0 })) || []
 

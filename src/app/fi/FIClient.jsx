@@ -24,7 +24,7 @@ function statusInfo(status) {
   return { label: '🔄 En développement', dim: false }
 }
 
-export default function FIClient({ fis, profile, profiles, communes }) {
+export default function FIClient({ fis, profile, profiles = [], communes = [] }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const isAdmin = ['admin'].includes(profile?.role)

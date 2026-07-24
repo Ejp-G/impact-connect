@@ -107,9 +107,11 @@ export async function POST(request) {
     sendWelcomeEmail(firstName, email).catch(console.error)
   }
 
-  // Attribution automatique
+  // Attribution automatique (agent + FIJ, avec notification pilote)
   if (!isMinor && wantsFI) {
-    autoAttributeContact({ contactId: contact.id, sex, communeId: communeId || null }).catch(console.error)
+    autoAttributeContact({
+      contactId: contact.id, sex, communeId: communeId || null, quartier: quartier || null
+    }).catch(console.error)
   }
 
   // Notifications admins

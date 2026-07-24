@@ -11,7 +11,6 @@ export const STAGES = [
   { id:'leader_pot',  label:'Leader Potentiel',   color:'#EF4444', emoji:'⭐' },
   { id:'leader',      label:'Leader',             color:'#0B3D91', emoji:'👑' },
 ]
-
 export const ROLES = {
   admin:                   'Administrateur général',
   responsable_integration: 'Resp. Intégration',
@@ -22,7 +21,6 @@ export const ROLES = {
   superviseur:             'Superviseur',
   responsable_jeunesse:    'Resp. Jeunesse',
 }
-
 export const ROLE_NAV = {
   admin:                   'all',
   responsable_integration: ['dashboard','visiteurs','pipeline','suivi','qrcode','journal','rapports','parametres'],
@@ -33,10 +31,10 @@ export const ROLE_NAV = {
   superviseur:             ['dashboard','visiteurs','pipeline','fi','suivi','rapports','carte','communications'],
   responsable_jeunesse:    ['jeunesse','visiteurs','communications'],
 }
-
 export const NAV_ITEMS = [
   { id:'dashboard',       label:"Tableau de bord",      icon:'📊', href:'/dashboard' },
   { id:'visiteurs',       label:'Visiteurs',             icon:'👥', href:'/visiteurs',       badge:'contacts' },
+  { id:'import',          label:'Import',                icon:'📥', href:'/import' },
   { id:'pipeline',        label:'Pipeline',              icon:'🔀', href:'/pipeline' },
   { id:'fi',              label:"Familles d'Impact",     icon:'🏠', href:'/fi' },
   { id:'suivi',           label:'Suivi & Tâches',        icon:'✅', href:'/suivi',            badge:'tasks' },
@@ -49,7 +47,6 @@ export const NAV_ITEMS = [
   { id:'utilisateurs',    label:'Utilisateurs',          icon:'👤', href:'/utilisateurs' },
   { id:'parametres',      label:'Paramètres',            icon:'⚙️', href:'/parametres' },
 ]
-
 export const COMMUNES_FI = {
   'Pointe-a-Pitre': 'FI PàP',
   'Abymes':         'FI Abymes',
@@ -58,10 +55,8 @@ export const COMMUNES_FI = {
   'Sainte-Anne':    'FI Sainte-Anne',
   'Capesterre':     'FI Capesterre',
 }
-
 export const PRIORITY_COLORS = {
   urgent: '#EF4444', high: '#F97316', normal: '#22C55E', low: '#94A3B8'
 }
-
 export const STAGE_LABEL = (id) => STAGES.find(s => s.id === id)?.label || id
 export const STAGE_COLOR = (id) => STAGES.find(s => s.id === id)?.color || '#94A3B8'

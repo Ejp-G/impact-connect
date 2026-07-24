@@ -199,7 +199,7 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     setPresenceDate(nextThursday())
     setLoadingMembers(true)
     const { data } = await supabase.from('contacts')
-      .select('id,first_name,last_name,phone,whatsapp,commune,first_visit_date,assignment_date,alert_level,integration_score,fi_contacted,fi_contacted_at,fi_contact_method,fi_contact_responded,fi_will_attend,fi_whatsapp_added')
+      .select('id,first_name,last_name,phone,whatsapp,commune,first_visit_date,assignment_date,alert_level,integration_score,fi_contacted,fi_contacted_at,fi_contact_method,fi_contact_responded,fi_will_attend,fi_whatsapp_added,stage')
       .eq('fi_id', fi.id)
       .order('assignment_date', { ascending: false })
     setMembers(data || [])
@@ -279,6 +279,14 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
   async function confirmWhatsapp(contactId) {
     const { error } = await supabase.from('contacts').update({ fi_whatsapp_added: true }).eq('id', contactId)
     if (error) { alert(error.message); return }
+    const member = members.find(m => m.id === contactId)
+    const presentCount = attendanceHistory.filter(a => a.contact_id === contactId && a.present).length
+    if (member?.stage === 'fi2' && presentCount >= 3) {
+      fetch(`/api/contacts/${contactId}/stage`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newStage: 'integre' })
+      }).catch(console.error)
+    }
     await openDetail(detailFi)
   }
 
@@ -329,6 +337,25 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     setSavingPresence(false)
     if (error) { alert(error.message); return }
     await loadAttendanceHistory(detailFi)
+
+    // Avancement automatique du pipeline (invite_fi -> fi1 -> fi2) selon le nb de présences
+    const { data: freshHistory } = await supabase.from('fi_attendance')
+      .select('contact_id, present').eq('fi_id', detailFi.id).eq('present', true)
+    const counts = {}
+    ;(freshHistory || []).forEach(r => { counts[r.contact_id] = (counts[r.contact_id] || 0) + 1 })
+    for (const m of members) {
+      const count = counts[m.id] || 0
+      let target = null
+      if (count === 1 && m.stage === 'invite_fi') target = 'fi1'
+      else if (count === 2 && m.stage === 'fi1') target = 'fi2'
+      if (target) {
+        fetch(`/api/contacts/${m.id}/stage`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newStage: target })
+        }).catch(console.error)
+      }
+    }
+
     alert('Présences enregistrées.')
   }
 

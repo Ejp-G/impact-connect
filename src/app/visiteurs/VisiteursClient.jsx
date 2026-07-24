@@ -3,12 +3,14 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { STAGE_LABEL, STAGE_COLOR, STAGES } from '@/lib/constants'
 import { formatDate, scoreColor } from '@/lib/utils'
+import ContactDetailModal from '@/components/contacts/ContactDetailModal'
 
 export default function VisiteursClient({ contacts, stats, fis, communes, profile }) {
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [selectedContactId, setSelectedContactId] = useState(null)
   const [form, setForm] = useState({
     firstName:'',lastName:'',sex:'F',phone:'',whatsapp:'',email:'',
     commune:'',communeId:'',quartier:'',firstVisit:true,salvationCall:false,
@@ -82,7 +84,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
             </tr></thead>
             <tbody>
               {filtered.map(c => (
-                <tr key={c.id}>
+                <tr key={c.id} onClick={() => setSelectedContactId(c.id)} style={{ cursor: 'pointer' }}>
                   <td><div style={{ display:'flex', alignItems:'center', gap:10 }}>
                     <div style={{ width:32, height:32, borderRadius:'50%', background:c.sex==='F'?'#8B5CF6':'var(--n)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:11, fontWeight:700, flexShrink:0 }}>
                       {ini(c.first_name, c.last_name)}
@@ -176,6 +178,15 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
             </div>
           </div>
         </div>
+      )}
+
+      {selectedContactId && (
+        <ContactDetailModal
+          contactId={selectedContactId}
+          onClose={() => { setSelectedContactId(null); router.refresh() }}
+          communes={communes}
+          fis={fis}
+        />
       )}
     </div>
   )

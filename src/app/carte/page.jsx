@@ -2,20 +2,18 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AppLayout from '@/components/layout/AppLayout'
 import CarteLeaflet from '@/components/ui/CarteLeaflet'
-
+import RealtimeRefreshBridge from '@/components/ui/RealtimeRefreshBridge'
 export default async function CartePage() {
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
-
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
   const { data: byCommune } = await supabase.from('contacts').select('commune').eq('status', 'active')
-
   const counts = {}
   byCommune?.forEach(c => { if (c.commune) counts[c.commune] = (counts[c.commune] || 0) + 1 })
-
   return (
     <AppLayout profile={profile} pageId="carte" title="Carte Guadeloupe">
+      <RealtimeRefreshBridge tables={['contacts']} />
       <div style={{ maxWidth: 1100 }}>
         <div className="g2" style={{ marginBottom: 24 }}>
           <div className="card">
@@ -50,7 +48,6 @@ export default async function CartePage() {
             </table>
           </div>
         </div>
-
         {/* Carte Leaflet */}
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9', fontSize: 15, fontWeight: 700 }}>

@@ -6,12 +6,56 @@ import { createClient } from '@/lib/supabase/client'
 import { NAV_ITEMS, ROLE_NAV, ROLES } from '@/lib/constants'
 import PasswordInput from '@/components/ui/PasswordInput'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
+import { useBranding } from '@/components/ui/BrandingProvider'
 
 const ini = (nm) => nm?.split(' ').map(w=>w[0]).slice(0,2).join('') || 'U'
+
+// Icones disponibles pour le logo, alignees sur les options de
+// Parametres > Marque & Design (Croix, Colombe, Flamme, Etoile, Couronne).
+// Chacune est dessinee dans un viewBox 18x18 pour remplacer la croix
+// codee en dur precedemment, sans jamais deborder du cercle parent.
+function BrandIcon({ icon }) {
+  switch (icon) {
+    case 'colombe':
+      return (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M9 2c1.5 1.5 2 3.5 1.5 5.5C13 6.5 15.5 6 17 4.5c-1 3-3.5 5-6.5 5.5.5 2 2 3.5 4 4-3 1-6-.5-7-3-1 2.5-3 4-5.5 4 1.5-1.5 2.5-3.5 2.5-6C3 8 1.5 6.5 1 4.5c1.5 1.5 4 2 6.5 1C7 3.5 7.5 1.5 9 2z" fill="white"/>
+        </svg>
+      )
+    case 'flamme':
+      return (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M9 1c1.5 2.5-1 3.5-1 6 0 1 .5 2 1.5 2s1.5-1 1.5-2c1.5 1.5 3 3.5 3 6a5 5 0 1 1-10 0c0-3 2-4.5 3-6.5.5-1 1-2 2-5.5z" fill="white"/>
+        </svg>
+      )
+    case 'etoile':
+      return (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M9 1l2.2 5.2 5.6.4-4.3 3.6 1.4 5.5L9 12.8 3.9 15.7l1.4-5.5L1 6.6l5.6-.4L9 1z" fill="white"/>
+        </svg>
+      )
+    case 'couronne':
+      return (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M2 6l3 2 4-4 4 4 3-2-1.5 8h-11L2 6z" fill="white"/>
+          <circle cx="9" cy="3" r="1.2" fill="white"/>
+        </svg>
+      )
+    case 'croix':
+    default:
+      return (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="7.5" y="1" width="3" height="16" rx="1.5" fill="white"/>
+          <rect x="1" y="6" width="16" height="3" rx="1.5" fill="white"/>
+        </svg>
+      )
+  }
+}
 
 export default function Sidebar({ profile, activeId, collapsed, setCollapsed, mobileOpen, isMobile }) {
   const router = useRouter()
   const supabase = createClient()
+  const branding = useBranding()
   const [showProfile, setShowProfile] = useState(false)
   const [pwForm, setPwForm] = useState({ current:'', newPw:'', confirm:'' })
   const [pwError, setPwError] = useState('')
@@ -67,17 +111,30 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed, mo
     else setPwError(error.message)
   }
 
+  const fullBrandName = [branding.name1, branding.name2].filter(Boolean).join(' ')
+
   return (
     <>
       <div className={`sb${!isMobile && collapsed?' col':''} ${isMobile && mobileOpen?' mobile-open':''}`}>
-        <div className="sbh">
+        <div className={`sbh${collapsed && !isMobile ? ' sbh-collapsed' : ''}`}>
           <div className="sbh-ic">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <rect x="7.5" y="1" width="3" height="16" rx="1.5" fill="white"/>
-              <rect x="1" y="6" width="16" height="3" rx="1.5" fill="white"/>
-            </svg>
+            {branding.customLogoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={branding.customLogoUrl}
+                alt={fullBrandName || 'Logo'}
+                className="sbh-ic-img"
+              />
+            ) : (
+              <BrandIcon icon={branding.icon} />
+            )}
           </div>
-          {!collapsed && <div><div className="sb-nm">IMPACT</div><div className="sb-sm">CONNECT</div></div>}
+          {!collapsed && (
+            <div className="sbh-txt" title={fullBrandName}>
+              <div className="sb-nm">{branding.name1}</div>
+              {branding.name2 && <div className="sb-sm">{branding.name2}</div>}
+            </div>
+          )}
         </div>
 
         {!isMobile && (
@@ -238,6 +295,48 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed, mo
           </div>
         </div>
       )}
+
+      <style jsx global>{`
+        .sbh {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 20px 16px;
+          min-width: 0;
+        }
+        .sbh-collapsed {
+          justify-content: center;
+          padding: 20px 8px;
+        }
+        .sbh-ic {
+          width: 36px;
+          height: 36px;
+          min-width: 36px;
+          border-radius: 10px;
+          background: rgba(255,255,255,.12);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          flex-shrink: 0;
+        }
+        .sbh-ic-img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          display: block;
+        }
+        .sbh-txt {
+          min-width: 0;
+          overflow: hidden;
+        }
+        .sb-nm, .sb-sm {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 140px;
+        }
+      `}</style>
     </>
   )
 }

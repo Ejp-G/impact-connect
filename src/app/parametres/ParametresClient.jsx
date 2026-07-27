@@ -16,7 +16,7 @@ export default function ParametresClient({ settings, communes, profile }) {
   const [openMobile, setOpenMobile] = useState('branding')
   const [isMobile, setIsMobile]   = useState(false)
   const [saved, setSaved]         = useState(false)
-  const [branding, setBranding]   = useState(settings.branding || { name1:'IMPACT', name2:'CONNECT', icon:'cross', color:'#0B3D91' })
+  const [branding, setBranding]   = useState(settings.branding || { name1:'PRODIGES', name2:'CONNECT', icon:'croix', color:'#0B3D91' })
   const [relances, setRelances]   = useState(settings.relances || { j3:true, j7:true, j14:true, j21:true, j30:true, j60:true, j90:true })
   const [notifs, setNotifs]       = useState(settings.notifications || { nouveau_visiteur:true, rappel_mardi:true, rapport_hebdo:true })
   const [attribution, setAttribution] = useState(settings.attribution || { method:'round_robin', gender_rule:true })
@@ -92,7 +92,7 @@ export default function ParametresClient({ settings, communes, profile }) {
         <div className="form-group">
           <label className="form-label">Icone du logo</label>
           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-            {[['cross','Croix'],['dove','Colombe'],['flame','Flamme'],['star','Etoile'],['crown','Couronne']].map(([ic,lb])=>(
+            {[['croix','Croix'],['colombe','Colombe'],['flamme','Flamme'],['etoile','Etoile'],['couronne','Couronne']].map(([ic,lb])=>(
               <div key={ic} onClick={()=>isAdmin&&setBranding({...branding,icon:ic})}
                 style={{padding:'10px 16px',borderRadius:10,border:`2px solid ${branding.icon===ic?'var(--n)':'var(--br)'}`,background:branding.icon===ic?'rgba(11,61,145,.08)':'#fff',cursor:isAdmin?'pointer':'default',fontSize:12,fontWeight:600,color:branding.icon===ic?'var(--n)':'var(--gd)'}}>
                 {lb}

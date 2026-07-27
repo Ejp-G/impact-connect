@@ -36,8 +36,8 @@ export default function DashboardClient({ stats, profile }) {
           data:{
             labels:['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'],
             datasets:[
-              { label:'Visiteurs', data:[12,19,15,22,18,25,20,23,28,32,38,45], borderColor:'#0B3D91', backgroundColor:'rgba(11,61,145,.08)', fill:true, tension:.4, borderWidth:2 },
-              { label:'Intégrations', data:[4,7,6,9,8,11,9,10,13,15,18,22], borderColor:'#22C55E', backgroundColor:'rgba(34,197,94,.05)', fill:true, tension:.4, borderWidth:2 },
+              { label:'Visiteurs', data:stats.monthlyVisitors || Array(12).fill(0), borderColor:'#0B3D91', backgroundColor:'rgba(11,61,145,.08)', fill:true, tension:.4, borderWidth:2 },
+              { label:'Intégrations', data:stats.monthlyIntegrations || Array(12).fill(0), borderColor:'#22C55E', backgroundColor:'rgba(34,197,94,.05)', fill:true, tension:.4, borderWidth:2 },
             ]
           },
           options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:11}}}}, scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'#F1F5F9'},ticks:{font:{size:10}}}}}

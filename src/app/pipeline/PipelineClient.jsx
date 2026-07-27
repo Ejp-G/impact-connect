@@ -57,9 +57,9 @@ export default function PipelineClient({ contacts, fis = [], communes = [] }) {
               style={{ outline: isOver ? `2px dashed ${stage.color}` : 'none', outlineOffset: 2, borderRadius: 12 }}
             >
               <div className="kh" style={{ background: stage.color }}>
-                <div style={{ fontSize: 18 }}>{stage.emoji}</div>
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: .5, textTransform: 'uppercase' }}>{stage.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, marginTop: 4 }}>{sv.length}</div>
+                <div style={{ fontSize: 15 }}>{stage.emoji}</div>
+                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', lineHeight: 1.2 }}>{stage.label}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, marginTop: 3 }}>{sv.length}</div>
               </div>
               {sv.length ? sv.map(c => (
                 <div

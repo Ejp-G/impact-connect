@@ -4,8 +4,24 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/ui/PasswordInput'
 import PublicPageShell from '@/components/ui/PublicPageShell'
+import BrandingProvider, { useBranding } from '@/components/ui/BrandingProvider'
 
+// La page de connexion est affichee AVANT authentification, donc en dehors
+// de AppLayout (qui est le seul endroit ou BrandingProvider etait monte
+// jusqu'ici). Sans ce wrapper, useBranding() renverrait toujours les
+// valeurs par defaut du contexte au lieu du nom reellement configure.
 export default function LoginPage({ searchParams }) {
+  return (
+    <BrandingProvider>
+      <LoginContent searchParams={searchParams} />
+    </BrandingProvider>
+  )
+}
+
+function LoginContent({ searchParams }) {
+  const branding = useBranding()
+  const fullBrandName = [branding.name1, branding.name2].filter(Boolean).join(' ')
+
   const [email, setEmail]               = useState('')
   const [password, setPassword]         = useState('')
   const [loading, setLoading]           = useState(false)
@@ -138,7 +154,7 @@ export default function LoginPage({ searchParams }) {
             <rect x="4" y="20" width="52" height="12" rx="6" fill="rgba(255,255,255,.9)" />
           </svg>
           <div style={{ fontFamily: "'Fraunces',serif", fontSize: 38, color: '#fff', textAlign: 'center', lineHeight: 1.1, fontWeight: 700, marginTop: 24 }}>
-            IMPACT<br />CONNECT
+            {branding.name1}<br />{branding.name2}
           </div>
           <div style={{ color: 'rgba(255,255,255,.6)', fontSize: 13, marginTop: 8, letterSpacing: .5 }}>
             Plateforme Integration et Suivi
@@ -168,7 +184,7 @@ export default function LoginPage({ searchParams }) {
               </svg>
             </div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#1E293B', lineHeight: 1.1 }}>Impact Connect</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#1E293B', lineHeight: 1.1 }}>{fullBrandName}</div>
               <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 500 }}>Plateforme Integration et Suivi</div>
             </div>
           </div>

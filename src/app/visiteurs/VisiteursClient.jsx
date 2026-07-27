@@ -5,6 +5,7 @@ import { STAGE_LABEL, STAGE_COLOR, STAGES } from '@/lib/constants'
 import { formatDate, scoreColor } from '@/lib/utils'
 import ContactDetailModal from '@/components/contacts/ContactDetailModal'
 import ImportModal from '@/components/contacts/ImportModal'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 
 export default function VisiteursClient({ contacts, stats, fis, communes, profile }) {
   const [filter, setFilter] = useState('all')
@@ -20,6 +21,12 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
     interests:[],parentLastName:'',parentFirstName:'',parentPhone:'',parentEmail:'',parentRelation:''
   })
   const router = useRouter()
+
+  // Rafraichit automatiquement cette page si un visiteur est ajoute/modifie
+  // par un autre agent, ou attribue a une FI (change son statut), pendant
+  // que cette page est ouverte. Sans ca, seul l'auteur du changement voyait
+  // la mise a jour, via son propre router.refresh() manuel dans saveVisitor.
+  useRealtimeRefresh(['contacts', 'familles_impact'])
 
   const isMinor = form.dateOfBirth && new Date(form.dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear()-18))
 

@@ -1,18 +1,37 @@
 'use client'
 import { useEffect, useRef } from 'react'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 
 export default function DashboardClient({ stats, profile }) {
   const areaRef = useRef(null)
   const pieRef = useRef(null)
+  const areaChartInstance = useRef(null)
+  const pieChartInstance = useRef(null)
+
+  // Rafraichit automatiquement ce Dashboard quand un visiteur, une tache
+  // ou une Famille d'Impact change, meme si le changement vient d'un
+  // autre agent ou d'une autre page (ex: attribution FI depuis Pipeline).
+  useRealtimeRefresh(['contacts', 'tasks', 'familles_impact'])
 
   useEffect(() => {
+    let cancelled = false
+
     const loadCharts = async () => {
       const { Chart, registerables } = await import('chart.js')
       Chart.register(...registerables)
+      if (cancelled) return
+
+      // Detruit les instances precedentes avant d'en recreer, sinon Chart.js
+      // refuse de reutiliser un canvas deja lie a un graphique existant.
+      // Necessaire car ce useEffect depend desormais de stats : sans ca,
+      // un rafraichissement Realtime (nouvelles stats) ne mettait a jour
+      // que les cartes chiffrees, jamais le graphique en anneau.
+      areaChartInstance.current?.destroy()
+      pieChartInstance.current?.destroy()
 
       if (areaRef.current) {
-        new Chart(areaRef.current, {
+        areaChartInstance.current = new Chart(areaRef.current, {
           type:'line',
           data:{
             labels:['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'],
@@ -27,7 +46,7 @@ export default function DashboardClient({ stats, profile }) {
 
       if (pieRef.current) {
         const pieData = Object.entries(stats.stageCounts||{}).slice(0,6)
-        new Chart(pieRef.current, {
+        pieChartInstance.current = new Chart(pieRef.current, {
           type:'doughnut',
           data:{ labels:pieData.map(([s])=>STAGE_LABEL(s)), datasets:[{ data:pieData.map(([,v])=>v), backgroundColor:pieData.map(([s])=>STAGE_COLOR(s)), borderWidth:0 }] },
           options:{ responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{legend:{display:false}} }
@@ -35,7 +54,13 @@ export default function DashboardClient({ stats, profile }) {
       }
     }
     loadCharts()
-  }, [])
+
+    return () => {
+      cancelled = true
+      areaChartInstance.current?.destroy()
+      pieChartInstance.current?.destroy()
+    }
+  }, [stats])
 
   const firstName = profile?.name?.split(' ')[0] || 'Pasteur'
 

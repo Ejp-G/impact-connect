@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { STAGES } from '@/lib/constants'
 import { scoreColor } from '@/lib/utils'
 import ContactDetailModal from '@/components/contacts/ContactDetailModal'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 
 const ini = (fn, ln) => ((fn || '')[0] || '') + ((ln || '')[0] || '')
 
@@ -14,6 +15,11 @@ export default function PipelineClient({ contacts, fis = [], communes = [] }) {
   const [dragOverStage, setDragOverStage] = useState(null)
   const [selectedContactId, setSelectedContactId] = useState(null)
   const [warning, setWarning] = useState('')
+
+  // Rafraichit automatiquement le pipeline si un autre agent deplace
+  // quelqu'un, ajoute un visiteur, ou change la capacite d'une FI,
+  // pendant que cette page est ouverte.
+  useRealtimeRefresh(['contacts', 'familles_impact'])
 
   async function dropOn(stageId) {
     setDragOverStage(null)

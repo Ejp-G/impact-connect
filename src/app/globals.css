@@ -5,7 +5,7 @@ html,body{height:100%;overflow:hidden}
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--tx)}
 .app-shell{display:flex;height:100vh;overflow:hidden}
 @supports (height:100dvh){.app-shell{height:100dvh}}
-.sb{width:240px;flex-shrink:0;background:var(--nd);display:flex;flex-direction:column;height:100vh;box-shadow:4px 0 24px rgba(0,0,0,.2);z-index:200;transition:width .2s,left .3s;position:relative;overflow:hidden}
+.sb{width:240px;flex-shrink:0;background:var(--nd);display:flex;flex-direction:column;height:100vh;box-shadow:4px 0 24px rgba(0,0,0,.2);z-index:200;transition:width .2s,left .3s;position:relative}
 @supports (height:100dvh){.sb{height:100dvh}}
 .sb.col{width:68px}
 .sbh{padding:18px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:12px}

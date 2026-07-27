@@ -1,24 +1,52 @@
 'use client'
 import { useRef, useEffect } from 'react'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 
 export default function RapportsClient({ stats }) {
   const barRef = useRef(null)
-  const radarRef = useRef(null)
+  const barChartInstance = useRef(null)
+
+  // Rafraichit automatiquement les rapports des qu'un contact change
+  // (nouveau visiteur, changement d'etape, etc.), meme si le changement
+  // vient d'un autre agent pendant que cette page est ouverte.
+  useRealtimeRefresh(['contacts'])
 
   useEffect(() => {
+    let cancelled = false
     const load = async () => {
       const { Chart, registerables } = await import('chart.js')
       Chart.register(...registerables)
+      if (cancelled) return
+
+      // Detruit l'instance precedente avant d'en recreer : necessaire
+      // car ce useEffect depend maintenant de stats (sinon un rafraichissement
+      // Realtime ne mettait a jour que les chiffres, jamais ce graphique).
+      barChartInstance.current?.destroy()
+
       if (barRef.current) {
         const labels = Object.keys(stats.stageCounts).map(s=>STAGE_LABEL(s))
         const data = Object.values(stats.stageCounts)
         const colors = Object.keys(stats.stageCounts).map(s=>STAGE_COLOR(s))
-        new Chart(barRef.current, { type:'bar', data:{labels,datasets:[{data,backgroundColor:colors+'80',borderColor:colors,borderWidth:1.5,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{grid:{color:'#F1F5F9'},ticks:{stepSize:1}}}} })
+        // Bug corrige : `colors + '80'` convertissait tout le tableau en UNE
+        // seule chaine (ex: "#3B82F6,#22C55E80"), une couleur invalide que
+        // Chart.js ne sait pas interpreter et remplace par du gris par
+        // defaut. Il faut appliquer '80' (alpha ~50%) a CHAQUE couleur
+        // individuellement, d'ou le .map() ci-dessous.
+        barChartInstance.current = new Chart(barRef.current, {
+          type:'bar',
+          data:{ labels, datasets:[{ data, backgroundColor:colors.map(c=>c+'80'), borderColor:colors, borderWidth:1.5, borderRadius:6 }] },
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}},y:{grid:{color:'#F1F5F9'},ticks:{stepSize:1}}} }
+        })
       }
     }
     load()
-  }, [])
+
+    return () => {
+      cancelled = true
+      barChartInstance.current?.destroy()
+    }
+  }, [stats])
 
   const rate = stats.totalActive > 0 ? Math.round((stats.integrated / stats.totalActive) * 100) : 0
 

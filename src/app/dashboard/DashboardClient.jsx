@@ -90,17 +90,18 @@ export default function DashboardClient({ stats, profile }) {
       {/* Stat Cards */}
       <div className="g4">
         {[
-          ['👥', 'Total contacts', stats.totalContacts || 0, '#0B3D91'],
-          ['🏠', "Familles d'Impact", stats.fiData?.length || 0, '#22C55E'],
-          ['🔴', 'Alertes urgentes', stats.alertsRed || 0, '#EF4444'],
-          ['✅', 'Tâches en attente', stats.pendingTasks || 0, '#F97316'],
-        ].map(([ic,lb,v,co])=>(
+          ['👥', 'Total contacts', stats.totalContacts || 0, '#0B3D91', null],
+          ['🏠', "Familles d'Impact", stats.fiData?.length || 0, '#22C55E', stats.fiPausedCount > 0 ? `dont ${stats.fiPausedCount} en pause` : null],
+          ['🔴', 'Alertes urgentes', stats.alertsRed || 0, '#EF4444', null],
+          ['✅', 'Tâches en attente', stats.pendingTasks || 0, '#F97316', null],
+        ].map(([ic,lb,v,co,sub])=>(
           <div key={lb} className="card" style={{ padding:20, borderTop:`3px solid ${co}`, position:'relative', overflow:'hidden' }}>
             <div style={{ position:'absolute', top:0, right:0, width:80, height:80, borderRadius:'0 16px 0 80px', background:co+'10' }} />
             <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between' }}>
               <div>
                 <div style={{ fontSize:13, color:'#64748B', fontWeight:500, marginBottom:8 }}>{lb}</div>
                 <div style={{ fontSize:32, fontWeight:800, color:'#1E293B', letterSpacing:-1 }}>{v}</div>
+                {sub && <div style={{ fontSize:11, color:'#94A3B8', marginTop:2 }}>{sub}</div>}
               </div>
               <div style={{ width:44, height:44, borderRadius:12, background:co, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>{ic}</div>
             </div>

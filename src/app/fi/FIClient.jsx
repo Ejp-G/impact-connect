@@ -77,14 +77,12 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
   const supabase = useMemo(() => createClient(), [])
   const isAdmin = ['admin'].includes(profile?.role)
 
-  // Modale création / édition
   const [showForm, setShowForm] = useState(false)
   const [editingFi, setEditingFi] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
 
-  // Modale détail
   const [detailFi, setDetailFi] = useState(null)
   const [activeTab, setActiveTab] = useState('dashboard')
   const [members, setMembers] = useState([])
@@ -94,19 +92,16 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
   const [loadingUnassigned, setLoadingUnassigned] = useState(false)
   const [addingId, setAddingId] = useState('')
 
-  // Suivi 1er contact
   const [contactingId, setContactingId] = useState(null)
   const [contactForm, setContactForm] = useState({ method: 'appel', responded: true, will_attend: true })
   const [savingContact, setSavingContact] = useState(false)
 
-  // Présences
   const [presenceDate, setPresenceDate] = useState(nextThursday())
-  const [presenceMap, setPresenceMap] = useState({}) // contact_id -> { present, reason }
+  const [presenceMap, setPresenceMap] = useState({})
   const [loadingPresence, setLoadingPresence] = useState(false)
   const [savingPresence, setSavingPresence] = useState(false)
-  const [attendanceHistory, setAttendanceHistory] = useState([]) // toutes les lignes fi_attendance
+  const [attendanceHistory, setAttendanceHistory] = useState([])
 
-  // Journal
   const [journal, setJournal] = useState([])
   const [loadingJournal, setLoadingJournal] = useState(false)
   const [journalForm, setJournalForm] = useState({ type: 'remarque', content: '', contact_id: '' })
@@ -115,8 +110,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
   function canManage(fi) {
     return isAdmin || profile?.id === fi.pilot_id || profile?.id === fi.copilot_id
   }
-
-  // ---------- Création / édition ----------
 
   function openCreate() {
     setEditingFi(null)
@@ -147,6 +140,11 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
   async function submitForm(e) {
     e.preventDefault()
     if (!form.name.trim()) { setFormError('Le nom est requis.'); return }
+    // Validation claire cote formulaire : sans ca, une commune manquante
+    // provoquait une erreur technique brute de la base de donnees
+    // ("null value in column commune_name violates not-null constraint")
+    // au lieu d'un message comprehensible pour l'utilisateur.
+    if (!form.commune_id) { setFormError('Merci de sélectionner une commune.'); return }
     setSaving(true)
     setFormError('')
 
@@ -189,8 +187,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     router.refresh()
   }
 
-  // ---------- Ouverture détail ----------
-
   async function openDetail(fi) {
     setDetailFi(fi)
     setActiveTab('dashboard')
@@ -204,7 +200,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
       .order('assignment_date', { ascending: false })
     setMembers(data || [])
     setLoadingMembers(false)
-    // Charge en tâche de fond les données du tableau de bord (par défaut affiché)
     loadAttendanceHistory(fi)
     loadJournal(fi)
   }
@@ -213,8 +208,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     setActiveTab(tab)
     if (tab === 'presences') loadPresenceForDate(detailFi, presenceDate)
   }
-
-  // ---------- Membres ----------
 
   async function loadUnassigned() {
     setLoadingUnassigned(true)
@@ -290,8 +283,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     await openDetail(detailFi)
   }
 
-  // ---------- Présences ----------
-
   async function loadPresenceForDate(fi, date) {
     if (!fi) return
     setLoadingPresence(true)
@@ -338,7 +329,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     if (error) { alert(error.message); return }
     await loadAttendanceHistory(detailFi)
 
-    // Avancement automatique du pipeline (invite_fi -> fi1 -> fi2) selon le nb de présences
     const { data: freshHistory } = await supabase.from('fi_attendance')
       .select('contact_id, present').eq('fi_id', detailFi.id).eq('present', true)
     const counts = {}
@@ -367,8 +357,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     setAttendanceHistory(data || [])
   }
 
-  // ---------- Journal ----------
-
   async function loadJournal(fi) {
     setLoadingJournal(true)
     const { data } = await supabase.from('fi_journal')
@@ -395,8 +383,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     setJournalForm({ type: 'remarque', content: '', contact_id: '' })
     await loadJournal(detailFi)
   }
-
-  // ---------- Rendu ----------
 
   return (
     <div style={{ maxWidth: 1100 }}>
@@ -440,7 +426,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
         )}
       </div>
 
-      {/* ---- Modale création / édition ---- */}
       {showForm && (
         <div onClick={() => setShowForm(false)} style={overlayStyle}>
           <div onClick={e => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 520 }}>
@@ -455,7 +440,7 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                 <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} placeholder="Ex : FIJ Les Abymes Centre" />
               </Field>
 
-              <Field label="Commune">
+              <Field label="Commune *">
                 <select value={form.commune_id} onChange={e => setForm({ ...form, commune_id: e.target.value })} style={inputStyle}>
                   <option value="">— Sélectionner —</option>
                   {communes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -521,7 +506,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
         </div>
       )}
 
-      {/* ---- Modale détail : espace de pilotage ---- */}
       {detailFi && (
         <div onClick={() => setDetailFi(null)} style={overlayStyle}>
           <div onClick={e => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 820 }}>
@@ -546,12 +530,10 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
 
             <div style={{ padding: 20 }}>
 
-              {/* === TABLEAU DE BORD === */}
               {activeTab === 'dashboard' && (
                 <DashboardTab detailFi={detailFi} members={members} attendanceHistory={attendanceHistory} journal={journal} />
               )}
 
-              {/* === MEMBRES === */}
               {activeTab === 'membres' && (
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -644,7 +626,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                 </div>
               )}
 
-              {/* === PRESENCES === */}
               {activeTab === 'presences' && (
                 <div>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 }}>
@@ -687,7 +668,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                 </div>
               )}
 
-              {/* === JOURNAL === */}
               {activeTab === 'journal' && (
                 <div>
                   {canManage(detailFi) && (
@@ -731,7 +711,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                 </div>
               )}
 
-              {/* === INFORMATIONS === */}
               {activeTab === 'infos' && (
                 <div>
                   <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -765,8 +744,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     </div>
   )
 }
-
-// ---------- Sous-composants ----------
 
 function DashboardTab({ detailFi, members, attendanceHistory, journal }) {
   const totalMembers = members.length

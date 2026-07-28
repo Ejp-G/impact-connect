@@ -17,7 +17,10 @@ export default async function DashboardPage() {
       .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
     supabase.from('tasks').select('*', { count:'exact', head:true }).eq('status','pending'),
     supabase.from('contacts').select('*', { count:'exact', head:true }).eq('alert_level','red').eq('status','active'),
-    supabase.from('familles_impact').select('id,name,capacity').eq('status','active'),
+    // Toutes les FIJ sauf celles definitivement fermees : une FIJ "en
+    // developpement" ou "en pause" reste une FIJ existante et doit
+    // compter dans le total (seul 'fermee' est exclu).
+    supabase.from('familles_impact').select('id,name,capacity,status').neq('status','fermee'),
   ])
   // Contacts par stage
   const { data: stageData } = await supabase.from('contacts')
@@ -29,6 +32,11 @@ export default async function DashboardPage() {
     .select('fi_id').eq('status','active').not('fi_id','is',null)
   const fiMemberCounts = {}
   fiMembers?.forEach(c => { fiMemberCounts[c.fi_id] = (fiMemberCounts[c.fi_id]||0) + 1 })
+
+  // Nombre de FIJ en pause, pour la mention discrete "X FIJ dont Y en
+  // pause" affichee sur la carte Dashboard (les FIJ en pause comptent
+  // dans le total mais meritent d'etre signalees separement).
+  const fiPausedCount = fiData?.filter(f => f.status === 'en_pause').length || 0
 
   // Croissance annuelle (mois par mois, annee civile en cours). On ne
   // filtre PAS par status='active' ici : contrairement au reste du
@@ -55,7 +63,7 @@ export default async function DashboardPage() {
     monthlyIntegrations[m] += 1
   })
 
-  const stats = { totalContacts, newThisMonth, salvations, pendingTasks, alertsRed, stageCounts, fiData, fiMemberCounts, monthlyVisitors, monthlyIntegrations }
+  const stats = { totalContacts, newThisMonth, salvations, pendingTasks, alertsRed, stageCounts, fiData, fiMemberCounts, fiPausedCount, monthlyVisitors, monthlyIntegrations }
   return (
     <AppLayout profile={profile} pageId="dashboard" title="Tableau de bord">
       <DashboardClient stats={stats} profile={profile} />

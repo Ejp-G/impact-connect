@@ -6,6 +6,12 @@ import { formatDate, scoreColor } from '@/lib/utils'
 import ContactDetailModal from '@/components/contacts/ContactDetailModal'
 import ImportModal from '@/components/contacts/ImportModal'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
+import { Search, Upload } from '@/lib/icons'
+
+function AlertDot({ level }) {
+  const color = level === 'red' ? '#EF4444' : level === 'orange' ? '#F97316' : '#22C55E'
+  return <span style={{ display:'inline-block', width:9, height:9, borderRadius:'50%', background:color }} />
+}
 
 export default function VisiteursClient({ contacts, stats, fis, communes, profile }) {
   const [filter, setFilter] = useState('all')
@@ -22,10 +28,6 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
   })
   const router = useRouter()
 
-  // Rafraichit automatiquement cette page si un visiteur est ajoute/modifie
-  // par un autre agent, ou attribue a une FI (change son statut), pendant
-  // que cette page est ouverte. Sans ca, seul l'auteur du changement voyait
-  // la mise a jour, via son propre router.refresh() manuel dans saveVisitor.
   useRealtimeRefresh(['contacts', 'familles_impact'])
 
   const isMinor = form.dateOfBirth && new Date(form.dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear()-18))
@@ -76,12 +78,14 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
         </div>
         <div style={{ display:'flex', gap:10 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, background:'#fff', border:'1px solid var(--br)', borderRadius:10, padding:'8px 14px' }}>
-            <span>🔍</span>
+            <Search size={15} strokeWidth={2} color="#94A3B8" />
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher..." style={{ border:'none', outline:'none', fontFamily:'inherit', fontSize:13, color:'var(--gd)', width:160 }} />
           </div>
           {canAdd && (
             <>
-              <button onClick={() => setShowImport(true)} className="btn" style={{ background: '#16A34A', color: '#fff', border: 'none' }}>📥 Importer</button>
+              <button onClick={() => setShowImport(true)} className="btn" style={{ background: '#16A34A', color: '#fff', border: 'none', display:'flex', alignItems:'center', gap:6 }}>
+                <Upload size={14} strokeWidth={2} /> Importer
+              </button>
               <button onClick={()=>setShowModal(true)} className="btn btn-primary">+ Nouveau visiteur</button>
             </>
           )}
@@ -124,7 +128,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
                     </div>
                   </td>
                   <td style={{ fontSize:12, color:'var(--gd)' }}>{c.agent?.name||<span style={{color:'var(--gy)',fontStyle:'italic'}}>Non assigne</span>}</td>
-                  <td>{c.alert_level==='red'?'🔴':c.alert_level==='orange'?'🟠':'✅'}</td>
+                  <td><AlertDot level={c.alert_level} /></td>
                 </tr>
               ))}
               {filtered.length === 0 && (

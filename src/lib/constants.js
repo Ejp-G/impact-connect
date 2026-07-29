@@ -59,3 +59,35 @@ export const PRIORITY_COLORS = {
 }
 export const STAGE_LABEL = (id) => STAGES.find(s => s.id === id)?.label || id
 export const STAGE_COLOR = (id) => STAGES.find(s => s.id === id)?.color || '#94A3B8'
+
+// Besoins detectes progressivement au fil des echanges (jamais demandes
+// frontalement des la premiere visite). Les 3 marques sensible:true sont
+// restreintes a admin/responsable_suivi cote base (voir politiques RLS
+// de contact_needs), et cote UI (voir SuiviClient / NeedsDrilldownModal).
+export const NEED_CATEGORIES = [
+  { id:'nouveau_converti',        domain:'spirituel', label:'Nouveau converti',              emoji:'✝️' },
+  { id:'reconciliation',          domain:'spirituel', label:'Réconciliation',                emoji:'🤝' },
+  { id:'demande_bapteme',         domain:'spirituel', label:'Demande de baptême',             emoji:'💧' },
+  { id:'besoin_accompagnement',   domain:'spirituel', label:"Besoin d'accompagnement",        emoji:'🧭' },
+  { id:'sujet_priere',            domain:'spirituel', label:'Sujet de prière',                emoji:'🙏' },
+  { id:'solitude',                domain:'personnel', label:'Solitude',                       emoji:'💭' },
+  { id:'parent_isole',            domain:'personnel', label:'Parent isolé',                   emoji:'👩' },
+  { id:'etudiant',                domain:'personnel', label:'Étudiant',                       emoji:'🎓' },
+  { id:'difficulte_financiere',   domain:'personnel', label:'Difficultés financières',        emoji:'💰' },
+  { id:'difficulte_alimentaire',  domain:'personnel', label:'Difficultés alimentaires',       emoji:'🍞' },
+  { id:'difficulte_logement',     domain:'personnel', label:'Difficultés de logement',        emoji:'🏠' },
+  { id:'difficulte_transport',    domain:'personnel', label:'Difficultés de transport',       emoji:'🚗' },
+  { id:'recherche_emploi',        domain:'personnel', label:"Recherche d'emploi",             emoji:'💼' },
+  { id:'recherche_formation',     domain:'personnel', label:'Recherche de formation',         emoji:'📚' },
+  { id:'handicap',                domain:'personnel', label:'Handicap',                       emoji:'♿' },
+  { id:'depression',              domain:'personnel', label:'Dépression',                     emoji:'😔', sensitive:true },
+  { id:'maladie',                 domain:'personnel', label:'Maladie',                        emoji:'🏥' },
+  { id:'addiction',               domain:'personnel', label:'Addiction',                      emoji:'⚠️', sensitive:true },
+  { id:'violence_familiale',      domain:'personnel', label:'Violence familiale',             emoji:'🚨', sensitive:true },
+  { id:'besoin_fi',               domain:'personnel', label:"Besoin d'une Famille d'Impact",  emoji:'🏠' },
+  { id:'besoin_mentor',           domain:'personnel', label:"Besoin d'un mentor",             emoji:'🧑‍🏫' },
+  { id:'autre',                   domain:'personnel', label:'Autre',                          emoji:'📝' },
+]
+export const NEED_LABEL = (id) => NEED_CATEGORIES.find(n => n.id === id)?.label || id
+export const NEED_EMOJI = (id) => NEED_CATEGORIES.find(n => n.id === id)?.emoji || '📝'
+export const NEED_IS_SENSITIVE = (id) => !!NEED_CATEGORIES.find(n => n.id === id)?.sensitive

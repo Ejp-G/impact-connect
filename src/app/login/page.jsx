@@ -5,11 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/ui/PasswordInput'
 import PublicPageShell from '@/components/ui/PublicPageShell'
 import BrandingProvider, { useBranding } from '@/components/ui/BrandingProvider'
+import { Check, Home, ArrowUpRight, Mail, Lock } from '@/lib/icons'
 
-// La page de connexion est affichee AVANT authentification, donc en dehors
-// de AppLayout (qui est le seul endroit ou BrandingProvider etait monte
-// jusqu'ici). Sans ce wrapper, useBranding() renverrait toujours les
-// valeurs par defaut du contexte au lieu du nom reellement configure.
 export default function LoginPage({ searchParams }) {
   return (
     <BrandingProvider>
@@ -73,7 +70,11 @@ function LoginContent({ searchParams }) {
     <PublicPageShell>
       <div className="auth-shell" style={{ background: '#F8FAFC' }}>
         <div className="auth-card" style={{ textAlign: 'center', boxShadow: '0 4px 24px rgba(0,0,0,.08)' }}>
-          <div className="auth-emoji">📧</div>
+          <div style={{ display:'flex', justifyContent:'center', marginBottom:16 }}>
+            <div style={{ width:56, height:56, borderRadius:'50%', background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Mail size={26} strokeWidth={2} color="#0B3D91" />
+            </div>
+          </div>
           <div style={{ fontSize: 22, fontWeight: 800, color: '#1E293B', marginBottom: 12 }}>Email envoye !</div>
           <div style={{ fontSize: 14, color: '#64748B', lineHeight: 1.6, marginBottom: 20 }}>
             Un lien a ete envoye a <strong>{resetEmail}</strong>.<br />
@@ -145,7 +146,6 @@ function LoginContent({ searchParams }) {
 
       <div className="login-wrap">
 
-        {/* GAUCHE desktop */}
         <div className="login-aside-panel">
           <div style={{ position: 'absolute', top: -80, right: -80, width: 300, height: 300, borderRadius: '50%', border: '2px solid rgba(255,255,255,.08)' }} />
           <div style={{ position: 'absolute', bottom: -60, left: -60, width: 240, height: 240, borderRadius: '50%', border: '1px solid rgba(255,255,255,.06)' }} />
@@ -160,9 +160,11 @@ function LoginContent({ searchParams }) {
             Plateforme Integration et Suivi
           </div>
           <div style={{ marginTop: 48, display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 280 }}>
-            {[['✓', 'Zero oubli', 'Suivi automatise de chaque visiteur'], ['🏠', "Familles d'Impact", 'Attribution intelligente par commune'], ['📈', 'Croissance mesuree', 'Statistiques en temps reel']].map(([ic, t1, t2]) => (
+            {[[Check, 'Zero oubli', 'Suivi automatise de chaque visiteur'], [Home, "Familles d'Impact", 'Attribution intelligente par commune'], [ArrowUpRight, 'Croissance mesuree', 'Statistiques en temps reel']].map(([Icon, t1, t2]) => (
               <div key={t1} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{ic}</div>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon size={16} strokeWidth={2} color="#fff" />
+                </div>
                 <div>
                   <div style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{t1}</div>
                   <div style={{ color: 'rgba(255,255,255,.5)', fontSize: 11 }}>{t2}</div>
@@ -172,10 +174,8 @@ function LoginContent({ searchParams }) {
           </div>
         </div>
 
-        {/* DROITE */}
         <div className="login-right-panel">
 
-          {/* Header mobile */}
           <div className="login-mobile-top">
             <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg,#0B3D91,#1452B5)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="18" height="18" viewBox="0 0 60 60" fill="none">
@@ -234,7 +234,9 @@ function LoginContent({ searchParams }) {
                   style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', fontSize: 13, fontWeight: 600, marginBottom: 20, padding: 0 }}>
                   ← Retour a la connexion
                 </button>
-                <div style={{ fontSize: 26, fontWeight: 800, color: '#1E293B' }}>Mot de passe oublie 🔑</div>
+                <div style={{ fontSize: 26, fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Lock size={22} strokeWidth={2} /> Mot de passe oublie
+                </div>
                 <div style={{ color: '#475569', fontSize: 14, marginTop: 6, marginBottom: 28 }}>
                   Entrez votre email pour recevoir un lien de reinitialisation.
                 </div>

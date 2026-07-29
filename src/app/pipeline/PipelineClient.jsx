@@ -6,6 +6,8 @@ import { STAGES } from '@/lib/constants'
 import { scoreColor } from '@/lib/utils'
 import ContactDetailModal from '@/components/contacts/ContactDetailModal'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
+import { STAGE_ICON_MAP } from '@/lib/icons'
+import { AlertTriangle, AlertCircle, X } from '@/lib/icons'
 
 const ini = (fn, ln) => ((fn || '')[0] || '') + ((ln || '')[0] || '')
 
@@ -16,9 +18,6 @@ export default function PipelineClient({ contacts, fis = [], communes = [] }) {
   const [selectedContactId, setSelectedContactId] = useState(null)
   const [warning, setWarning] = useState('')
 
-  // Rafraichit automatiquement le pipeline si un autre agent deplace
-  // quelqu'un, ajoute un visiteur, ou change la capacite d'une FI,
-  // pendant que cette page est ouverte.
   useRealtimeRefresh(['contacts', 'familles_impact'])
 
   async function dropOn(stageId) {
@@ -44,8 +43,12 @@ export default function PipelineClient({ contacts, fis = [], communes = [] }) {
 
       {warning && (
         <div style={{ background: '#FFF7ED', color: '#9A3412', padding: '10px 16px', borderRadius: 10, fontSize: 13, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>⚠️ {warning} (déplacé quand même)</span>
-          <button onClick={() => setWarning('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9A3412', fontWeight: 700 }}>✕</button>
+          <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <AlertTriangle size={15} strokeWidth={2} /> {warning} (déplacé quand même)
+          </span>
+          <button onClick={() => setWarning('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9A3412', display:'flex' }}>
+            <X size={14} strokeWidth={2} />
+          </button>
         </div>
       )}
 
@@ -53,6 +56,7 @@ export default function PipelineClient({ contacts, fis = [], communes = [] }) {
         {STAGES.map(stage => {
           const sv = contacts.filter(c => c.stage === stage.id)
           const isOver = dragOverStage === stage.id
+          const StageIcon = STAGE_ICON_MAP[stage.id]
           return (
             <div
               key={stage.id}
@@ -63,7 +67,9 @@ export default function PipelineClient({ contacts, fis = [], communes = [] }) {
               style={{ outline: isOver ? `2px dashed ${stage.color}` : 'none', outlineOffset: 2, borderRadius: 12 }}
             >
               <div className="kh" style={{ background: stage.color }}>
-                <div style={{ fontSize: 15 }}>{stage.emoji}</div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {StageIcon && <StageIcon size={16} strokeWidth={2} color="#fff" />}
+                </div>
                 <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', lineHeight: 1.2 }}>{stage.label}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, marginTop: 3 }}>{sv.length}</div>
               </div>
@@ -82,8 +88,12 @@ export default function PipelineClient({ contacts, fis = [], communes = [] }) {
                     <div><div style={{ fontSize: 11, fontWeight: 700 }}>{c.first_name} {c.last_name}</div><div style={{ fontSize: 10, color: 'var(--gy)' }}>{c.commune || '—'}</div></div>
                   </div>
                   <div className="sbr"><div className="sbr-bar"><div className="sbr-fill" style={{ width: `${c.integration_score}%`, background: scoreColor(c.integration_score) }} /></div><span className="sbr-val" style={{ color: scoreColor(c.integration_score) }}>{c.integration_score}</span></div>
-                  {c.alert_level === 'red' && <div style={{ marginTop: 6, fontSize: 10, color: 'var(--re)', fontWeight: 600 }}>🔴 Urgence</div>}
-                  {c.agent?.name && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--gd)' }}>👤 {c.agent.name}</div>}
+                  {c.alert_level === 'red' && (
+                    <div style={{ marginTop: 6, fontSize: 10, color: 'var(--re)', fontWeight: 600, display:'flex', alignItems:'center', gap:4 }}>
+                      <AlertCircle size={11} strokeWidth={2} /> Urgence
+                    </div>
+                  )}
+                  {c.agent?.name && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--gd)' }}>{c.agent.name}</div>}
                 </div>
               )) : <div style={{ padding: 16, borderRadius: 10, border: '2px dashed var(--br)', textAlign: 'center', color: '#CBD5E1', fontSize: 12 }}>Aucune personne</div>}
             </div>

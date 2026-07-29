@@ -7,7 +7,7 @@ const ini = (nm) => nm?.split(' ').map(w=>w[0]).slice(0,2).join('') || 'U'
 export default function UtilisateursClient({ users, fis }) {
   const [showModal, setShowModal] = useState(false)
   const [editUser, setEditUser] = useState(null)
-  const [form, setForm] = useState({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true })
+  const [form, setForm] = useState({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, also_integrator:false })
   const [saving, setSaving] = useState(false)
   const router = useRouter()
   async function saveUser() {
@@ -25,12 +25,12 @@ export default function UtilisateursClient({ users, fis }) {
   }
   function openEdit(user) {
     setEditUser(user)
-    setForm({ name:user.name, email:user.email, password:'', role:user.role, sex:user.sex||'F', fi_id:user.fi_id||'', active:user.active })
+    setForm({ name:user.name, email:user.email, password:'', role:user.role, sex:user.sex||'F', fi_id:user.fi_id||'', active:user.active, also_integrator:user.also_integrator||false })
     setShowModal(true)
   }
   function openAdd() {
     setEditUser(null)
-    setForm({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true })
+    setForm({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, also_integrator:false })
     setShowModal(true)
   }
   const btnLabel = saving ? 'Enregistrement...' : editUser ? 'Mettre a jour' : 'Creer le compte'
@@ -51,7 +51,11 @@ export default function UtilisateursClient({ users, fis }) {
                   <div><div style={{fontSize:13,fontWeight:600}}>{u.name}</div><div style={{fontSize:11,color:'var(--gy)'}}>{u.sex==='F'?'Femme':'Homme'}</div></div>
                 </div></td>
                 <td style={{fontSize:12,color:'var(--gd)'}}>{u.email}</td>
-                <td><span className="badge" style={{background:`${ROLE_COLORS[u.role]||'#94A3B8'}20`,color:ROLE_COLORS[u.role]||'#94A3B8'}}>{ROLES[u.role]||u.role}</span></td>
+                <td><span className="badge" style={{background:`${ROLE_COLORS[u.role]||'#94A3B8'}20`,color:ROLE_COLORS[u.role]||'#94A3B8'}}>{ROLES[u.role]||u.role}</span>
+                  {u.also_integrator && u.role !== 'equipe_suivi' && u.role !== 'responsable_suivi' && (
+                    <span className="badge" style={{background:'#EFF6FF',color:'#3B82F6',marginLeft:6,fontSize:10}}>+ Suivi & Intégration</span>
+                  )}
+                </td>
                 <td style={{fontSize:12,color:u.fi?'var(--gr)':'var(--gy)'}}>{u.fi?.name||'—'}</td>
                 <td>
                   <div className={`tog ${u.active?'on':'off'}`} onClick={()=>toggleActive(u.id,u.active)} style={{cursor:'pointer'}}>
@@ -91,6 +95,17 @@ export default function UtilisateursClient({ users, fis }) {
                 ))}
               </div>
             </div>
+            {form.role !== 'equipe_suivi' && form.role !== 'responsable_suivi' && (
+              <div className="form-group">
+                <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                  <input type="checkbox" checked={form.also_integrator} onChange={e=>setForm({...form,also_integrator:e.target.checked})} style={{width:16,height:16}} />
+                  Fait aussi partie de l&apos;équipe Suivi &amp; Intégration
+                </label>
+                <div style={{fontSize:11,color:'var(--gy)',marginTop:4}}>
+                  Rend cette personne éligible au binôme d&apos;intégrateurs, en plus de son rôle principal.
+                </div>
+              </div>
+            )}
             {form.role === 'pilote_fi' && (
               <div className="form-group"><label className="form-label">Famille Impact assignee</label>
                 <select className="form-input" value={form.fi_id} onChange={e=>setForm({...form,fi_id:e.target.value})}>

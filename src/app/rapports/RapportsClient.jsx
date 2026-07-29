@@ -2,14 +2,12 @@
 import { useRef, useEffect } from 'react'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
+import { Users, UserPlus, Heart, Droplet, Home, BookOpen, Crown, STAGE_ICON_MAP } from '@/lib/icons'
 
 export default function RapportsClient({ stats }) {
   const barRef = useRef(null)
   const barChartInstance = useRef(null)
 
-  // Rafraichit automatiquement les rapports des qu'un contact change
-  // (nouveau visiteur, changement d'etape, etc.), meme si le changement
-  // vient d'un autre agent pendant que cette page est ouverte.
   useRealtimeRefresh(['contacts'])
 
   useEffect(() => {
@@ -19,20 +17,12 @@ export default function RapportsClient({ stats }) {
       Chart.register(...registerables)
       if (cancelled) return
 
-      // Detruit l'instance precedente avant d'en recreer : necessaire
-      // car ce useEffect depend maintenant de stats (sinon un rafraichissement
-      // Realtime ne mettait a jour que les chiffres, jamais ce graphique).
       barChartInstance.current?.destroy()
 
       if (barRef.current) {
         const labels = Object.keys(stats.stageCounts).map(s=>STAGE_LABEL(s))
         const data = Object.values(stats.stageCounts)
         const colors = Object.keys(stats.stageCounts).map(s=>STAGE_COLOR(s))
-        // Bug corrige : `colors + '80'` convertissait tout le tableau en UNE
-        // seule chaine (ex: "#3B82F6,#22C55E80"), une couleur invalide que
-        // Chart.js ne sait pas interpreter et remplace par du gris par
-        // defaut. Il faut appliquer '80' (alpha ~50%) a CHAQUE couleur
-        // individuellement, d'ou le .map() ci-dessous.
         barChartInstance.current = new Chart(barRef.current, {
           type:'bar',
           data:{ labels, datasets:[{ data, backgroundColor:colors.map(c=>c+'80'), borderColor:colors, borderWidth:1.5, borderRadius:6 }] },
@@ -50,19 +40,30 @@ export default function RapportsClient({ stats }) {
 
   const rate = stats.totalActive > 0 ? Math.round((stats.integrated / stats.totalActive) * 100) : 0
 
+  const statCards = [
+    { Icon: Users, label: 'Total actifs', value: stats.totalActive, color: '#0B3D91' },
+    { Icon: UserPlus, label: 'Ce mois', value: stats.monthNew, color: '#22C55E' },
+    { Icon: Heart, label: 'Appels au salut', value: stats.salvations, color: '#F97316' },
+    { Icon: Droplet, label: 'Baptisés', value: stats.baptisms, color: '#8B5CF6' },
+  ]
+
+  const integrationBlocks = [
+    { Icon: Home, label: "Intégrés FI", key: 'integre' },
+    { Icon: BookOpen, label: 'En parcours', key: 'parcours' },
+    { Icon: Droplet, label: 'Baptisés', key: 'bapteme' },
+    { Icon: Crown, label: 'Leaders', key: 'leader' },
+  ]
+
   return (
     <div style={{maxWidth:1100}}>
       <div className="g4" style={{marginBottom:24}}>
-        {[
-          ['👥','Total actifs',stats.totalActive,'#0B3D91'],
-          ['🆕','Ce mois',stats.monthNew,'#22C55E'],
-          ['🙌','Appels au salut',stats.salvations,'#F97316'],
-          ['💧','Baptisés',stats.baptisms,'#8B5CF6'],
-        ].map(([ic,l,v,c])=>(
-          <div key={l} className="card" style={{padding:20,borderTop:`3px solid ${c}`}}>
+        {statCards.map(({ Icon, label, value, color }) => (
+          <div key={label} className="card" style={{padding:20,borderTop:`3px solid ${color}`}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-              <div><div style={{fontSize:13,color:'var(--gd)',marginBottom:8}}>{l}</div><div style={{fontSize:32,fontWeight:800,color:'#1E293B'}}>{v||0}</div></div>
-              <div style={{width:44,height:44,borderRadius:12,background:c,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20}}>{ic}</div>
+              <div><div style={{fontSize:13,color:'var(--gd)',marginBottom:8}}>{label}</div><div style={{fontSize:32,fontWeight:800,color:'#1E293B'}}>{value||0}</div></div>
+              <div style={{width:44,height:44,borderRadius:12,background:color,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <Icon size={20} strokeWidth={2} color="#fff" />
+              </div>
             </div>
           </div>
         ))}
@@ -82,10 +83,12 @@ export default function RapportsClient({ stats }) {
             <div style={{fontSize:12,color:'var(--gy)',marginTop:4}}>{stats.integrated||0} / {stats.totalActive||0} personnes</div>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:8}}>
-            {[['🏠',"Intégrés FI",'integre'],['📖','En parcours','parcours'],['💧','Baptisés','bapteme'],['👑','Leaders','leader']].map(([ic,l,st])=>(
-              <div key={st} style={{background:'#F8FAFC',borderRadius:10,padding:'10px 12px'}}>
-                <div style={{fontSize:11,color:'var(--gd)'}}>{ic} {l}</div>
-                <div style={{fontSize:22,fontWeight:800,color:STAGE_COLOR(st)}}>{stats.stageCounts?.[st]||0}</div>
+            {integrationBlocks.map(({ Icon, label, key }) => (
+              <div key={key} style={{background:'#F8FAFC',borderRadius:10,padding:'10px 12px'}}>
+                <div style={{fontSize:11,color:'var(--gd)',display:'flex',alignItems:'center',gap:6}}>
+                  <Icon size={13} strokeWidth={2} /> {label}
+                </div>
+                <div style={{fontSize:22,fontWeight:800,color:STAGE_COLOR(key)}}>{stats.stageCounts?.[key]||0}</div>
               </div>
             ))}
           </div>
@@ -98,9 +101,12 @@ export default function RapportsClient({ stats }) {
           {STAGES.map(s=>{
             const count = stats.stageCounts?.[s.id]||0
             const pct = stats.totalActive ? Math.round((count/stats.totalActive)*100) : 0
+            const StageIcon = STAGE_ICON_MAP[s.id]
             return (
               <div key={s.id} style={{display:'flex',alignItems:'center',gap:12}}>
-                <div style={{width:24,textAlign:'center'}}>{s.emoji}</div>
+                <div style={{width:24,display:'flex',justifyContent:'center'}}>
+                  {StageIcon && <StageIcon size={15} strokeWidth={2} color={s.color} />}
+                </div>
                 <div style={{width:140,fontSize:12,fontWeight:600,color:'var(--gd)'}}>{s.label}</div>
                 <div style={{flex:1,height:20,background:'#F1F5F9',borderRadius:4,overflow:'hidden'}}>
                   <div style={{height:'100%',width:`${pct}%`,background:s.color,borderRadius:4,display:'flex',alignItems:'center',paddingLeft:8,minWidth:pct>0?40:0}}>

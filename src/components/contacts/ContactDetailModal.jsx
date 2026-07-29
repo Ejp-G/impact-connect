@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
+import { Users, CheckCircle2, X } from '@/lib/icons'
 
 export default function ContactDetailModal({ contactId, onClose, communes = [], fis = [] }) {
   const router = useRouter()
@@ -23,9 +24,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
 
   const [history, setHistory] = useState([])
 
-  // Binome d'integrateurs : affichage + reattribution manuelle
-  // uniquement (le compte-rendu se fait desormais dans Suivi & Taches,
-  // pas ici — cf separation fiche visiteur / interface de travail).
   const [integratorPair, setIntegratorPair] = useState([])
   const [eligibleIntegrators, setEligibleIntegrators] = useState([])
   const [editingIntegrators, setEditingIntegrators] = useState(false)
@@ -171,7 +169,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                 <div style={{ fontWeight: 800, fontSize: 16 }}>{contact.first_name} {contact.last_name}</div>
                 <div style={{ fontSize: 12, opacity: .85 }}>{contact.commune || '—'} {contact.is_minor && '· Mineur'}</div>
               </div>
-              <button onClick={onClose} style={closeBtnStyle}>✕</button>
+              <button onClick={onClose} style={closeBtnStyle}><X size={15} strokeWidth={2} /></button>
             </div>
 
             <div style={{ padding: 20 }}>
@@ -192,24 +190,27 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                 {changingStage && (
                   <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                     <select value={newStage} onChange={e => setNewStage(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
-                      {STAGES.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+                      {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                     </select>
                     <button onClick={submitStageChange} style={primaryBtnStyle}>Valider</button>
                   </div>
                 )}
                 {stageWarning && (
                   <div style={{ marginTop: 10, fontSize: 12, background: '#FFF7ED', color: '#9A3412', padding: '8px 12px', borderRadius: 8 }}>
-                    ⚠️ {stageWarning} (l'étape a quand même été changée)
+                    {stageWarning} (l'étape a quand même été changée)
                   </div>
                 )}
               </div>
 
-              {/* Binome d'integrateurs : affichage + reattribution uniquement.
-                  Le compte-rendu se fait dans Suivi & Taches (NewcomerReportPanel). */}
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <div style={{ fontSize: 10, color: '#94A3B8', textTransform: 'uppercase', fontWeight: 700 }}>
-                    👥 Intégrateurs assignés {contact.integrator_contacted && <span style={{ color: '#16A34A', fontWeight: 700 }}>· Contact confirmé ✅</span>}
+                  <div style={{ fontSize: 10, color: '#94A3B8', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Users size={12} strokeWidth={2} /> Intégrateurs assignés
+                    {contact.integrator_contacted && (
+                      <span style={{ color: '#16A34A', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <CheckCircle2 size={12} strokeWidth={2} /> Contact confirmé
+                      </span>
+                    )}
                   </div>
                   {canManageIntegrators && (
                     <button onClick={() => setEditingIntegrators(v => !v)} style={smallBtnStyle}>Modifier</button>
@@ -258,10 +259,10 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
               {confirmingContact && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18, background: '#F8FAFC', borderRadius: 10, padding: 12 }}>
                   <select value={contactChannel} onChange={e => setContactChannel(e.target.value)} style={inputStyle}>
-                    <option value="appel">📞 Appel</option>
-                    <option value="whatsapp">💬 WhatsApp</option>
-                    <option value="sms">✉️ SMS</option>
-                    <option value="email">📧 Email</option>
+                    <option value="appel">Appel</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="sms">SMS</option>
+                    <option value="email">Email</option>
                   </select>
                   <input value={contactNote} onChange={e => setContactNote(e.target.value)} placeholder="Note (optionnel)" style={inputStyle} />
                   <button onClick={submitContactConfirmation} style={primaryBtnStyle}>Enregistrer le contact</button>
@@ -348,7 +349,7 @@ const modalHeaderStyle = {
 }
 const closeBtnStyle = {
   background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', width: 28, height: 28,
-  borderRadius: 8, cursor: 'pointer', fontSize: 14
+  borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
 }
 const inputStyle = {
   width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0',

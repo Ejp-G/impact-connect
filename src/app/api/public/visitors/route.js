@@ -49,13 +49,17 @@ export async function POST(request) {
   const supabase = createAdminClient()
   const body = await request.json()
   const { firstName, lastName, sex, dateOfBirth, phone, whatsapp, email,
-          commune, communeId, quartier, firstVisit, salvationCall,
-          wantsContact, wantsFI, prayerRequest, howFound,
+          commune, communeId, quartier, address, firstVisit, salvationCall,
+          wantsFI, prayerRequest, howFound,
           parentLastName, parentFirstName, parentPhone, parentEmail,
           contactPreference, availability, invitedBy, welcomedByName, prayerCategories } = body
 
   if (!firstName?.trim() || !lastName?.trim() || !sex) {
     return NextResponse.json({ error: 'Prénom, nom et sexe sont obligatoires' }, { status: 400 })
+  }
+
+  if (!welcomedByName?.trim()) {
+    return NextResponse.json({ error: 'Merci d\'indiquer qui vous a accueilli aujourd\'hui.' }, { status: 400 })
   }
 
   const emailValid = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -71,11 +75,17 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Informations du parent obligatoires pour les mineurs' }, { status: 400 })
   }
 
+  // Deduit du choix de preference de contact : si la personne demande a
+  // ne pas etre contactee, on ne peut pas la marquer "souhaite etre
+  // contactee" en meme temps (contradiction evitee).
+  const wantsContact = contactPreference !== 'none'
+
   const contactData = {
     first_name: firstName.trim(), last_name: lastName.trim(), sex,
     date_of_birth: dateOfBirth || null,
     phone: phone || null, whatsapp: whatsapp || null, email: email || null,
     commune: commune || null, commune_id: communeId || null, quartier: quartier || null,
+    address: address?.trim() || null,
     first_visit: firstVisit, salvation_call: salvationCall,
     wants_contact: wantsContact, wants_fi: wantsFI,
     prayer_request: prayerRequest || null, how_found: howFound || null,
@@ -85,7 +95,7 @@ export async function POST(request) {
     contact_preference: contactPreference || null,
     availability: availability?.length ? availability : null,
     invited_by: invitedBy?.trim() || "Je suis venu(e) seul(e).",
-    welcomed_by_name: welcomedByName?.trim() || null,
+    welcomed_by_name: welcomedByName.trim(),
     prayer_categories: prayerCategories?.length ? prayerCategories : null,
   }
 

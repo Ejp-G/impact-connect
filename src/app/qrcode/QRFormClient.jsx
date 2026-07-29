@@ -35,9 +35,9 @@ export default function QRFormClient() {
   const [errors, setErrors] = useState({})
   const [form, setForm] = useState({
     firstName:'', lastName:'', sex:'F', dateOfBirth:'', phone:'', whatsapp:'', email:'',
-    commune:'', quartier:'', firstVisit:true, salvationCall:false, wantsContact:true, wantsFI:true,
+    commune:'', quartier:'', address:'', firstVisit:true, salvationCall:false, wantsFI:true,
     howFound:'', prayerRequest:'', parentLastName:'', parentFirstName:'', parentPhone:'', parentEmail:'', parentRelation:'',
-    availability:[], contactPreference:'whatsapp', invitedBy:'', welcomedByName:'', prayerCategories:[]
+    availability:[], contactPreference:'whatsapp', invitedBy:'', cameAlone:false, welcomedByName:'', prayerCategories:[]
   })
   const isMinor = form.dateOfBirth && new Date(form.dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear()-18))
 
@@ -60,12 +60,25 @@ export default function QRFormClient() {
     return Object.keys(e).length === 0
   }
 
+  function validateStep3() {
+    const e = {}
+    if (!form.welcomedByName.trim()) e.welcomedByName = 'Merci d\'indiquer qui vous a accueilli aujourd\'hui.'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
   async function submit() {
+    if (!validateStep3()) return
     setSaving(true)
     setSubmitError('')
+    const payload = {
+      ...form,
+      invitedBy: form.cameAlone ? 'Je suis venu(e) seul(e).' : form.invitedBy,
+      wantsContact: form.contactPreference !== 'none',
+    }
     try {
       const res = await fetch('/api/public/visitors', {
-        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(form)
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
       })
       const data = await res.json()
       if (!res.ok) {
@@ -83,7 +96,6 @@ export default function QRFormClient() {
   const checkItems = [
     ['firstVisit', "C'est ma premiere visite"],
     ['salvationCall', "J'ai repondu a l'appel au salut"],
-    ['wantsContact', 'Je souhaite etre contacte'],
     ['wantsFI', "Je veux rejoindre une Famille d'Impact"],
   ]
 
@@ -209,6 +221,9 @@ export default function QRFormClient() {
 
           {step === 2 && (
             <div className="qr-step">
+              <div className="form-group"><label className="form-label">Adresse</label>
+                <input className="form-input" value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="Numéro et nom de rue" />
+              </div>
               <div className="form-group"><label className="form-label">Commune</label>
                 <input className="form-input" value={form.commune} onChange={e=>setForm({...form,commune:e.target.value})} placeholder="ex: Pointe-a-Pitre, Abymes..." />
               </div>
@@ -221,11 +236,31 @@ export default function QRFormClient() {
                   {howFoundOptions.map(o=><option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
-              <div className="form-group"><label className="form-label">Qui vous a invité aujourd&apos;hui ?</label>
-                <input className="form-input" value={form.invitedBy} onChange={e=>setForm({...form,invitedBy:e.target.value})} placeholder="Je suis venu(e) seul(e)." />
+              <div className="form-group">
+                <label className="form-label">Qui vous a invité aujourd&apos;hui ?</label>
+                <input
+                  className="form-input"
+                  value={form.invitedBy}
+                  onChange={e=>setForm({...form,invitedBy:e.target.value})}
+                  disabled={form.cameAlone}
+                  style={form.cameAlone ? { opacity:.5 } : undefined}
+                  placeholder="Prénom et nom"
+                />
+                <label style={{display:'flex',alignItems:'center',gap:8,marginTop:8,fontSize:13,cursor:'pointer',color:'var(--gd)'}}>
+                  <input type="checkbox" checked={form.cameAlone} onChange={e=>setForm({...form,cameAlone:e.target.checked,invitedBy: e.target.checked ? '' : form.invitedBy})} style={{accentColor:'var(--n)'}} />
+                  Je suis venu(e) seul(e).
+                </label>
               </div>
-              <div className="form-group"><label className="form-label">Qui vous a accueilli aujourd&apos;hui ? (facultatif)</label>
-                <input className="form-input" value={form.welcomedByName} onChange={e=>setForm({...form,welcomedByName:e.target.value})} />
+              <div className="form-group">
+                <label className="form-label">Qui vous a accueilli aujourd&apos;hui ? *</label>
+                <input
+                  className="form-input"
+                  value={form.welcomedByName}
+                  onChange={e=>setForm({...form,welcomedByName:e.target.value})}
+                  style={errors.welcomedByName ? { borderColor:'var(--re)' } : undefined}
+                  placeholder="Prénom et nom"
+                />
+                {errors.welcomedByName && <div style={errStyle}>{errors.welcomedByName}</div>}
               </div>
               <div className="form-group">
                 <label className="form-label">Comment préférez-vous être contacté ?</label>

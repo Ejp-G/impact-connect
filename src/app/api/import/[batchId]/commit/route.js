@@ -5,6 +5,24 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Convertit une date au format francais (JJ/MM/AAAA ou JJ-MM-AAAA) ou
+// deja ISO vers le format ISO (AAAA-MM-JJ) attendu par PostgreSQL.
+// Sans cette conversion, PostgreSQL tente de lire "28/12/2025" comme
+// MM/JJ/AAAA et rejette la ligne entiere (28 n'est pas un mois valide).
+// Retourne null si le format n'est pas reconnu, plutot que de planter
+// l'insertion : le champ sera simplement laisse vide pour cette ligne.
+function normalizeDateFr(value) {
+  if (!value) return null;
+  const str = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+  const m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) {
+    const [, day, month, year] = m;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  return null;
+}
+
 // Convertit un enregistrement mappe (champs canoniques) en ligne prete pour `contacts`.
 // Les champs surs (COLUMN_MAP) sont copies tels quels vers leur vraie
 // colonne. Les champs a risque (SITUATION_FIELDS) sont consolides en
@@ -14,9 +32,13 @@ const supabase = createClient(
 function toVisiteurRecord(mappedData) {
   const record = {};
   Object.entries(COLUMN_MAP).forEach(([canonicalField, columnName]) => {
-    if (mappedData[canonicalField] !== undefined && mappedData[canonicalField] !== '') {
-      record[columnName] = mappedData[canonicalField];
+    let value = mappedData[canonicalField];
+    if (value === undefined || value === '') return;
+    if (canonicalField === 'date_arrivee') {
+      value = normalizeDateFr(value);
+      if (!value) return; // format illisible : on ignore ce champ plutot que de faire planter la ligne
     }
+    record[columnName] = value;
   });
 
   const situationLines = Object.entries(SITUATION_FIELDS)

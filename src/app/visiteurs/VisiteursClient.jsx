@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { STAGE_LABEL, STAGE_COLOR, STAGES } from '@/lib/constants'
 import { formatDate, scoreColor } from '@/lib/utils'
-import ContactDetailModal from '@/components/contacts/ContactDetailModal'
 import ImportModal from '@/components/contacts/ImportModal'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { Search, Upload } from '@/lib/icons'
@@ -18,7 +17,6 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [selectedContactId, setSelectedContactId] = useState(null)
   const [showImport, setShowImport] = useState(false)
   const [form, setForm] = useState({
     firstName:'',lastName:'',sex:'F',phone:'',whatsapp:'',email:'',
@@ -100,7 +98,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
             </tr></thead>
             <tbody>
               {filtered.map(c => (
-                <tr key={c.id} onClick={() => setSelectedContactId(c.id)} style={{ cursor: 'pointer' }}>
+                <tr key={c.id} onClick={() => router.push(`/visiteurs/${c.id}`)} style={{ cursor: 'pointer' }}>
                   <td><div style={{ display:'flex', alignItems:'center', gap:10 }}>
                     <div style={{ width:32, height:32, borderRadius:'50%', background:c.sex==='F'?'#8B5CF6':'var(--n)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:11, fontWeight:700, flexShrink:0 }}>
                       {ini(c.first_name, c.last_name)}
@@ -200,15 +198,6 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
         <ImportModal
           onClose={() => setShowImport(false)}
           onImported={() => router.refresh()}
-        />
-      )}
-
-      {selectedContactId && (
-        <ContactDetailModal
-          contactId={selectedContactId}
-          onClose={() => { setSelectedContactId(null); router.refresh() }}
-          communes={communes}
-          fis={fis}
         />
       )}
     </div>

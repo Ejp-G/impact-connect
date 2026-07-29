@@ -1,5 +1,3 @@
-import { UserPlus, Phone, Send, Home, RefreshCw, CheckCircle2, BookOpen, Droplet, Heart, Award, Crown } from 'lucide-react'
-
 export const STAGES = [
   { id:'visiteur',    label:'Visiteur',          color:'#94A3B8' },
   { id:'contacte',    label:'Contacté',           color:'#3B82F6' },
@@ -34,19 +32,19 @@ export const ROLE_NAV = {
   responsable_jeunesse:    ['jeunesse','visiteurs','communications'],
 }
 export const NAV_ITEMS = [
-  { id:'dashboard',       label:"Tableau de bord",      icon:'📊', href:'/dashboard' },
-  { id:'visiteurs',       label:'Visiteurs',             icon:'👥', href:'/visiteurs',       badge:'contacts' },
-  { id:'pipeline',        label:'Pipeline',              icon:'🔀', href:'/pipeline' },
-  { id:'fi',              label:"Familles d'Impact",     icon:'🏠', href:'/fi' },
-  { id:'suivi',           label:'Suivi & Tâches',        icon:'✅', href:'/suivi',            badge:'tasks' },
-  { id:'jeunesse',        label:'Jeunesse',              icon:'🌟', href:'/jeunesse' },
-  { id:'communications',  label:'Communications',        icon:'💬', href:'/communications' },
-  { id:'carte',           label:'Carte Guadeloupe',      icon:'🗺️', href:'/carte' },
-  { id:'rapports',        label:'Rapports',              icon:'📋', href:'/rapports' },
-  { id:'qrcode',          label:'Formulaire QR',         icon:'📲', href:'/qrcode' },
-  { id:'journal',         label:"Journal d'activité",    icon:'📜', href:'/journal' },
-  { id:'utilisateurs',    label:'Utilisateurs',          icon:'👤', href:'/utilisateurs' },
-  { id:'parametres',      label:'Paramètres',            icon:'⚙️', href:'/parametres' },
+  { id:'dashboard',       label:"Tableau de bord",      href:'/dashboard' },
+  { id:'visiteurs',       label:'Visiteurs',             href:'/visiteurs',       badge:'contacts' },
+  { id:'pipeline',        label:'Pipeline',              href:'/pipeline' },
+  { id:'fi',              label:"Familles d'Impact",     href:'/fi' },
+  { id:'suivi',           label:'Suivi & Tâches',        href:'/suivi',            badge:'tasks' },
+  { id:'jeunesse',        label:'Jeunesse',              href:'/jeunesse' },
+  { id:'communications',  label:'Communications',        href:'/communications' },
+  { id:'carte',           label:'Carte Guadeloupe',      href:'/carte' },
+  { id:'rapports',        label:'Rapports',              href:'/rapports' },
+  { id:'qrcode',          label:'Formulaire QR',         href:'/qrcode' },
+  { id:'journal',         label:"Journal d'activité",    href:'/journal' },
+  { id:'utilisateurs',    label:'Utilisateurs',          href:'/utilisateurs' },
+  { id:'parametres',      label:'Paramètres',            href:'/parametres' },
 ]
 export const COMMUNES_FI = {
   'Pointe-a-Pitre': 'FI PàP',
@@ -62,43 +60,34 @@ export const PRIORITY_COLORS = {
 export const STAGE_LABEL = (id) => STAGES.find(s => s.id === id)?.label || id
 export const STAGE_COLOR = (id) => STAGES.find(s => s.id === id)?.color || '#94A3B8'
 
-// Icones Lucide par etape (remplace stage.emoji dans l'UI : kanban
-// Pipeline, "Pipeline complet" des Rapports, etc.)
-export const STAGE_ICON_MAP = {
-  visiteur: UserPlus, contacte: Phone, invite_fi: Send, fi1: Home, fi2: RefreshCw,
-  integre: CheckCircle2, parcours: BookOpen, bapteme: Droplet, service: Heart,
-  leader_pot: Award, leader: Crown,
-}
-export const STAGE_ICON = (id) => STAGE_ICON_MAP[id] || Home
-
 // Besoins detectes progressivement au fil des echanges (jamais demandes
 // frontalement des la premiere visite). Les 3 marques sensible:true sont
 // restreintes a admin/responsable_suivi cote base (voir politiques RLS
 // de contact_needs), et cote UI (voir SuiviClient / NeedsDrilldownModal).
+// Les icones associees vivent dans lib/icons.js (NEED_ICON_MAP), pas ici.
 export const NEED_CATEGORIES = [
-  { id:'nouveau_converti',        domain:'spirituel', label:'Nouveau converti',              emoji:'✝️' },
-  { id:'reconciliation',          domain:'spirituel', label:'Réconciliation',                emoji:'🤝' },
-  { id:'demande_bapteme',         domain:'spirituel', label:'Demande de baptême',             emoji:'💧' },
-  { id:'besoin_accompagnement',   domain:'spirituel', label:"Besoin d'accompagnement",        emoji:'🧭' },
-  { id:'sujet_priere',            domain:'spirituel', label:'Sujet de prière',                emoji:'🙏' },
-  { id:'solitude',                domain:'personnel', label:'Solitude',                       emoji:'💭' },
-  { id:'parent_isole',            domain:'personnel', label:'Parent isolé',                   emoji:'👩' },
-  { id:'etudiant',                domain:'personnel', label:'Étudiant',                       emoji:'🎓' },
-  { id:'difficulte_financiere',   domain:'personnel', label:'Difficultés financières',        emoji:'💰' },
-  { id:'difficulte_alimentaire',  domain:'personnel', label:'Difficultés alimentaires',       emoji:'🍞' },
-  { id:'difficulte_logement',     domain:'personnel', label:'Difficultés de logement',        emoji:'🏠' },
-  { id:'difficulte_transport',    domain:'personnel', label:'Difficultés de transport',       emoji:'🚗' },
-  { id:'recherche_emploi',        domain:'personnel', label:"Recherche d'emploi",             emoji:'💼' },
-  { id:'recherche_formation',     domain:'personnel', label:'Recherche de formation',         emoji:'📚' },
-  { id:'handicap',                domain:'personnel', label:'Handicap',                       emoji:'♿' },
-  { id:'depression',              domain:'personnel', label:'Dépression',                     emoji:'😔', sensitive:true },
-  { id:'maladie',                 domain:'personnel', label:'Maladie',                        emoji:'🏥' },
-  { id:'addiction',               domain:'personnel', label:'Addiction',                      emoji:'⚠️', sensitive:true },
-  { id:'violence_familiale',      domain:'personnel', label:'Violence familiale',             emoji:'🚨', sensitive:true },
-  { id:'besoin_fi',               domain:'personnel', label:"Besoin d'une Famille d'Impact",  emoji:'🏠' },
-  { id:'besoin_mentor',           domain:'personnel', label:"Besoin d'un mentor",             emoji:'🧑‍🏫' },
-  { id:'autre',                   domain:'personnel', label:'Autre',                          emoji:'📝' },
+  { id:'nouveau_converti',        domain:'spirituel', label:'Nouveau converti' },
+  { id:'reconciliation',          domain:'spirituel', label:'Réconciliation' },
+  { id:'demande_bapteme',         domain:'spirituel', label:'Demande de baptême' },
+  { id:'besoin_accompagnement',   domain:'spirituel', label:"Besoin d'accompagnement" },
+  { id:'sujet_priere',            domain:'spirituel', label:'Sujet de prière' },
+  { id:'solitude',                domain:'personnel', label:'Solitude' },
+  { id:'parent_isole',            domain:'personnel', label:'Parent isolé' },
+  { id:'etudiant',                domain:'personnel', label:'Étudiant' },
+  { id:'difficulte_financiere',   domain:'personnel', label:'Difficultés financières' },
+  { id:'difficulte_alimentaire',  domain:'personnel', label:'Difficultés alimentaires' },
+  { id:'difficulte_logement',     domain:'personnel', label:'Difficultés de logement' },
+  { id:'difficulte_transport',    domain:'personnel', label:'Difficultés de transport' },
+  { id:'recherche_emploi',        domain:'personnel', label:"Recherche d'emploi" },
+  { id:'recherche_formation',     domain:'personnel', label:'Recherche de formation' },
+  { id:'handicap',                domain:'personnel', label:'Handicap' },
+  { id:'depression',              domain:'personnel', label:'Dépression', sensitive:true },
+  { id:'maladie',                 domain:'personnel', label:'Maladie' },
+  { id:'addiction',               domain:'personnel', label:'Addiction', sensitive:true },
+  { id:'violence_familiale',      domain:'personnel', label:'Violence familiale', sensitive:true },
+  { id:'besoin_fi',               domain:'personnel', label:"Besoin d'une Famille d'Impact" },
+  { id:'besoin_mentor',           domain:'personnel', label:"Besoin d'un mentor" },
+  { id:'autre',                   domain:'personnel', label:'Autre' },
 ]
 export const NEED_LABEL = (id) => NEED_CATEGORIES.find(n => n.id === id)?.label || id
-export const NEED_EMOJI = (id) => NEED_CATEGORIES.find(n => n.id === id)?.emoji || '📝'
 export const NEED_IS_SENSITIVE = (id) => !!NEED_CATEGORIES.find(n => n.id === id)?.sensitive

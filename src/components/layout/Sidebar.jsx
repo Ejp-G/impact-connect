@@ -7,13 +7,15 @@ import { NAV_ITEMS, ROLE_NAV, ROLES } from '@/lib/constants'
 import PasswordInput from '@/components/ui/PasswordInput'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useBranding } from '@/components/ui/BrandingProvider'
+import { NAV_ICON_MAP } from '@/lib/icons'
+import { ChevronLeft, ChevronRight, LogOut, X, Settings } from 'lucide-react'
 
 const ini = (nm) => nm?.split(' ').map(w=>w[0]).slice(0,2).join('') || 'U'
 
-// Icones disponibles pour le logo, alignees sur les options de
-// Parametres > Marque & Design (Croix, Colombe, Flamme, Etoile, Couronne).
-// Chacune est dessinee dans un viewBox 18x18 pour remplacer la croix
-// codee en dur precedemment, sans jamais deborder du cercle parent.
+// Icones disponibles pour le logo de marque (Croix, Colombe, Flamme,
+// Etoile, Couronne). Ce sont des symboles d'identite d'eglise, pas des
+// icones d'interface generique : ils restent en SVG dessine a la main,
+// hors du perimetre de la migration vers Lucide.
 function BrandIcon({ icon }) {
   switch (icon) {
     case 'colombe':
@@ -139,19 +141,22 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed, mo
 
         {!isMobile && (
           <button className="sbt" onClick={()=>setCollapsed(!collapsed)}>
-            {collapsed ? '›' : '‹'}
+            {collapsed ? <ChevronRight size={14} strokeWidth={2.5} /> : <ChevronLeft size={14} strokeWidth={2.5} />}
           </button>
         )}
 
         <nav className="sbn">
-          {visibleNav.map(item => (
-            <Link key={item.id} href={item.href}
-              className={`si${activeId===item.id?' on':''}`}
-              title={collapsed ? item.label : ''}>
-              <span className="si-ic">{item.icon}</span>
-              {!collapsed && <span className="si-lb">{item.label}</span>}
-            </Link>
-          ))}
+          {visibleNav.map(item => {
+            const Icon = NAV_ICON_MAP[item.id]
+            return (
+              <Link key={item.id} href={item.href}
+                className={`si${activeId===item.id?' on':''}`}
+                title={collapsed ? item.label : ''}>
+                <span className="si-ic">{Icon && <Icon size={18} strokeWidth={2} />}</span>
+                {!collapsed && <span className="si-lb">{item.label}</span>}
+              </Link>
+            )
+          })}
         </nav>
 
         <div style={{borderTop:'1px solid rgba(255,255,255,.08)'}}>
@@ -163,7 +168,7 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed, mo
                 <div className="sbu-r">{ROLES[profile?.role] || profile?.role}</div>
               </div>
             )}
-            {!collapsed && <span style={{color:'rgba(255,255,255,.4)',fontSize:13}}>⚙️</span>}
+            {!collapsed && <Settings size={14} strokeWidth={2} style={{color:'rgba(255,255,255,.4)'}} />}
           </div>
 
           <div onClick={handleLogout}
@@ -171,7 +176,7 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed, mo
             onMouseEnter={e=>e.currentTarget.style.opacity=1}
             onMouseLeave={e=>e.currentTarget.style.opacity=.6}
             title="Se deconnecter">
-            <span style={{fontSize:16}}>⏻</span>
+            <LogOut size={16} strokeWidth={2} style={{color:'rgba(255,255,255,.7)'}} />
             {!collapsed && <span style={{color:'rgba(255,255,255,.7)',fontSize:12,fontWeight:500}}>Deconnexion</span>}
           </div>
         </div>
@@ -185,8 +190,8 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed, mo
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
               <div style={{fontSize:18,fontWeight:700}}>Mon profil</div>
               <button onClick={()=>setShowProfile(false)}
-                style={{width:32,height:32,borderRadius:8,background:'#F1F5F9',border:'none',cursor:'pointer',fontSize:16,color:'#64748B'}}>
-                x
+                style={{width:32,height:32,borderRadius:8,background:'#F1F5F9',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#64748B'}}>
+                <X size={16} strokeWidth={2} />
               </button>
             </div>
 
@@ -212,7 +217,7 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed, mo
               fontWeight:700, cursor:'pointer', marginBottom:20, display:'flex',
               alignItems:'center', justifyContent:'center', gap:8
             }}>
-              ⏻ Se deconnecter
+              <LogOut size={15} strokeWidth={2} /> Se deconnecter
             </button>
 
             {/* Parametres personnels — Notifications */}
@@ -312,7 +317,7 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed, mo
           width: 36px;
           height: 36px;
           min-width: 36px;
-          border-radius: 10px;
+          border-radius: 12px;
           background: rgba(255,255,255,.12);
           display: flex;
           align-items: center;
@@ -335,6 +340,13 @@ export default function Sidebar({ profile, activeId, collapsed, setCollapsed, mo
           overflow: hidden;
           text-overflow: ellipsis;
           max-width: 140px;
+        }
+        .si-ic {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          width: 18px;
         }
       `}</style>
     </>

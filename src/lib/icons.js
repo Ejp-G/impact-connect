@@ -2,8 +2,10 @@ import {
   LayoutDashboard, Users, GitBranch, Home, CheckSquare, Star,
   MessageCircle, Map, BarChart3, QrCode, ScrollText, User, Settings,
   Search, Bell, Plus, Upload, Download, Pencil, Trash2, X, Check,
-  Phone, Mail, Calendar, AlertTriangle, ChevronDown, ChevronRight,
-  ChevronLeft, LogOut, Filter, ArrowRight, ArrowUpRight, Clock
+  Phone, Mail, Calendar, AlertTriangle, AlertCircle, ChevronDown, ChevronRight,
+  ChevronLeft, LogOut, Filter, ArrowRight, ArrowUpRight, Clock,
+  Send, Repeat, CheckCircle2, BookOpen, Droplet, Sparkles, Crown,
+  UserPlus, Heart, Smartphone, FileText, Circle
 } from 'lucide-react'
 
 // Point d'entree unique du systeme d'icones. Mappe chaque id de
@@ -26,11 +28,28 @@ export const NAV_ICON_MAP = {
   parametres: Settings,
 }
 
+// Mappe chaque etape du pipeline (STAGES dans lib/constants.js) a une
+// icone Lucide, en remplacement du champ emoji retire de STAGES.
+export const STAGE_ICON_MAP = {
+  visiteur: Users,
+  contacte: Phone,
+  invite_fi: Send,
+  fi1: Home,
+  fi2: Repeat,
+  integre: CheckCircle2,
+  parcours: BookOpen,
+  bapteme: Droplet,
+  service: Sparkles,
+  leader_pot: Star,
+  leader: Crown,
+}
+
 // Icones generiques reutilisables pour actions et statuts courants
-// (recherche, notifications, ajout, edition, suppression, etc.)
 export {
   Search, Bell, Plus, Upload, Download, Pencil, Trash2, X, Check,
-  Phone, Mail, Calendar, AlertTriangle, ChevronDown, ChevronRight,
+  Phone, Mail, Calendar, AlertTriangle, AlertCircle, ChevronDown, ChevronRight,
   ChevronLeft, LogOut, Filter, ArrowRight, ArrowUpRight, Clock,
-  Settings, Users, Home, MessageCircle, Star, GitBranch, BarChart3
+  Settings, Users, Home, MessageCircle, Star, GitBranch, BarChart3, CheckSquare,
+  Send, Repeat, CheckCircle2, BookOpen, Droplet, Sparkles, Crown,
+  UserPlus, Heart, Smartphone, FileText, Circle
 }

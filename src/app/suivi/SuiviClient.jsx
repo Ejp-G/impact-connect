@@ -6,6 +6,7 @@ import TaskDetailModal from '@/components/tasks/TaskDetailModal'
 import ContactDetailModal from '@/components/contacts/ContactDetailModal'
 import NewcomerReportPanel from '@/components/suivi/NewcomerReportPanel'
 import NeedsDrilldownModal from '@/components/suivi/NeedsDrilldownModal'
+import { Users, CheckSquare, Compass, NEED_ICON_MAP } from '@/lib/icons'
 
 const FILTERS = [
   ['all', 'Tous'], ['today', 'À contacter aujourd\'hui'], ['late', 'En retard'],
@@ -13,6 +14,11 @@ const FILTERS = [
   ['no_integrator', 'Sans intégrateur'], ['male', 'Homme'], ['female', 'Femme'],
   ['fi_yes', 'FI attribuée'], ['fi_no', 'FI non attribuée'],
 ]
+
+function AlertDot({ level }) {
+  const color = level === 'red' ? '#EF4444' : level === 'orange' ? '#F97316' : '#22C55E'
+  return <span style={{ display:'inline-block', width:9, height:9, borderRadius:'50%', background:color }} />
+}
 
 export default function SuiviClient({ contacts, reports, needs, tasks: initialTasks, profiles = [], profile }) {
   const router = useRouter()
@@ -100,12 +106,13 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
   return (
     <div style={{ maxWidth: 1200 }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {[['nouveaux', '👥 Suivi des nouveaux'], ['taches', '📋 Tâches']].map(([id, label]) => (
+        {[['nouveaux', 'Suivi des nouveaux', Users], ['taches', 'Tâches', CheckSquare]].map(([id, label, Icon]) => (
           <div key={id} onClick={() => setTab(id)} style={{
             padding: '10px 20px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700,
-            background: tab === id ? 'var(--n)' : '#F1F5F9', color: tab === id ? '#fff' : '#64748B'
+            background: tab === id ? 'var(--n)' : '#F1F5F9', color: tab === id ? '#fff' : '#64748B',
+            display: 'flex', alignItems: 'center', gap: 8
           }}>
-            {label}
+            <Icon size={15} strokeWidth={2} /> {label}
           </div>
         ))}
       </div>
@@ -114,7 +121,6 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
         <div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid var(--br)', borderRadius: 10, padding: '8px 14px' }}>
-              <span>🔍</span>
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 13, width: 160 }} />
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -155,7 +161,7 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
                         <td><span className="badge" style={{ background: STAGE_COLOR(c.stage) + '20', color: STAGE_COLOR(c.stage) }}>{STAGE_LABEL(c.stage)}</span></td>
                         <td style={{ fontSize: 11 }}>{lastReport ? new Date(lastReport.contacted_at).toLocaleDateString('fr-FR') : (c.integrator_contacted ? '—' : 'Jamais')}</td>
                         <td style={{ fontSize: 11 }}>{lastReport?.next_contact_date || '—'}</td>
-                        <td>{c.alert_level === 'red' ? '🔴' : c.alert_level === 'orange' ? '🟠' : '✅'}</td>
+                        <td><AlertDot level={c.alert_level} /></td>
                         <td style={{ fontSize: 12, fontWeight: 700 }}>{c.integration_score ?? '—'}</td>
                         <td style={{ fontSize: 11 }}>{c.fi?.name || '—'}</td>
                       </tr>
@@ -177,22 +183,27 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
       {tab === 'taches' && (
         <div>
           <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', fontSize: 14, fontWeight: 700 }}>
-              🧭 Tableau intelligent des besoins
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Compass size={16} strokeWidth={2} /> Tableau intelligent des besoins
             </div>
             <table>
               <thead>
                 <tr><th>Besoin</th><th>Personnes</th><th>Actions en cours</th><th>Statut</th></tr>
               </thead>
               <tbody>
-                {needsSummary.map(cat => (
-                  <tr key={cat.id} onClick={() => setDrilldownCategory(cat.id)} style={{ cursor: 'pointer' }}>
-                    <td style={{ fontSize: 13, fontWeight: 600 }}>{cat.emoji} {cat.label}</td>
-                    <td style={{ fontSize: 13, color: 'var(--n)', textDecoration: 'underline' }}>{cat.count} — Voir la liste</td>
-                    <td style={{ fontSize: 13 }}>{cat.actionsEnCours}</td>
-                    <td><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: cat.dot }} /></td>
-                  </tr>
-                ))}
+                {needsSummary.map(cat => {
+                  const Icon = NEED_ICON_MAP[cat.id]
+                  return (
+                    <tr key={cat.id} onClick={() => setDrilldownCategory(cat.id)} style={{ cursor: 'pointer' }}>
+                      <td style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 7 }}>
+                        {Icon && <Icon size={14} strokeWidth={2} />} {cat.label}
+                      </td>
+                      <td style={{ fontSize: 13, color: 'var(--n)', textDecoration: 'underline' }}>{cat.count} — Voir la liste</td>
+                      <td style={{ fontSize: 13 }}>{cat.actionsEnCours}</td>
+                      <td><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: cat.dot }} /></td>
+                    </tr>
+                  )
+                })}
                 {needsSummary.length === 0 && (
                   <tr><td colSpan={4} style={{ textAlign: 'center', padding: 30, color: 'var(--gy)' }}>Aucun besoin détecté pour le moment</td></tr>
                 )}

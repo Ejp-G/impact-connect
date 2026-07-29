@@ -20,7 +20,7 @@ export default async function DashboardPage() {
     // Toutes les FIJ sauf celles definitivement fermees : une FIJ "en
     // developpement" ou "en pause" reste une FIJ existante et doit
     // compter dans le total (seul 'fermee' est exclu).
-    supabase.from('familles_impact').select('id,name,capacity,status').neq('status','fermee'),
+    supabase.from('familles_impact').select('id,name,capacity,status,day,time').neq('status','fermee'),
   ])
   // Contacts par stage
   const { data: stageData } = await supabase.from('contacts')
@@ -64,6 +64,43 @@ export default async function DashboardPage() {
   })
 
   const stats = { totalContacts, newThisMonth, salvations, pendingTasks, alertsRed, stageCounts, fiData, fiMemberCounts, fiPausedCount, monthlyVisitors, monthlyIntegrations }
+
+  // ---------- Hero vivant : "aujourd'hui en un coup d'oeil" ----------
+  const startOfToday = new Date(); startOfToday.setHours(0,0,0,0)
+  const { count: newToday } = await supabase.from('contacts')
+    .select('*', { count:'exact', head:true }).eq('status','active').gte('created_at', startOfToday.toISOString())
+
+  const FRENCH_DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi']
+  const todayName = FRENCH_DAYS[new Date().getDay()]
+  const fiTonight = fiData?.find(f => f.day === todayName && f.status !== 'fermee') || null
+
+  stats.newToday = newToday || 0
+  stats.fiTonight = fiTonight
+
+  // ---------- Activite recente : fusion de plusieurs sources ----------
+  const [
+    { data: recentContacts },
+    { data: recentIntegrations },
+    { data: recentReports },
+    { data: recentNeeds },
+  ] = await Promise.all([
+    supabase.from('contacts').select('id,first_name,last_name,created_at')
+      .eq('status','active').order('created_at',{ascending:false}).limit(5),
+    supabase.from('contacts').select('id,first_name,last_name,integrated_at')
+      .not('integrated_at','is',null).order('integrated_at',{ascending:false}).limit(5),
+    supabase.from('integrator_reports').select('id,contacted_at,contact:contacts(first_name,last_name),integrator:profiles(name)')
+      .order('contacted_at',{ascending:false}).limit(5),
+    supabase.from('contact_needs').select('id,category,detected_at,contact:contacts(first_name,last_name)')
+      .order('detected_at',{ascending:false}).limit(5),
+  ])
+
+  stats.activityFeed = [
+    ...(recentContacts||[]).map(c => ({ type:'new_contact', date:c.created_at, name:`${c.first_name} ${c.last_name}`, detail:'Nouveau visiteur' })),
+    ...(recentIntegrations||[]).map(c => ({ type:'integration', date:c.integrated_at, name:`${c.first_name} ${c.last_name}`, detail:"Intégré(e) en Famille d'Impact" })),
+    ...(recentReports||[]).map(r => ({ type:'report', date:r.contacted_at, name:`${r.contact?.first_name||''} ${r.contact?.last_name||''}`.trim(), detail:`Contacté par ${r.integrator?.name||'—'}` })),
+    ...(recentNeeds||[]).map(n => ({ type:'need', date:n.detected_at, name:`${n.contact?.first_name||''} ${n.contact?.last_name||''}`.trim(), detail:'Besoin détecté' })),
+  ].filter(a => a.date).sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0,8)
+
   return (
     <AppLayout profile={profile} pageId="dashboard" title="Tableau de bord">
       <DashboardClient stats={stats} profile={profile} />

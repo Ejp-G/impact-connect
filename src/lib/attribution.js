@@ -17,18 +17,18 @@ function toWhatsappNumber(raw) {
 }
 
 /**
- * Attribution automatique agent + FI pour un nouveau contact
- * Règle obligatoire : H→H, F→F
+ * Attribution automatique binome d'integrateurs + FI pour un nouveau contact
+ * Règle obligatoire : H->2 hommes, F->2 femmes (jamais mixte)
  */
 export async function autoAttributeContact({ contactId, sex, communeId, quartier }) {
   const supabase = createAdminClient()
   const results = {}
 
-  // 1. Attribution agent (même sexe)
-  const { data: agent } = await supabase.rpc('auto_assign_agent', {
+  // 1. Attribution du binome d'integrateurs (meme sexe que le contact)
+  const { data: integratorIds } = await supabase.rpc('auto_assign_integrators', {
     p_contact: contactId, p_sex: sex
   })
-  results.agentId = agent
+  results.integratorIds = integratorIds
 
   // 2. Attribution FI (quartier précis -> commune -> repli global)
   if (communeId) {

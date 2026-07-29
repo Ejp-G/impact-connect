@@ -3,15 +3,18 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { NEED_CATEGORIES } from '@/lib/constants'
+import { NEED_ICON_MAP } from '@/lib/icons'
 
 const STATUS_OPTIONS = [
-  ['a_traiter', '🔴 À traiter'], ['en_cours', '🟠 En cours'], ['termine', '🟢 Terminé']
+  ['a_traiter', 'À traiter', '#EF4444'],
+  ['en_cours', 'En cours', '#F97316'],
+  ['termine', 'Terminé', '#22C55E']
 ]
 
-// Le tableau des besoins ne stocke rien : il affiche uniquement une vue
-// synthetisee de contact_needs. Ce composant permet de voir qui est
-// concerne, l'origine du besoin, et de faire avancer l'action associee
-// (statut, responsable, note) directement sur la ligne contact_needs.
+function StatusDot({ color }) {
+  return <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:color, marginRight:6 }} />
+}
+
 export default function NeedsDrilldownModal({ categoryId, onClose, profiles = [] }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -21,6 +24,7 @@ export default function NeedsDrilldownModal({ categoryId, onClose, profiles = []
   const [localEdits, setLocalEdits] = useState({})
 
   const category = NEED_CATEGORIES.find(c => c.id === categoryId)
+  const CategoryIcon = NEED_ICON_MAP[categoryId]
 
   useEffect(() => { if (categoryId) load() }, [categoryId])
 
@@ -63,7 +67,9 @@ export default function NeedsDrilldownModal({ categoryId, onClose, profiles = []
     <div onClick={onClose} style={overlayStyle}>
       <div onClick={e => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 720 }}>
         <div style={modalHeaderStyle}>
-          <div style={{ fontWeight: 800, fontSize: 16 }}>{category?.emoji} {category?.label || categoryId}</div>
+          <div style={{ fontWeight: 800, fontSize: 16, display:'flex', alignItems:'center', gap:8 }}>
+            {CategoryIcon && <CategoryIcon size={17} strokeWidth={2} />} {category?.label || categoryId}
+          </div>
           <button onClick={onClose} style={closeBtnStyle}>✕</button>
         </div>
 
@@ -95,6 +101,10 @@ export default function NeedsDrilldownModal({ categoryId, onClose, profiles = []
                       <option value="">— Non attribué —</option>
                       {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', marginBottom:8 }}>
+                    <StatusDot color={STATUS_OPTIONS.find(s => s[0] === valueFor(row,'status'))?.[2] || '#94A3B8'} />
+                    <span style={{ fontSize:11, color:'#94A3B8' }}>Statut actuel</span>
                   </div>
                   <input
                     value={valueFor(row, 'action_note')}

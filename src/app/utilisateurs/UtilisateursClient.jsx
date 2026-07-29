@@ -2,12 +2,12 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ROLES } from '@/lib/constants'
-const ROLE_COLORS = { admin:'#EF4444', responsable_integration:'#F97316', equipe_integration:'#F59E0B', responsable_suivi:'#8B5CF6', equipe_suivi:'#3B82F6', pilote_fi:'#22C55E', superviseur:'#0B3D91', responsable_jeunesse:'#06B6D4' }
+const ROLE_COLORS = { admin:'#EF4444', responsable_suivi:'#8B5CF6', equipe_suivi:'#3B82F6', pilote_fi:'#22C55E', superviseur:'#0B3D91', responsable_jeunesse:'#06B6D4' }
 const ini = (nm) => nm?.split(' ').map(w=>w[0]).slice(0,2).join('') || 'U'
 export default function UtilisateursClient({ users, fis }) {
   const [showModal, setShowModal] = useState(false)
   const [editUser, setEditUser] = useState(null)
-  const [form, setForm] = useState({ name:'', email:'', password:'', role:'equipe_integration', sex:'F', fi_id:'', active:true })
+  const [form, setForm] = useState({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true })
   const [saving, setSaving] = useState(false)
   const router = useRouter()
   async function saveUser() {
@@ -30,7 +30,7 @@ export default function UtilisateursClient({ users, fis }) {
   }
   function openAdd() {
     setEditUser(null)
-    setForm({ name:'', email:'', password:'', role:'equipe_integration', sex:'F', fi_id:'', active:true })
+    setForm({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true })
     setShowModal(true)
   }
   const btnLabel = saving ? 'Enregistrement...' : editUser ? 'Mettre a jour' : 'Creer le compte'

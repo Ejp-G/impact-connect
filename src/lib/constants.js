@@ -13,20 +13,16 @@ export const STAGES = [
 ]
 export const ROLES = {
   admin:                   'Administrateur général',
-  responsable_integration: 'Resp. Intégration',
-  equipe_integration:      'Équipe Intégration',
-  responsable_suivi:       'Resp. Suivi',
-  equipe_suivi:            'Équipe Suivi',
+  responsable_suivi:       'Resp. Suivi & Intégration',
+  equipe_suivi:            'Équipe Suivi & Intégration',
   pilote_fi:               'Pilote FI',
   superviseur:             'Superviseur',
   responsable_jeunesse:    'Resp. Jeunesse',
 }
 export const ROLE_NAV = {
   admin:                   'all',
-  responsable_integration: ['dashboard','visiteurs','pipeline','suivi','qrcode','journal','rapports','parametres'],
-  equipe_integration:      ['visiteurs','qrcode'],
-  responsable_suivi:       ['dashboard','visiteurs','suivi','communications','rapports'],
-  equipe_suivi:            ['visiteurs','suivi','communications'],
+  responsable_suivi:       ['dashboard','visiteurs','pipeline','suivi','qrcode','journal','rapports','parametres','communications'],
+  equipe_suivi:            ['visiteurs','qrcode','suivi','communications'],
   pilote_fi:               ['fi','suivi','communications','qrcode'],
   superviseur:             ['dashboard','visiteurs','pipeline','fi','suivi','rapports','carte','communications'],
   responsable_jeunesse:    ['jeunesse','visiteurs','communications'],

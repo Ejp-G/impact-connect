@@ -79,9 +79,9 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     if (data?.sex) {
       const { data: eligible } = await supabase.from('profiles')
         .select('id,name,email')
-        .in('role', ['equipe_suivi', 'responsable_suivi'])
         .eq('sex', data.sex)
         .eq('active', true)
+        .or('role.in.(equipe_suivi,responsable_suivi),also_integrator.eq.true')
         .order('name')
       setEligibleIntegrators(eligible || [])
     }

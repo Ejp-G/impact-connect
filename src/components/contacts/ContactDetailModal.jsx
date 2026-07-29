@@ -4,6 +4,13 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 
+const REPORT_METHODS = [
+  ['appel', '📞 Appel'], ['whatsapp', '💬 WhatsApp'], ['sms', '✉️ SMS'], ['visite', '🚶 Visite'], ['audio', '🎙️ Audio']
+]
+const REPORT_RESULTS = [
+  ['repondu', 'A répondu'], ['messagerie', 'Messagerie'], ['pas_de_reponse', 'Pas de réponse'], ['numero_invalide', 'Numéro invalide']
+]
+
 export default function ContactDetailModal({ contactId, onClose, communes = [], fis = [] }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -11,6 +18,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(null)
+  const [currentProfile, setCurrentProfile] = useState(null)
 
   const [confirmingContact, setConfirmingContact] = useState(false)
   const [contactChannel, setContactChannel] = useState('appel')
@@ -21,6 +29,18 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   const [stageWarning, setStageWarning] = useState('')
 
   const [history, setHistory] = useState([])
+
+  const [integratorPair, setIntegratorPair] = useState([])
+  const [eligibleIntegrators, setEligibleIntegrators] = useState([])
+  const [editingIntegrators, setEditingIntegrators] = useState(false)
+  const [integrator1Id, setIntegrator1Id] = useState('')
+  const [integrator2Id, setIntegrator2Id] = useState('')
+  const [savingIntegrators, setSavingIntegrators] = useState(false)
+
+  const [integratorReports, setIntegratorReports] = useState([])
+  const [confirmingIntegratorReport, setConfirmingIntegratorReport] = useState(false)
+  const [reportForm, setReportForm] = useState({ method: 'appel', result: 'repondu', notes: '', next_action: '' })
+  const [savingReport, setSavingReport] = useState(false)
 
   useEffect(() => {
     if (contactId) load()
@@ -53,6 +73,35 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
       names = Object.fromEntries((profs || []).map(p => [p.id, p.name]))
     }
     setHistory((auditRows || []).map(r => ({ ...r, authorName: names[r.performed_by] || '—' })))
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      const { data: me } = await supabase.from('profiles').select('id,role').eq('id', session.user.id).single()
+      setCurrentProfile(me)
+    }
+
+    const { data: pairData } = await supabase.from('contact_integrators')
+      .select('position, integrator:profiles(id,name,email)')
+      .eq('contact_id', contactId).order('position')
+    setIntegratorPair(pairData || [])
+    setIntegrator1Id(pairData?.find(p => p.position === 1)?.integrator?.id || '')
+    setIntegrator2Id(pairData?.find(p => p.position === 2)?.integrator?.id || '')
+
+    if (data?.sex) {
+      const { data: eligible } = await supabase.from('profiles')
+        .select('id,name,email')
+        .in('role', ['equipe_suivi', 'responsable_suivi'])
+        .eq('sex', data.sex)
+        .eq('active', true)
+        .order('name')
+      setEligibleIntegrators(eligible || [])
+    }
+
+    const { data: reportRows } = await supabase.from('integrator_reports')
+      .select('id,contacted_at,method,result,notes,next_action,integrator:profiles(name)')
+      .eq('contact_id', contactId)
+      .order('contacted_at', { ascending: false })
+    setIntegratorReports(reportRows || [])
   }
 
   async function saveForm() {
@@ -106,6 +155,48 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     return idx >= 0 && idx < STAGES.length - 1 ? STAGES[idx + 1].id : null
   }
 
+  const isAdmin = currentProfile?.role === 'admin'
+  const canManageIntegrators = isAdmin || currentProfile?.role === 'responsable_suivi'
+  const isAssignedIntegrator = integratorPair.some(p => p.integrator?.id === currentProfile?.id)
+  const canReportIntegrator = isAdmin || isAssignedIntegrator
+
+  async function saveIntegrators() {
+    setSavingIntegrators(true)
+    const res = await fetch(`/api/contacts/${contactId}/integrators`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ integrator1Id: integrator1Id || null, integrator2Id: integrator2Id || null })
+    })
+    const data = await res.json()
+    setSavingIntegrators(false)
+    if (data.error) { alert(data.error); return }
+    setEditingIntegrators(false)
+    await load()
+    router.refresh()
+  }
+
+  async function submitIntegratorReport() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    setSavingReport(true)
+    const { error } = await supabase.from('integrator_reports').insert({
+      contact_id: contactId,
+      integrator_id: session.user.id,
+      method: reportForm.method,
+      result: reportForm.result,
+      notes: reportForm.notes.trim() || null,
+      next_action: reportForm.next_action.trim() || null
+    })
+    if (!error) {
+      await supabase.from('contacts').update({ integrator_contacted: true }).eq('id', contactId)
+    }
+    setSavingReport(false)
+    if (error) { alert(error.message); return }
+    setConfirmingIntegratorReport(false)
+    setReportForm({ method: 'appel', result: 'repondu', notes: '', next_action: '' })
+    await load()
+    router.refresh()
+  }
+
   if (!contactId) return null
 
   return (
@@ -125,7 +216,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
 
             <div style={{ padding: 20 }}>
 
-              {/* Étape du pipeline */}
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: changingStage ? 10 : 0 }}>
                   <div>
@@ -154,7 +244,96 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                 )}
               </div>
 
-              {/* Confirmation de contact */}
+              <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, color: '#94A3B8', textTransform: 'uppercase', fontWeight: 700 }}>
+                    👥 Intégrateurs assignés {contact.integrator_contacted && <span style={{ color: '#16A34A', fontWeight: 700 }}>· Contact confirmé ✅</span>}
+                  </div>
+                  {canManageIntegrators && (
+                    <button onClick={() => setEditingIntegrators(v => !v)} style={smallBtnStyle}>Modifier</button>
+                  )}
+                </div>
+
+                {!editingIntegrators ? (
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    {integratorPair.length === 0 && <div style={{ fontSize: 13, color: '#94A3B8' }}>Aucun intégrateur assigné.</div>}
+                    {integratorPair.map(p => (
+                      <div key={p.position} style={{ fontSize: 13 }}>
+                        <span style={{ color: '#94A3B8' }}>Intégrateur {p.position} :</span>{' '}
+                        <b>{p.integrator?.name || '—'}</b>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <select value={integrator1Id} onChange={e => setIntegrator1Id(e.target.value)} style={inputStyle}>
+                      <option value="">— Intégrateur 1 —</option>
+                      {eligibleIntegrators.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <select value={integrator2Id} onChange={e => setIntegrator2Id(e.target.value)} style={inputStyle}>
+                      <option value="">— Intégrateur 2 (optionnel) —</option>
+                      {eligibleIntegrators.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <div style={{ fontSize: 11, color: '#94A3B8' }}>
+                      Seuls les membres de l'équipe Suivi du même sexe que {contact.first_name} sont proposés.
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => setEditingIntegrators(false)} style={secondaryBtnStyle}>Annuler</button>
+                      <button onClick={saveIntegrators} disabled={savingIntegrators} style={primaryBtnStyle}>
+                        {savingIntegrators ? 'Enregistrement…' : 'Enregistrer'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {integratorPair.length > 0 && (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700 }}>📝 Rapport intégrateur</div>
+                    {canReportIntegrator && (
+                      <button onClick={() => setConfirmingIntegratorReport(v => !v)} style={smallBtnStyle}>+ Rendre compte</button>
+                    )}
+                  </div>
+
+                  {confirmingIntegratorReport && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14, background: '#F8FAFC', borderRadius: 10, padding: 12 }}>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <select value={reportForm.method} onChange={e => setReportForm({ ...reportForm, method: e.target.value })} style={{ ...inputStyle, flex: 1 }}>
+                          {REPORT_METHODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                        <select value={reportForm.result} onChange={e => setReportForm({ ...reportForm, result: e.target.value })} style={{ ...inputStyle, flex: 1 }}>
+                          {REPORT_RESULTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                      </div>
+                      <textarea value={reportForm.notes} onChange={e => setReportForm({ ...reportForm, notes: e.target.value })} placeholder="Compte rendu (ex: allait bien, travaille de nuit, viendra dimanche...)" style={{ ...inputStyle, minHeight: 60 }} />
+                      <input value={reportForm.next_action} onChange={e => setReportForm({ ...reportForm, next_action: e.target.value })} placeholder="Prochaine action prévue (optionnel)" style={inputStyle} />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => setConfirmingIntegratorReport(false)} style={secondaryBtnStyle}>Annuler</button>
+                        <button onClick={submitIntegratorReport} disabled={savingReport} style={primaryBtnStyle}>
+                          {savingReport ? 'Enregistrement…' : 'Enregistrer le rapport'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {integratorReports.length === 0 ? (
+                    <div style={{ fontSize: 12, color: '#94A3B8' }}>Aucun rapport pour le moment.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {integratorReports.map(r => (
+                        <div key={r.id} style={{ fontSize: 12, background: '#F8FAFC', borderRadius: 8, padding: '8px 12px' }}>
+                          <b>{r.integrator?.name || '—'}</b> · {REPORT_METHODS.find(m => m[0] === r.method)?.[1] || r.method} · {REPORT_RESULTS.find(m => m[0] === r.result)?.[1] || r.result}
+                          <span style={{ color: '#94A3B8' }}> · {new Date(r.contacted_at).toLocaleString('fr-FR')}</span>
+                          {r.notes && <div style={{ color: '#475569', marginTop: 4 }}>{r.notes}</div>}
+                          {r.next_action && <div style={{ color: '#0B3D91', marginTop: 2, fontWeight: 600 }}>→ {r.next_action}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div style={{ fontSize: 12, color: '#64748B' }}>
                   Dernier contact : <b>{contact.last_contact_at ? new Date(contact.last_contact_at).toLocaleString('fr-FR') : 'jamais'}</b>
@@ -174,7 +353,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                 </div>
               )}
 
-              {/* Fiche éditable */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <Field label="Prénom" style={{ flex: 1 }}><input value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} style={inputStyle} /></Field>
@@ -209,7 +387,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                 </button>
               </div>
 
-              {/* Historique */}
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Historique</div>
               {history.length === 0 ? (
                 <div style={{ fontSize: 12, color: '#94A3B8' }}>Aucune action enregistrée.</div>
@@ -264,6 +441,10 @@ const inputStyle = {
 }
 const primaryBtnStyle = {
   background: 'var(--n)', color: '#fff', border: 'none', padding: '10px 18px',
+  borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1
+}
+const secondaryBtnStyle = {
+  background: '#fff', color: '#374151', border: '1px solid #E2E8F0', padding: '10px 18px',
   borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1
 }
 const smallBtnStyle = {

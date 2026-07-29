@@ -4,13 +4,6 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 
-const REPORT_METHODS = [
-  ['appel', '📞 Appel'], ['whatsapp', '💬 WhatsApp'], ['sms', '✉️ SMS'], ['visite', '🚶 Visite'], ['audio', '🎙️ Audio']
-]
-const REPORT_RESULTS = [
-  ['repondu', 'A répondu'], ['messagerie', 'Messagerie'], ['pas_de_reponse', 'Pas de réponse'], ['numero_invalide', 'Numéro invalide']
-]
-
 export default function ContactDetailModal({ contactId, onClose, communes = [], fis = [] }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -30,17 +23,15 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
 
   const [history, setHistory] = useState([])
 
+  // Binome d'integrateurs : affichage + reattribution manuelle
+  // uniquement (le compte-rendu se fait desormais dans Suivi & Taches,
+  // pas ici — cf separation fiche visiteur / interface de travail).
   const [integratorPair, setIntegratorPair] = useState([])
   const [eligibleIntegrators, setEligibleIntegrators] = useState([])
   const [editingIntegrators, setEditingIntegrators] = useState(false)
   const [integrator1Id, setIntegrator1Id] = useState('')
   const [integrator2Id, setIntegrator2Id] = useState('')
   const [savingIntegrators, setSavingIntegrators] = useState(false)
-
-  const [integratorReports, setIntegratorReports] = useState([])
-  const [confirmingIntegratorReport, setConfirmingIntegratorReport] = useState(false)
-  const [reportForm, setReportForm] = useState({ method: 'appel', result: 'repondu', notes: '', next_action: '' })
-  const [savingReport, setSavingReport] = useState(false)
 
   useEffect(() => {
     if (contactId) load()
@@ -96,12 +87,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
         .order('name')
       setEligibleIntegrators(eligible || [])
     }
-
-    const { data: reportRows } = await supabase.from('integrator_reports')
-      .select('id,contacted_at,method,result,notes,next_action,integrator:profiles(name)')
-      .eq('contact_id', contactId)
-      .order('contacted_at', { ascending: false })
-    setIntegratorReports(reportRows || [])
   }
 
   async function saveForm() {
@@ -157,8 +142,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
 
   const isAdmin = currentProfile?.role === 'admin'
   const canManageIntegrators = isAdmin || currentProfile?.role === 'responsable_suivi'
-  const isAssignedIntegrator = integratorPair.some(p => p.integrator?.id === currentProfile?.id)
-  const canReportIntegrator = isAdmin || isAssignedIntegrator
 
   async function saveIntegrators() {
     setSavingIntegrators(true)
@@ -170,29 +153,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     setSavingIntegrators(false)
     if (data.error) { alert(data.error); return }
     setEditingIntegrators(false)
-    await load()
-    router.refresh()
-  }
-
-  async function submitIntegratorReport() {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
-    setSavingReport(true)
-    const { error } = await supabase.from('integrator_reports').insert({
-      contact_id: contactId,
-      integrator_id: session.user.id,
-      method: reportForm.method,
-      result: reportForm.result,
-      notes: reportForm.notes.trim() || null,
-      next_action: reportForm.next_action.trim() || null
-    })
-    if (!error) {
-      await supabase.from('contacts').update({ integrator_contacted: true }).eq('id', contactId)
-    }
-    setSavingReport(false)
-    if (error) { alert(error.message); return }
-    setConfirmingIntegratorReport(false)
-    setReportForm({ method: 'appel', result: 'repondu', notes: '', next_action: '' })
     await load()
     router.refresh()
   }
@@ -244,6 +204,8 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                 )}
               </div>
 
+              {/* Binome d'integrateurs : affichage + reattribution uniquement.
+                  Le compte-rendu se fait dans Suivi & Taches (NewcomerReportPanel). */}
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <div style={{ fontSize: 10, color: '#94A3B8', textTransform: 'uppercase', fontWeight: 700 }}>
@@ -286,53 +248,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                   </div>
                 )}
               </div>
-
-              {integratorPair.length > 0 && (
-                <div style={{ marginBottom: 18 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700 }}>📝 Rapport intégrateur</div>
-                    {canReportIntegrator && (
-                      <button onClick={() => setConfirmingIntegratorReport(v => !v)} style={smallBtnStyle}>+ Rendre compte</button>
-                    )}
-                  </div>
-
-                  {confirmingIntegratorReport && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14, background: '#F8FAFC', borderRadius: 10, padding: 12 }}>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <select value={reportForm.method} onChange={e => setReportForm({ ...reportForm, method: e.target.value })} style={{ ...inputStyle, flex: 1 }}>
-                          {REPORT_METHODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                        </select>
-                        <select value={reportForm.result} onChange={e => setReportForm({ ...reportForm, result: e.target.value })} style={{ ...inputStyle, flex: 1 }}>
-                          {REPORT_RESULTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                        </select>
-                      </div>
-                      <textarea value={reportForm.notes} onChange={e => setReportForm({ ...reportForm, notes: e.target.value })} placeholder="Compte rendu (ex: allait bien, travaille de nuit, viendra dimanche...)" style={{ ...inputStyle, minHeight: 60 }} />
-                      <input value={reportForm.next_action} onChange={e => setReportForm({ ...reportForm, next_action: e.target.value })} placeholder="Prochaine action prévue (optionnel)" style={inputStyle} />
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => setConfirmingIntegratorReport(false)} style={secondaryBtnStyle}>Annuler</button>
-                        <button onClick={submitIntegratorReport} disabled={savingReport} style={primaryBtnStyle}>
-                          {savingReport ? 'Enregistrement…' : 'Enregistrer le rapport'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {integratorReports.length === 0 ? (
-                    <div style={{ fontSize: 12, color: '#94A3B8' }}>Aucun rapport pour le moment.</div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {integratorReports.map(r => (
-                        <div key={r.id} style={{ fontSize: 12, background: '#F8FAFC', borderRadius: 8, padding: '8px 12px' }}>
-                          <b>{r.integrator?.name || '—'}</b> · {REPORT_METHODS.find(m => m[0] === r.method)?.[1] || r.method} · {REPORT_RESULTS.find(m => m[0] === r.result)?.[1] || r.result}
-                          <span style={{ color: '#94A3B8' }}> · {new Date(r.contacted_at).toLocaleString('fr-FR')}</span>
-                          {r.notes && <div style={{ color: '#475569', marginTop: 4 }}>{r.notes}</div>}
-                          {r.next_action && <div style={{ color: '#0B3D91', marginTop: 2, fontWeight: 600 }}>→ {r.next_action}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div style={{ fontSize: 12, color: '#64748B' }}>

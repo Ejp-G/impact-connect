@@ -2,21 +2,18 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { STAGE_LABEL, STAGE_COLOR, NEED_CATEGORIES, NEED_IS_SENSITIVE } from '@/lib/constants'
+import { STAGE_LABEL, NEED_CATEGORIES, NEED_IS_SENSITIVE } from '@/lib/constants'
+import { NEED_ICON_MAP, Sparkles, Heart } from '@/lib/icons'
 
 const METHODS = [
-  ['telephone', '📞 Téléphone'], ['whatsapp', '💬 WhatsApp'], ['sms', '✉️ SMS'],
-  ['visite', '🚶 Visite'], ['rencontre_culte', '⛪ Rencontre après le culte']
+  ['telephone', 'Téléphone'], ['whatsapp', 'WhatsApp'], ['sms', 'SMS'],
+  ['visite', 'Visite'], ['rencontre_culte', 'Rencontre après le culte']
 ]
 const RESULTS = [
   ['repondu', 'A répondu'], ['messagerie', 'Messagerie'],
   ['pas_de_reponse', 'Pas de réponse'], ['numero_invalide', 'Numéro invalide']
 ]
 
-// Interface de travail quotidien des integrateurs. Ne modifie JAMAIS
-// directement la fiche visiteur : ecrit uniquement dans
-// integrator_reports et contact_needs. La fiche visiteur reste la
-// base de donnees, ce panneau est l'espace de saisie.
 export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProfile, currentProfile }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -31,7 +28,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
     method: 'telephone', result: 'repondu', duration_minutes: '',
     notes: '', next_action: '', next_contact_date: ''
   })
-  const [checkedNeeds, setCheckedNeeds] = useState({}) // { category: noteText }
+  const [checkedNeeds, setCheckedNeeds] = useState({})
 
   useEffect(() => { if (contactId) load() }, [contactId])
 
@@ -145,7 +142,6 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
 
             <div style={{ padding: 20 }}>
 
-              {/* Contexte en lecture seule */}
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                 <InfoLine label="Intégrateurs" value={integratorPair.map(p => p.integrator?.name).filter(Boolean).join(' & ') || '—'} />
                 <InfoLine label="FIJ" value={contact.fi?.name || 'Non attribuée'} />
@@ -157,8 +153,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
                 )}
               </div>
 
-              {/* Formulaire de compte-rendu */}
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>📝 Nouveau compte-rendu</div>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Nouveau compte-rendu</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <select value={form.method} onChange={e => setForm({ ...form, method: e.target.value })} style={{ ...inputStyle, flex: 1 }}>
@@ -180,14 +175,13 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
                     onChange={e => setForm({ ...form, next_contact_date: e.target.value })} style={{ ...inputStyle, width: 160 }} />
                 </div>
 
-                {/* Decouverte progressive des besoins */}
                 <div style={{ marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }}>
                     Besoins constatés lors de cet échange (optionnel)
                   </div>
 
-                  <NeedGroup title="🙏 Vie spirituelle" items={spiritualNeeds} checked={checkedNeeds} onToggle={toggleNeed} onNote={setNeedNote} />
-                  <NeedGroup title="❤️ Vie personnelle" items={personalNeeds} checked={checkedNeeds} onToggle={toggleNeed} onNote={setNeedNote} />
+                  <NeedGroup title="Vie spirituelle" TitleIcon={Sparkles} items={spiritualNeeds} checked={checkedNeeds} onToggle={toggleNeed} onNote={setNeedNote} />
+                  <NeedGroup title="Vie personnelle" TitleIcon={Heart} items={personalNeeds} checked={checkedNeeds} onToggle={toggleNeed} onNote={setNeedNote} />
                 </div>
 
                 <button onClick={submitReport} disabled={saving} style={{ ...primaryBtnStyle, marginTop: 8 }}>
@@ -195,7 +189,6 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
                 </button>
               </div>
 
-              {/* Historique des comptes-rendus */}
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Historique des échanges</div>
               {reports.length === 0 ? (
                 <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 20 }}>Aucun compte-rendu pour le moment.</div>
@@ -213,19 +206,24 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
                 </div>
               )}
 
-              {/* Historique des besoins detectes */}
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Besoins détectés</div>
               {needsHistory.length === 0 ? (
                 <div style={{ fontSize: 12, color: '#94A3B8' }}>Aucun besoin détecté pour le moment.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {needsHistory.map(n => (
-                    <div key={n.id} style={{ fontSize: 12, background: '#F8FAFC', borderRadius: 8, padding: '8px 12px' }}>
-                      {NEED_CATEGORIES.find(c => c.id === n.category)?.emoji} <b>{NEED_CATEGORIES.find(c => c.id === n.category)?.label || n.category}</b>
-                      <span style={{ color: '#94A3B8' }}> · signalé par {n.detected_by?.name || '—'} le {new Date(n.detected_at).toLocaleDateString('fr-FR')}</span>
-                      {n.note && <div style={{ color: '#475569', marginTop: 4 }}>{n.note}</div>}
-                    </div>
-                  ))}
+                  {needsHistory.map(n => {
+                    const cat = NEED_CATEGORIES.find(c => c.id === n.category)
+                    const Icon = NEED_ICON_MAP[n.category]
+                    return (
+                      <div key={n.id} style={{ fontSize: 12, background: '#F8FAFC', borderRadius: 8, padding: '8px 12px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                          {Icon && <Icon size={13} strokeWidth={2} />} <b>{cat?.label || n.category}</b>
+                        </span>
+                        <span style={{ color: '#94A3B8' }}> · signalé par {n.detected_by?.name || '—'} le {new Date(n.detected_at).toLocaleDateString('fr-FR')}</span>
+                        {n.note && <div style={{ color: '#475569', marginTop: 4 }}>{n.note}</div>}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -236,13 +234,16 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
   )
 }
 
-function NeedGroup({ title, items, checked, onToggle, onNote }) {
+function NeedGroup({ title, TitleIcon, items, checked, onToggle, onNote }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+        {TitleIcon && <TitleIcon size={13} strokeWidth={2} />} {title}
+      </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {items.map(item => {
           const isChecked = item.id in checked
+          const ItemIcon = NEED_ICON_MAP[item.id]
           return (
             <div key={item.id} style={{ width: isChecked ? '100%' : 'auto' }}>
               <label style={{
@@ -252,7 +253,7 @@ function NeedGroup({ title, items, checked, onToggle, onNote }) {
                 border: `1px solid ${isChecked ? (item.sensitive ? '#FCA5A5' : '#93C5FD') : '#E2E8F0'}`
               }}>
                 <input type="checkbox" checked={isChecked} onChange={() => onToggle(item.id)} style={{ width: 14, height: 14 }} />
-                {item.emoji} {item.label}
+                {ItemIcon && <ItemIcon size={13} strokeWidth={2} />} {item.label}
               </label>
               {isChecked && (
                 <input

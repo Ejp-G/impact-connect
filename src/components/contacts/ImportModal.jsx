@@ -136,7 +136,7 @@ export default function ImportModal({ onClose, onImported }) {
                     </button>
                   </div>
 
-                  {message && <div style={successStyle}>{message}</div>}
+                  {message && <div style={message.startsWith('Erreur') ? errorStyle : successStyle}>{message}</div>}
 
                   <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
                     {Object.entries(STATUS_LABELS).map(([key, { label, color, bg }]) => {

@@ -17,11 +17,14 @@ export async function PATCH(request, { params }) {
   // faire partie de l'équipe Suivi (équipe_suivi / responsable_suivi).
   const ids = [integrator1Id, integrator2Id].filter(Boolean)
   if (ids.length) {
-    const { data: profs } = await supabase.from('profiles').select('id,sex,role').in('id', ids)
-    const invalid = profs?.find(p => p.sex !== contact.sex || !['equipe_suivi', 'responsable_suivi'].includes(p.role))
+    const { data: profs } = await supabase.from('profiles').select('id,sex,role,also_integrator').in('id', ids)
+    const invalid = profs?.find(p =>
+      p.sex !== contact.sex ||
+      (!['equipe_suivi', 'responsable_suivi'].includes(p.role) && !p.also_integrator)
+    )
     if (invalid || profs?.length !== ids.length) {
       return NextResponse.json({
-        error: "Les intégrateurs doivent être du même sexe que le nouveau et faire partie de l'équipe Suivi."
+        error: "Les intégrateurs doivent être du même sexe que le nouveau et faire partie de l'équipe Suivi (ou avoir été ajoutés individuellement)."
       }, { status: 400 })
     }
   }

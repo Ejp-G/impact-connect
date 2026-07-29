@@ -2,6 +2,27 @@
 import { useEffect, useRef } from 'react'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
+import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock } from '@/lib/icons'
+
+const ACTIVITY_ICON_MAP = {
+  new_contact: UserPlus,
+  integration: Home,
+  report: Phone,
+  need: Compass,
+}
+const ACTIVITY_COLOR_MAP = {
+  new_contact: '#0B3D91',
+  integration: '#22C55E',
+  report: '#3B82F6',
+  need: '#F97316',
+}
+
+function timeAgo(dateStr) {
+  const h = (Date.now() - new Date(dateStr).getTime()) / 3600000
+  if (h < 1) return 'à l\'instant'
+  if (h < 24) return `il y a ${Math.floor(h)}h`
+  return `il y a ${Math.floor(h / 24)}j`
+}
 
 export default function DashboardClient({ stats, profile }) {
   const areaRef = useRef(null)
@@ -9,9 +30,6 @@ export default function DashboardClient({ stats, profile }) {
   const areaChartInstance = useRef(null)
   const pieChartInstance = useRef(null)
 
-  // Rafraichit automatiquement ce Dashboard quand un visiteur, une tache
-  // ou une Famille d'Impact change, meme si le changement vient d'un
-  // autre agent ou d'une autre page (ex: attribution FI depuis Pipeline).
   useRealtimeRefresh(['contacts', 'tasks', 'familles_impact'])
 
   useEffect(() => {
@@ -22,11 +40,6 @@ export default function DashboardClient({ stats, profile }) {
       Chart.register(...registerables)
       if (cancelled) return
 
-      // Detruit les instances precedentes avant d'en recreer, sinon Chart.js
-      // refuse de reutiliser un canvas deja lie a un graphique existant.
-      // Necessaire car ce useEffect depend desormais de stats : sans ca,
-      // un rafraichissement Realtime (nouvelles stats) ne mettait a jour
-      // que les cartes chiffrees, jamais le graphique en anneau.
       areaChartInstance.current?.destroy()
       pieChartInstance.current?.destroy()
 
@@ -64,76 +77,137 @@ export default function DashboardClient({ stats, profile }) {
 
   const firstName = profile?.name?.split(' ')[0] || 'Pasteur'
 
+  const statCards = [
+    { Icon: Users, label: 'Total contacts', value: stats.totalContacts || 0, color: '#0B3D91', sub: null },
+    { Icon: Home, label: "Familles d'Impact", value: stats.fiData?.length || 0, color: '#22C55E', sub: stats.fiPausedCount > 0 ? `dont ${stats.fiPausedCount} en pause` : null },
+    { Icon: AlertCircle, label: 'Alertes urgentes', value: stats.alertsRed || 0, color: '#EF4444', sub: null },
+    { Icon: CheckSquare, label: 'Tâches en attente', value: stats.pendingTasks || 0, color: '#F97316', sub: null },
+  ]
+
+  const todayChecklist = [
+    `${stats.pendingTasks || 0} tâche${stats.pendingTasks === 1 ? '' : 's'} en attente`,
+    `${stats.newToday || 0} nouveau${stats.newToday === 1 ? '' : 'x'} visiteur${stats.newToday === 1 ? '' : 's'} aujourd'hui`,
+    `${stats.alertsRed || 0} urgence${stats.alertsRed === 1 ? '' : 's'}`,
+    stats.fiTonight ? `Prochaine FI ce soir à ${stats.fiTonight.time} (${stats.fiTonight.name})` : null,
+  ].filter(Boolean)
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20, maxWidth:1200 }}>
-      {/* Hero */}
-      <div style={{ background:'linear-gradient(135deg,#072B6A 0%,#0B3D91 60%,#1452B5 100%)', borderRadius:20, padding:'28px 32px', color:'#fff', position:'relative', overflow:'hidden' }}>
-        <div style={{ position:'absolute', top:-40, right:-40, width:200, height:200, borderRadius:'50%', border:'1px solid rgba(255,255,255,.08)' }} />
-        <div style={{ fontSize:22, fontWeight:800, marginBottom:6 }}>Bonjour, {firstName} ! 👋</div>
-        <div style={{ fontSize:14, opacity:.7, marginBottom:20 }}>Voici un résumé de l'activité de votre église.</div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
-          {[
-            ['Visiteurs ce mois', stats.newThisMonth || 0, '↑'],
-            ['Intégrations', stats.stageCounts?.integre || 0, '↑'],
-            ['Appels au salut', stats.salvations || 0, '↑'],
-            ['Tâches en attente', stats.pendingTasks || 0, ''],
-          ].map(([lb,v,ch])=>(
-            <div key={lb} style={{ background:'rgba(255,255,255,.1)', borderRadius:12, padding:'14px 16px' }}>
-              <div style={{ fontSize:11, opacity:.7, marginBottom:4, fontWeight:500 }}>{lb}</div>
-              <div style={{ fontSize:26, fontWeight:800, letterSpacing:'-.5px' }}>{v}</div>
-              {ch && <div style={{ fontSize:11, color:'#86EFAC', marginTop:2 }}>{ch} ce mois</div>}
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Hero vivant */}
+      <div style={{ background:'linear-gradient(135deg,#072B6A 0%,#0B3D91 55%,#1452B5 100%)', borderRadius:22, padding:'32px 32px', color:'#fff', position:'relative', overflow:'hidden' }}>
+        <div className="hero-circle" style={{ position:'absolute', top:-50, right:-30, width:220, height:220, borderRadius:'50%', border:'1px solid rgba(255,255,255,.1)' }} />
+        <div className="hero-circle" style={{ position:'absolute', bottom:-70, right:120, width:140, height:140, borderRadius:'50%', border:'1px solid rgba(255,255,255,.07)', animationDelay:'1.5s' }} />
+        <div className="hero-circle" style={{ position:'absolute', top:30, left:'55%', width:60, height:60, borderRadius:'50%', background:'rgba(255,255,255,.05)', animationDelay:'3s' }} />
 
-      {/* Stat Cards */}
-      <div className="g4">
-        {[
-          ['👥', 'Total contacts', stats.totalContacts || 0, '#0B3D91', null],
-          ['🏠', "Familles d'Impact", stats.fiData?.length || 0, '#22C55E', stats.fiPausedCount > 0 ? `dont ${stats.fiPausedCount} en pause` : null],
-          ['🔴', 'Alertes urgentes', stats.alertsRed || 0, '#EF4444', null],
-          ['✅', 'Tâches en attente', stats.pendingTasks || 0, '#F97316', null],
-        ].map(([ic,lb,v,co,sub])=>(
-          <div key={lb} className="card" style={{ padding:20, borderTop:`3px solid ${co}`, position:'relative', overflow:'hidden' }}>
-            <div style={{ position:'absolute', top:0, right:0, width:80, height:80, borderRadius:'0 16px 0 80px', background:co+'10' }} />
-            <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between' }}>
-              <div>
-                <div style={{ fontSize:13, color:'#64748B', fontWeight:500, marginBottom:8 }}>{lb}</div>
-                <div style={{ fontSize:32, fontWeight:800, color:'#1E293B', letterSpacing:-1 }}>{v}</div>
-                {sub && <div style={{ fontSize:11, color:'#94A3B8', marginTop:2 }}>{sub}</div>}
-              </div>
-              <div style={{ width:44, height:44, borderRadius:12, background:co, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>{ic}</div>
+        <div style={{ position:'relative', zIndex:1 }}>
+          <div style={{ fontSize:24, fontWeight:800, marginBottom:6 }}>Bonjour, {firstName} 👋</div>
+          <div style={{ fontSize:14, opacity:.75, marginBottom:22 }}>Bienvenue sur votre espace de pilotage.</div>
+
+          <div className="hero-glass" style={{ borderRadius:16, padding:'18px 20px', maxWidth:420, marginBottom:22 }}>
+            <div style={{ fontSize:11, opacity:.7, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Aujourd'hui</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {todayChecklist.map((item, i) => (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13 }}>
+                  <span style={{ width:16, height:16, borderRadius:'50%', background:'rgba(255,255,255,.18)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:10 }}>✓</span>
+                  {item}
+                </div>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Charts */}
-      <div className="g2r">
-        <div className="card">
-          <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>Croissance annuelle</div>
-          <div style={{ fontSize:12, color:'var(--gy)', marginBottom:16 }}>Visiteurs et intégrations</div>
-          <div style={{ height:220 }}><canvas ref={areaRef} /></div>
-        </div>
-        <div className="card">
-          <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>Répartition Pipeline</div>
-          <div style={{ fontSize:12, color:'var(--gy)', marginBottom:12 }}>Par étape</div>
-          <div style={{ height:160 }}><canvas ref={pieRef} /></div>
-          <div style={{ display:'flex', flexWrap:'wrap', gap:'4px 10px', marginTop:10 }}>
-            {Object.entries(stats.stageCounts||{}).map(([stage, count])=>(
-              <div key={stage} style={{ display:'flex', alignItems:'center', gap:4 }}>
-                <div style={{ width:8, height:8, borderRadius:2, background:STAGE_COLOR(stage) }} />
-                <span style={{ fontSize:11, color:'var(--gd)' }}>{STAGE_LABEL(stage)} ({count})</span>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+            {[
+              ['Visiteurs ce mois', stats.newThisMonth || 0, '↑'],
+              ['Intégrations', stats.stageCounts?.integre || 0, '↑'],
+              ['Appels au salut', stats.salvations || 0, '↑'],
+              ['Tâches en attente', stats.pendingTasks || 0, ''],
+            ].map(([lb,v,ch])=>(
+              <div key={lb} style={{ background:'rgba(255,255,255,.1)', borderRadius:12, padding:'14px 16px' }}>
+                <div style={{ fontSize:11, opacity:.7, marginBottom:4, fontWeight:500 }}>{lb}</div>
+                <div style={{ fontSize:26, fontWeight:800, letterSpacing:'-.5px' }}>{v}</div>
+                {ch && <div style={{ fontSize:11, color:'#86EFAC', marginTop:2 }}>{ch} ce mois</div>}
               </div>
             ))}
           </div>
         </div>
       </div>
 
+      {/* Stat Cards avec halo */}
+      <div className="g4">
+        {statCards.map(({ Icon, label, value, color, sub }) => (
+          <div key={label} className="card stat-halo" style={{ padding:20, borderTop:`3px solid ${color}`, '--halo-color': color+'22' }}>
+            <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', position:'relative', zIndex:1 }}>
+              <div>
+                <div style={{ fontSize:13, color:'#64748B', fontWeight:500, marginBottom:8 }}>{label}</div>
+                <div style={{ fontSize:32, fontWeight:800, color:'#1E293B', letterSpacing:-1 }}>{value}</div>
+                {sub && <div style={{ fontSize:11, color:'#94A3B8', marginTop:2 }}>{sub}</div>}
+              </div>
+              <div style={{ width:44, height:44, borderRadius:12, background:color, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <Icon size={20} strokeWidth={2} color="#fff" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Charts + Activite recente */}
+      <div className="g2r">
+        <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+          <div className="card">
+            <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>Croissance annuelle</div>
+            <div style={{ fontSize:12, color:'var(--gy)', marginBottom:16 }}>Visiteurs et intégrations</div>
+            <div style={{ height:220 }}><canvas ref={areaRef} /></div>
+          </div>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+          <div className="card">
+            <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>Répartition Pipeline</div>
+            <div style={{ fontSize:12, color:'var(--gy)', marginBottom:12 }}>Par étape</div>
+            <div style={{ height:160 }}><canvas ref={pieRef} /></div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'4px 10px', marginTop:10 }}>
+              {Object.entries(stats.stageCounts||{}).map(([stage, count])=>(
+                <div key={stage} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                  <div style={{ width:8, height:8, borderRadius:2, background:STAGE_COLOR(stage) }} />
+                  <span style={{ fontSize:11, color:'var(--gd)' }}>{STAGE_LABEL(stage)} ({count})</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Activite recente */}
+      <div className="card">
+        <div style={{ fontSize:15, fontWeight:700, marginBottom:16 }}>Activité récente</div>
+        {(!stats.activityFeed || stats.activityFeed.length === 0) ? (
+          <div style={{ fontSize:13, color:'var(--gy)', textAlign:'center', padding:'20px 0' }}>Aucune activité récente.</div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column' }}>
+            {stats.activityFeed.map((a, i) => {
+              const Icon = ACTIVITY_ICON_MAP[a.type] || Clock
+              const color = ACTIVITY_COLOR_MAP[a.type] || '#94A3B8'
+              return (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom: i < stats.activityFeed.length-1 ? '1px solid #F1F5F9' : 'none' }}>
+                  <div style={{ width:32, height:32, borderRadius:9, background:color+'15', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <Icon size={15} strokeWidth={2} color={color} />
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:'#1E293B' }}>{a.name || '—'}</div>
+                    <div style={{ fontSize:11, color:'var(--gy)' }}>{a.detail}</div>
+                  </div>
+                  <div style={{ fontSize:11, color:'#CBD5E1', flexShrink:0 }}>{timeAgo(a.date)}</div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {/* FI Overview */}
       <div className="card">
-        <div style={{ fontSize:15, fontWeight:700, marginBottom:16 }}>🏠 Familles d'Impact — Capacité</div>
+        <div style={{ fontSize:15, fontWeight:700, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}>
+          <Home size={17} strokeWidth={2} color="var(--n)" /> Familles d'Impact — Capacité
+        </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
           {stats.fiData?.map(fi => {
             const mb = stats.fiMemberCounts?.[fi.id] || 0

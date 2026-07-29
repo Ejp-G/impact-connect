@@ -55,7 +55,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
     setShowModal(false); setSaving(false); router.refresh()
   }
 
-  const canAdd = ['admin','responsable_integration','equipe_integration'].includes(profile?.role)
+  const canAdd = ['admin','responsable_suivi','equipe_suivi'].includes(profile?.role)
 
   const filterBtns = [
     ['all', 'Tous', stats.total],

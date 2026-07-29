@@ -2,6 +2,11 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import {
+  FI_STATUS_ICON_MAP, JOURNAL_TYPE_ICON_MAP,
+  BarChart3, Users, Calendar, FileText, Settings, Clock, CheckCircle2,
+  MessageCircle, Plus, X
+} from '@/lib/icons'
 
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
 
@@ -22,20 +27,20 @@ const ABSENCE_REASONS = [
 ]
 
 const JOURNAL_TYPES = {
-  priere: { label: 'Prière', icon: '🙏', color: '#7C3AED' },
-  besoin: { label: 'Besoin', icon: '🆘', color: '#DC2626' },
-  difficulte: { label: 'Difficulté', icon: '⚠️', color: '#D97706' },
-  remarque: { label: 'Remarque', icon: '💬', color: '#0369A1' },
-  action: { label: 'Action réalisée', icon: '✅', color: '#16A34A' },
-  decision: { label: 'Décision', icon: '📌', color: '#334155' }
+  priere: { label: 'Prière', color: '#7C3AED' },
+  besoin: { label: 'Besoin', color: '#DC2626' },
+  difficulte: { label: 'Difficulté', color: '#D97706' },
+  remarque: { label: 'Remarque', color: '#0369A1' },
+  action: { label: 'Action réalisée', color: '#16A34A' },
+  decision: { label: 'Décision', color: '#334155' }
 }
 
 const TABS = [
-  { id: 'dashboard', label: '📊 Tableau de bord' },
-  { id: 'membres', label: '👥 Membres' },
-  { id: 'presences', label: '📅 Présences' },
-  { id: 'journal', label: '📝 Journal' },
-  { id: 'infos', label: '⚙️ Informations' }
+  { id: 'dashboard', label: 'Tableau de bord', Icon: BarChart3 },
+  { id: 'membres', label: 'Membres', Icon: Users },
+  { id: 'presences', label: 'Présences', Icon: Calendar },
+  { id: 'journal', label: 'Journal', Icon: FileText },
+  { id: 'infos', label: 'Informations', Icon: Settings }
 ]
 
 function badgeColor(level) {
@@ -45,10 +50,10 @@ function badgeColor(level) {
 }
 
 function statusInfo(status) {
-  if (status === 'active') return { label: '✅ Active', dim: false }
-  if (status === 'en_pause') return { label: '⏸️ En pause', dim: true }
-  if (status === 'fermee') return { label: '⛔ Fermée', dim: true }
-  return { label: '🔄 En développement', dim: false }
+  if (status === 'active') return { label: 'Active', dim: false, color: '#16A34A' }
+  if (status === 'en_pause') return { label: 'En pause', dim: true, color: '#D97706' }
+  if (status === 'fermee') return { label: 'Fermée', dim: true, color: '#DC2626' }
+  return { label: 'En développement', dim: false, color: '#0369A1' }
 }
 
 function hoursSince(dateStr) {
@@ -58,7 +63,7 @@ function hoursSince(dateStr) {
 
 function nextThursday() {
   const d = new Date()
-  const day = d.getDay() // 0=dim..4=jeu..6=sam
+  const day = d.getDay()
   const diff = (4 - day + 7) % 7
   d.setDate(d.getDate() + (diff === 0 ? 0 : diff))
   return d.toISOString().slice(0, 10)
@@ -140,10 +145,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
   async function submitForm(e) {
     e.preventDefault()
     if (!form.name.trim()) { setFormError('Le nom est requis.'); return }
-    // Validation claire cote formulaire : sans ca, une commune manquante
-    // provoquait une erreur technique brute de la base de donnees
-    // ("null value in column commune_name violates not-null constraint")
-    // au lieu d'un message comprehensible pour l'utilisateur.
     if (!form.commune_id) { setFormError('Merci de sélectionner une commune.'); return }
     setSaving(true)
     setFormError('')
@@ -390,6 +391,7 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
         {fis.map(fi => {
           const pct = Math.round((fi.memberCount / fi.capacity) * 100)
           const st = statusInfo(fi.status)
+          const StatusIcon = FI_STATUS_ICON_MAP[fi.status] || FI_STATUS_ICON_MAP.en_developpement
           return (
             <div key={fi.id} onClick={() => openDetail(fi)} className="card" style={{ cursor: 'pointer', overflow: 'hidden', padding: 0, opacity: st.dim ? .6 : 1 }}>
               <div style={{ padding: '20px 20px 44px', background: 'linear-gradient(135deg,var(--nd) 0%,var(--n) 100%)', color: '#fff', position: 'relative', overflow: 'hidden' }}>
@@ -397,7 +399,9 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                 <div style={{ fontSize: 10, opacity: .7, letterSpacing: 1, fontWeight: 600, textTransform: 'uppercase' }}>{fi.commune_name}</div>
                 <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4 }}>{fi.name}</div>
                 <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-                  <span style={{ fontSize: 10, background: 'rgba(255,255,255,.2)', padding: '2px 8px', borderRadius: 999 }}>{st.label}</span>
+                  <span style={{ fontSize: 10, background: 'rgba(255,255,255,.2)', padding: '2px 8px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <StatusIcon size={11} strokeWidth={2} /> {st.label}
+                  </span>
                 </div>
               </div>
               <div style={{ padding: 20, marginTop: -24, position: 'relative', zIndex: 1 }}>
@@ -411,8 +415,8 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span>👤</span><span style={{ fontSize: 12 }}>Pilote : <b>{fi.pilot?.name || '—'}</b></span></div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span>📅</span><span style={{ fontSize: 12 }}>{fi.day} à {fi.time}</span></div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Users size={13} strokeWidth={2} color="var(--gd)" /><span style={{ fontSize: 12 }}>Pilote : <b>{fi.pilot?.name || '—'}</b></span></div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Calendar size={13} strokeWidth={2} color="var(--gd)" /><span style={{ fontSize: 12 }}>{fi.day} à {fi.time}</span></div>
                 </div>
               </div>
             </div>
@@ -420,7 +424,7 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
         })}
         {isAdmin && (
           <div onClick={openCreate} className="card" style={{ border: '2px dashed #CBD5E1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, cursor: 'pointer', minHeight: 200 }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>✚</div>
+            <Plus size={30} strokeWidth={2} color="#94A3B8" style={{ marginBottom: 12 }} />
             <div style={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>Ouvrir une nouvelle FI</div>
           </div>
         )}
@@ -431,7 +435,7 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
           <div onClick={e => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 520 }}>
             <div style={modalHeaderStyle}>
               <div style={{ fontWeight: 800, fontSize: 16 }}>{editingFi ? 'Modifier la FIJ' : 'Nouvelle FIJ'}</div>
-              <button onClick={() => setShowForm(false)} style={closeBtnStyle}>✕</button>
+              <button onClick={() => setShowForm(false)} style={closeBtnStyle}><X size={15} strokeWidth={2} /></button>
             </div>
             <form onSubmit={submitForm} style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
               {formError && <div style={errorBoxStyle}>{formError}</div>}
@@ -486,10 +490,10 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
 
               <Field label="Statut">
                 <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} style={inputStyle}>
-                  <option value="en_developpement">🔄 En développement</option>
-                  <option value="active">✅ Active</option>
-                  <option value="en_pause">⏸️ En pause (fermeture temporaire)</option>
-                  <option value="fermee">⛔ Fermée définitivement</option>
+                  <option value="en_developpement">En développement</option>
+                  <option value="active">Active</option>
+                  <option value="en_pause">En pause (fermeture temporaire)</option>
+                  <option value="fermee">Fermée définitivement</option>
                 </select>
               </Field>
 
@@ -514,17 +518,19 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                 <div style={{ fontWeight: 800, fontSize: 16 }}>{detailFi.name}</div>
                 <div style={{ fontSize: 12, opacity: .85 }}>{detailFi.commune_name} · {detailFi.day} à {detailFi.time}</div>
               </div>
-              <button onClick={() => setDetailFi(null)} style={closeBtnStyle}>✕</button>
+              <button onClick={() => setDetailFi(null)} style={closeBtnStyle}><X size={15} strokeWidth={2} /></button>
             </div>
 
             <div style={{ display: 'flex', gap: 4, padding: '10px 20px 0', borderBottom: '1px solid #E2E8F0', overflowX: 'auto' }}>
               {TABS.map(t => (
                 <button key={t.id} onClick={() => switchTab(t.id)} style={{
                   background: 'none', border: 'none', cursor: 'pointer', padding: '8px 12px',
-                  fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+                  fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6,
                   color: activeTab === t.id ? 'var(--n)' : '#94A3B8',
                   borderBottom: activeTab === t.id ? '2px solid var(--n)' : '2px solid transparent'
-                }}>{t.label}</button>
+                }}>
+                  <t.Icon size={14} strokeWidth={2} /> {t.label}
+                </button>
               ))}
             </div>
 
@@ -575,14 +581,20 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                                   <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: badgeColor(m.alert_level), padding: '2px 8px', borderRadius: 999 }}>{m.alert_level}</span>
                                 )}
                                 {m.fi_contacted ? (
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#166534', background: '#DCFCE7', padding: '2px 8px', borderRadius: 999 }}>✅ Contacté ({m.fi_contact_method})</span>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#166534', background: '#DCFCE7', padding: '2px 8px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <CheckCircle2 size={11} strokeWidth={2} /> Contacté ({m.fi_contact_method})
+                                  </span>
                                 ) : late ? (
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: '#DC2626', padding: '2px 8px', borderRadius: 999 }}>⏰ +48h sans contact</span>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: '#DC2626', padding: '2px 8px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <Clock size={11} strokeWidth={2} /> +48h sans contact
+                                  </span>
                                 ) : (
                                   <span style={{ fontSize: 10, fontWeight: 700, color: '#92400E', background: '#FEF3C7', padding: '2px 8px', borderRadius: 999 }}>À contacter</span>
                                 )}
                                 {m.fi_whatsapp_added && (
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#166534', background: '#DCFCE7', padding: '2px 8px', borderRadius: 999 }}>💬 Dans le groupe</span>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#166534', background: '#DCFCE7', padding: '2px 8px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <MessageCircle size={11} strokeWidth={2} /> Dans le groupe
+                                  </span>
                                 )}
                                 {whatsappEligible && (
                                   <button onClick={() => confirmWhatsapp(m.id)} style={{ ...smallBtnStyle, background: '#DCFCE7', color: '#166534' }}>🎉 Confirmer ajout groupe WhatsApp</button>
@@ -599,9 +611,9 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                             {contactingId === m.id && (
                               <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 <select value={contactForm.method} onChange={e => setContactForm({ ...contactForm, method: e.target.value })} style={inputStyle}>
-                                  <option value="appel">📞 Appel</option>
-                                  <option value="whatsapp">💬 WhatsApp</option>
-                                  <option value="sms">✉️ SMS</option>
+                                  <option value="appel">Appel</option>
+                                  <option value="whatsapp">WhatsApp</option>
+                                  <option value="sms">SMS</option>
                                   <option value="autre">Autre</option>
                                 </select>
                                 <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -674,7 +686,7 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                     <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <select value={journalForm.type} onChange={e => setJournalForm({ ...journalForm, type: e.target.value })} style={{ ...inputStyle, flex: 1 }}>
-                          {Object.entries(JOURNAL_TYPES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+                          {Object.entries(JOURNAL_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                         </select>
                         <select value={journalForm.contact_id} onChange={e => setJournalForm({ ...journalForm, contact_id: e.target.value })} style={{ ...inputStyle, flex: 1 }}>
                           <option value="">Concerne toute la FIJ</option>
@@ -696,10 +708,13 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {journal.map(entry => {
                         const t = JOURNAL_TYPES[entry.type] || JOURNAL_TYPES.remarque
+                        const TypeIcon = JOURNAL_TYPE_ICON_MAP[entry.type] || JOURNAL_TYPE_ICON_MAP.remarque
                         return (
                           <div key={entry.id} style={{ borderLeft: `3px solid ${t.color}`, background: '#F8FAFC', borderRadius: 8, padding: '10px 14px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: t.color }}>{t.icon} {t.label}{entry.contact ? ` · ${entry.contact.first_name} ${entry.contact.last_name}` : ''}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: t.color, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <TypeIcon size={12} strokeWidth={2} /> {t.label}{entry.contact ? ` · ${entry.contact.first_name} ${entry.contact.last_name}` : ''}
+                              </span>
                               <span style={{ fontSize: 10, color: '#94A3B8' }}>{entry.author?.name || '—'} · {timeAgo(entry.created_at)}</span>
                             </div>
                             <div style={{ fontSize: 13, color: '#334155', whiteSpace: 'pre-wrap' }}>{entry.content}</div>
@@ -799,7 +814,7 @@ function DashboardTab({ detailFi, members, attendanceHistory, journal }) {
             const t = JOURNAL_TYPES[entry.type] || JOURNAL_TYPES.remarque
             return (
               <div key={entry.id} style={{ fontSize: 12, color: '#334155' }}>
-                <span style={{ fontWeight: 700, color: t.color }}>{t.icon} {t.label} :</span> {entry.content.slice(0, 100)}{entry.content.length > 100 ? '…' : ''}
+                <span style={{ fontWeight: 700, color: t.color }}>{t.label} :</span> {entry.content.slice(0, 100)}{entry.content.length > 100 ? '…' : ''}
               </div>
             )
           })}
@@ -875,7 +890,7 @@ const modalHeaderStyle = {
 
 const closeBtnStyle = {
   background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', width: 28, height: 28,
-  borderRadius: 8, cursor: 'pointer', fontSize: 14
+  borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
 }
 
 const inputStyle = {

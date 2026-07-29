@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/fi-pilot-alerts",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/integrator-alerts",
+      "schedule": "0 10 * * *"
     }
   ]
 }

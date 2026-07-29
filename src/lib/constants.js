@@ -1,15 +1,17 @@
+import { UserPlus, Phone, Send, Home, RefreshCw, CheckCircle2, BookOpen, Droplet, Heart, Award, Crown } from 'lucide-react'
+
 export const STAGES = [
-  { id:'visiteur',    label:'Visiteur',          color:'#94A3B8', emoji:'👋' },
-  { id:'contacte',    label:'Contacté',           color:'#3B82F6', emoji:'📞' },
-  { id:'invite_fi',   label:'Invitation FI',      color:'#8B5CF6', emoji:'📩' },
-  { id:'fi1',         label:'1ère FI',            color:'#06B6D4', emoji:'🏠' },
-  { id:'fi2',         label:'2ème FI',            color:'#0EA5E9', emoji:'🔄' },
-  { id:'integre',     label:'Intégré FI',         color:'#22C55E', emoji:'✅' },
-  { id:'parcours',    label:'Parcours Disciple',  color:'#10B981', emoji:'📖' },
-  { id:'bapteme',     label:'Baptême',            color:'#F59E0B', emoji:'💧' },
-  { id:'service',     label:'Service',            color:'#F97316', emoji:'🙌' },
-  { id:'leader_pot',  label:'Leader Potentiel',   color:'#EF4444', emoji:'⭐' },
-  { id:'leader',      label:'Leader',             color:'#0B3D91', emoji:'👑' },
+  { id:'visiteur',    label:'Visiteur',          color:'#94A3B8' },
+  { id:'contacte',    label:'Contacté',           color:'#3B82F6' },
+  { id:'invite_fi',   label:'Invitation FI',      color:'#8B5CF6' },
+  { id:'fi1',         label:'1ère FI',            color:'#06B6D4' },
+  { id:'fi2',         label:'2ème FI',            color:'#0EA5E9' },
+  { id:'integre',     label:'Intégré FI',         color:'#22C55E' },
+  { id:'parcours',    label:'Parcours Disciple',  color:'#10B981' },
+  { id:'bapteme',     label:'Baptême',            color:'#F59E0B' },
+  { id:'service',     label:'Service',            color:'#F97316' },
+  { id:'leader_pot',  label:'Leader Potentiel',   color:'#EF4444' },
+  { id:'leader',      label:'Leader',             color:'#0B3D91' },
 ]
 export const ROLES = {
   admin:                   'Administrateur général',
@@ -59,6 +61,15 @@ export const PRIORITY_COLORS = {
 }
 export const STAGE_LABEL = (id) => STAGES.find(s => s.id === id)?.label || id
 export const STAGE_COLOR = (id) => STAGES.find(s => s.id === id)?.color || '#94A3B8'
+
+// Icones Lucide par etape (remplace stage.emoji dans l'UI : kanban
+// Pipeline, "Pipeline complet" des Rapports, etc.)
+export const STAGE_ICON_MAP = {
+  visiteur: UserPlus, contacte: Phone, invite_fi: Send, fi1: Home, fi2: RefreshCw,
+  integre: CheckCircle2, parcours: BookOpen, bapteme: Droplet, service: Heart,
+  leader_pot: Award, leader: Crown,
+}
+export const STAGE_ICON = (id) => STAGE_ICON_MAP[id] || Home
 
 // Besoins detectes progressivement au fil des echanges (jamais demandes
 // frontalement des la premiere visite). Les 3 marques sensible:true sont

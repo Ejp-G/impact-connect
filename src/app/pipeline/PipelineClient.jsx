@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { STAGES } from '@/lib/constants'
 import { scoreColor } from '@/lib/utils'
-import ContactDetailModal from '@/components/contacts/ContactDetailModal'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { STAGE_ICON_MAP } from '@/lib/icons'
 import { AlertTriangle, AlertCircle, X } from '@/lib/icons'
@@ -15,7 +14,6 @@ export default function PipelineClient({ contacts, fis = [], communes = [] }) {
   const router = useRouter()
   const [draggingId, setDraggingId] = useState(null)
   const [dragOverStage, setDragOverStage] = useState(null)
-  const [selectedContactId, setSelectedContactId] = useState(null)
   const [warning, setWarning] = useState('')
 
   useRealtimeRefresh(['contacts', 'familles_impact'])
@@ -80,7 +78,7 @@ export default function PipelineClient({ contacts, fis = [], communes = [] }) {
                   draggable
                   onDragStart={() => setDraggingId(c.id)}
                   onDragEnd={() => setDraggingId(null)}
-                  onClick={() => setSelectedContactId(c.id)}
+                  onClick={() => router.push(`/visiteurs/${c.id}`)}
                   style={{ borderLeft: `3px solid ${stage.color}`, cursor: 'grab', opacity: draggingId === c.id ? .4 : 1 }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -100,15 +98,6 @@ export default function PipelineClient({ contacts, fis = [], communes = [] }) {
           )
         })}
       </div>
-
-      {selectedContactId && (
-        <ContactDetailModal
-          contactId={selectedContactId}
-          onClose={() => { setSelectedContactId(null); router.refresh() }}
-          communes={communes}
-          fis={fis}
-        />
-      )}
     </div>
   )
 }

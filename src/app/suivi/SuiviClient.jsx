@@ -3,7 +3,6 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { PRIORITY_COLORS, STAGE_LABEL, STAGE_COLOR, NEED_CATEGORIES } from '@/lib/constants'
 import TaskDetailModal from '@/components/tasks/TaskDetailModal'
-import ContactDetailModal from '@/components/contacts/ContactDetailModal'
 import NewcomerReportPanel from '@/components/suivi/NewcomerReportPanel'
 import NeedsDrilldownModal from '@/components/suivi/NeedsDrilldownModal'
 import { Users, CheckSquare, Compass, NEED_ICON_MAP } from '@/lib/icons'
@@ -27,7 +26,6 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
   const [search, setSearch] = useState('')
 
   const [reportPanelId, setReportPanelId] = useState(null)
-  const [fullProfileId, setFullProfileId] = useState(null)
   const [drilldownCategory, setDrilldownCategory] = useState(null)
   const [selectedTaskId, setSelectedTaskId] = useState(null)
   const [showLegacyTasks, setShowLegacyTasks] = useState(false)
@@ -234,16 +232,8 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
         <NewcomerReportPanel
           contactId={reportPanelId}
           onClose={() => { setReportPanelId(null); router.refresh() }}
-          onOpenFullProfile={(id) => { setReportPanelId(null); setFullProfileId(id) }}
+          onOpenFullProfile={(id) => { setReportPanelId(null); router.push(`/visiteurs/${id}`) }}
           currentProfile={profile}
-        />
-      )}
-      {fullProfileId && (
-        <ContactDetailModal
-          contactId={fullProfileId}
-          onClose={() => { setFullProfileId(null); router.refresh() }}
-          communes={[]}
-          fis={[]}
         />
       )}
       {drilldownCategory && (

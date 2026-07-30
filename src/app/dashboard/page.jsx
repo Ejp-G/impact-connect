@@ -86,6 +86,24 @@ export default async function DashboardPage() {
   stats.newToday = newToday || 0
   stats.fiTonight = fiTonight
 
+  // ---------- Verification du dernier culte (Module Accueil) ----------
+  const { data: lastCulte } = await supabase.from('cultes')
+    .select('*').order('date', { ascending: false }).limit(1).maybeSingle()
+  if (lastCulte) {
+    const { count: actualNouveaux } = await supabase.from('contacts')
+      .select('*', { count:'exact', head:true }).eq('first_visit_date', lastCulte.date)
+    const { count: actualSalut } = await supabase.from('contacts')
+      .select('*', { count:'exact', head:true }).eq('first_visit_date', lastCulte.date).eq('salvation_call', true)
+    stats.culteCheck = {
+      date: lastCulte.date,
+      presents: lastCulte.presents,
+      nouveauxComptes: lastCulte.nouveaux_comptes,
+      nouveauxReels: actualNouveaux || 0,
+      salutComptes: lastCulte.appels_au_salut_comptes,
+      salutReels: actualSalut || 0,
+    }
+  }
+
   // ---------- Activite recente : fusion de plusieurs sources ----------
   const [
     { data: recentContacts },

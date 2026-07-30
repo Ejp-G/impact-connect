@@ -5,7 +5,7 @@ export const STAGES = [
   { id:'fi1',         label:'1ère FI',            color:'#06B6D4' },
   { id:'fi2',         label:'2ème FI',            color:'#0EA5E9' },
   { id:'integre',     label:'Intégré FI',         color:'#22C55E' },
-  { id:'parcours',    label:'Parcours Disciple',  color:'#10B981' },
+  { id:'parcours',    label:'Parcours de croissance', color:'#10B981' },
   { id:'bapteme',     label:'Baptême',            color:'#F59E0B' },
   { id:'service',     label:'Service',            color:'#F97316' },
   { id:'leader_pot',  label:'Leader Potentiel',   color:'#EF4444' },

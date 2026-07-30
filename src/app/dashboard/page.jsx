@@ -7,14 +7,22 @@ export default async function DashboardPage() {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+
+  // Toutes les dates de reference ci-dessous utilisent desormais
+  // first_visit_date (la vraie date de premiere visite) plutot que
+  // created_at (date d'enregistrement en base, qui peut etre tres
+  // differente en cas d'import tardif de vieilles fiches).
+  const today = new Date().toISOString().slice(0, 10)
+  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
+
   // Statistiques agrégées
   const [{ count: totalContacts }, { count: newThisMonth }, { count: salvations },
          { count: pendingTasks }, { count: alertsRed }, { data: fiData }] = await Promise.all([
     supabase.from('contacts').select('*', { count:'exact', head:true }).eq('status','active'),
     supabase.from('contacts').select('*', { count:'exact', head:true })
-      .eq('status','active').gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+      .eq('status','active').gte('first_visit_date', startOfMonth),
     supabase.from('contacts').select('*', { count:'exact', head:true }).eq('salvation_call', true)
-      .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+      .gte('first_visit_date', startOfMonth),
     supabase.from('tasks').select('*', { count:'exact', head:true }).eq('status','pending'),
     supabase.from('contacts').select('*', { count:'exact', head:true }).eq('alert_level','red').eq('status','active'),
     // Toutes les FIJ sauf celles definitivement fermees : une FIJ "en
@@ -38,23 +46,25 @@ export default async function DashboardPage() {
   // dans le total mais meritent d'etre signalees separement).
   const fiPausedCount = fiData?.filter(f => f.status === 'en_pause').length || 0
 
-  // Croissance annuelle (mois par mois, annee civile en cours). On ne
-  // filtre PAS par status='active' ici : contrairement au reste du
-  // dashboard, ce graphique retrace l'historique reel, y compris les
-  // contacts depuis archives, pour que les mois passes ne se deforment
-  // pas au fil du temps quand un visiteur ancien est archive.
-  const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString()
-  const yearEnd   = new Date(new Date().getFullYear() + 1, 0, 1).toISOString()
+  // Croissance annuelle (mois par mois, annee civile en cours), basee
+  // sur first_visit_date. On ne filtre PAS par status='active' ici :
+  // contrairement au reste du dashboard, ce graphique retrace
+  // l'historique reel, y compris les contacts depuis archives, pour
+  // que les mois passes ne se deforment pas au fil du temps quand un
+  // visiteur ancien est archive.
+  const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
+  const yearEnd   = new Date(new Date().getFullYear() + 1, 0, 1).toISOString().slice(0, 10)
   const [{ data: visitorRows }, { data: integrationRows }] = await Promise.all([
-    supabase.from('contacts').select('created_at')
-      .gte('created_at', yearStart).lt('created_at', yearEnd),
+    supabase.from('contacts').select('first_visit_date')
+      .gte('first_visit_date', yearStart).lt('first_visit_date', yearEnd),
     supabase.from('contacts').select('integrated_at')
       .not('integrated_at', 'is', null)
       .gte('integrated_at', yearStart).lt('integrated_at', yearEnd),
   ])
   const monthlyVisitors = Array(12).fill(0)
   visitorRows?.forEach(r => {
-    const m = new Date(r.created_at).getMonth()
+    if (!r.first_visit_date) return
+    const m = new Date(r.first_visit_date).getMonth()
     monthlyVisitors[m] += 1
   })
   const monthlyIntegrations = Array(12).fill(0)
@@ -66,9 +76,8 @@ export default async function DashboardPage() {
   const stats = { totalContacts, newThisMonth, salvations, pendingTasks, alertsRed, stageCounts, fiData, fiMemberCounts, fiPausedCount, monthlyVisitors, monthlyIntegrations }
 
   // ---------- Hero vivant : "aujourd'hui en un coup d'oeil" ----------
-  const startOfToday = new Date(); startOfToday.setHours(0,0,0,0)
   const { count: newToday } = await supabase.from('contacts')
-    .select('*', { count:'exact', head:true }).eq('status','active').gte('created_at', startOfToday.toISOString())
+    .select('*', { count:'exact', head:true }).eq('status','active').eq('first_visit_date', today)
 
   const FRENCH_DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi']
   const todayName = FRENCH_DAYS[new Date().getDay()]

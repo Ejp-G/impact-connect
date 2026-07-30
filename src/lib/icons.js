@@ -17,6 +17,7 @@ import {
 // sans toucher aux pages qui consomment NAV_ICON_MAP.
 export const NAV_ICON_MAP = {
   dashboard: LayoutDashboard,
+  accueil: Calendar,
   visiteurs: Users,
   pipeline: GitBranch,
   fi: Home,

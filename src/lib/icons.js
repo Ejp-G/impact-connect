@@ -19,6 +19,7 @@ export const NAV_ICON_MAP = {
   dashboard: LayoutDashboard,
   accueil: Calendar,
   visiteurs: Users,
+  'fiches-a-completer': AlertTriangle,
   pipeline: GitBranch,
   fi: Home,
   suivi: CheckSquare,
@@ -29,6 +30,7 @@ export const NAV_ICON_MAP = {
   qrcode: QrCode,
   journal: ScrollText,
   utilisateurs: User,
+  validations: CheckSquare,
   parametres: Settings,
 }
 

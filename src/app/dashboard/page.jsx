@@ -54,12 +54,14 @@ export default async function DashboardPage() {
   // visiteur ancien est archive.
   const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
   const yearEnd   = new Date(new Date().getFullYear() + 1, 0, 1).toISOString().slice(0, 10)
-  const [{ data: visitorRows }, { data: integrationRows }] = await Promise.all([
+  const [{ data: visitorRows }, { data: integrationRows }, { data: cultesRows }] = await Promise.all([
     supabase.from('contacts').select('first_visit_date')
       .gte('first_visit_date', yearStart).lt('first_visit_date', yearEnd),
     supabase.from('contacts').select('integrated_at')
       .not('integrated_at', 'is', null)
       .gte('integrated_at', yearStart).lt('integrated_at', yearEnd),
+    supabase.from('cultes').select('date,nouveaux_comptes')
+      .gte('date', yearStart).lt('date', yearEnd),
   ])
   const monthlyVisitors = Array(12).fill(0)
   visitorRows?.forEach(r => {
@@ -72,8 +74,17 @@ export default async function DashboardPage() {
     const m = new Date(r.integrated_at).getMonth()
     monthlyIntegrations[m] += 1
   })
+  // Comptage manuel Accueil (nouveaux_comptes saisi par culte) : distinct
+  // des visiteurs "formulaire rempli" ci-dessus, permet de reperer un
+  // ecart (personnes reperees a l'accueil mais jamais inscrites).
+  const monthlyAccueil = Array(12).fill(0)
+  cultesRows?.forEach(r => {
+    if (!r.nouveaux_comptes) return
+    const m = new Date(r.date).getMonth()
+    monthlyAccueil[m] += r.nouveaux_comptes
+  })
 
-  const stats = { totalContacts, newThisMonth, salvations, pendingTasks, alertsRed, stageCounts, fiData, fiMemberCounts, fiPausedCount, monthlyVisitors, monthlyIntegrations }
+  const stats = { totalContacts, newThisMonth, salvations, pendingTasks, alertsRed, stageCounts, fiData, fiMemberCounts, fiPausedCount, monthlyVisitors, monthlyIntegrations, monthlyAccueil }
 
   // ---------- Hero vivant : "aujourd'hui en un coup d'oeil" ----------
   const { count: newToday } = await supabase.from('contacts')

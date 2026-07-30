@@ -24,11 +24,15 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
   const [tab, setTab] = useState('nouveaux')
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 25
 
   const [reportPanelId, setReportPanelId] = useState(null)
   const [drilldownCategory, setDrilldownCategory] = useState(null)
   const [selectedTaskId, setSelectedTaskId] = useState(null)
-  const [showLegacyTasks, setShowLegacyTasks] = useState(false)
+  const [taskSearch, setTaskSearch] = useState('')
+  const [taskGroupByVisitor, setTaskGroupByVisitor] = useState(false)
+  const [openFolders, setOpenFolders] = useState({})
 
   const [tasks, setTasks] = useState(initialTasks)
 
@@ -76,6 +80,12 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
     })
   }, [contacts, filter, search, latestReportByContact, needsByContact, today])
 
+  const totalPages = Math.max(1, Math.ceil(filteredContacts.length / PAGE_SIZE))
+  const pagedContacts = filteredContacts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  function changeFilter(f) { setFilter(f); setPage(1) }
+  function changeSearch(v) { setSearch(v); setPage(1) }
+
   const needsSummary = useMemo(() => {
     const byCategory = {}
     needs.forEach(n => {
@@ -101,6 +111,30 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
     if (res.ok) { setTasks(prev => prev.filter(t => t.id !== id)); router.refresh() }
   }
 
+  // Boite de reception intelligente : regroupe les taches en dossiers
+  // (Urgentes en premier, quel que soit le type, puis un dossier par
+  // type distinct). Une tache urgente n'apparait que dans "Urgentes"
+  // pour eviter un doublon visuel entre deux dossiers.
+  const taskFolders = useMemo(() => {
+    const q = taskSearch.toLowerCase()
+    const filtered = tasks.filter(t => {
+      if (!q) return true
+      const name = `${t.contact?.first_name || ''} ${t.contact?.last_name || ''}`.toLowerCase()
+      return name.includes(q) || (t.title || '').toLowerCase().includes(q) || (t.type || '').toLowerCase().includes(q)
+    })
+    const urgentes = filtered.filter(t => t.priority === 'urgent')
+    const byType = {}
+    filtered.forEach(t => {
+      if (t.priority === 'urgent') return
+      const key = t.type || 'Autre'
+      ;(byType[key] = byType[key] || []).push(t)
+    })
+    const folders = []
+    if (urgentes.length) folders.push({ key: 'urgentes', label: '🚨 Urgentes', items: urgentes })
+    Object.entries(byType).forEach(([type, items]) => folders.push({ key: type, label: type, items }))
+    return folders
+  }, [tasks, taskSearch])
+
   return (
     <div style={{ maxWidth: 1200 }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
@@ -119,11 +153,11 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
         <div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid var(--br)', borderRadius: 10, padding: '8px 14px' }}>
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 13, width: 160 }} />
+              <input value={search} onChange={e => changeSearch(e.target.value)} placeholder="Rechercher..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 13, width: 160 }} />
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {FILTERS.map(([id, label]) => (
-                <div key={id} onClick={() => setFilter(id)} style={{
+                <div key={id} onClick={() => changeFilter(id)} style={{
                   padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
                   background: filter === id ? 'var(--n)' : '#F1F5F9', color: filter === id ? '#fff' : '#64748B'
                 }}>
@@ -144,7 +178,7 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredContacts.map(c => {
+                  {pagedContacts.map(c => {
                     const lastReport = latestReportByContact[c.id]
                     const integratorNames = (c.integrators || []).map(i => i.integrator?.name).filter(Boolean)
                     return (
@@ -171,8 +205,15 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
                 </tbody>
               </table>
             </div>
-            <div style={{ padding: '12px 16px', borderTop: '1px solid #F1F5F9', fontSize: 12, color: 'var(--gy)' }}>
-              {filteredContacts.length} personne(s) affichée(s)
+            <div style={{ padding: '12px 16px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: 'var(--gy)' }}>
+              <span>{filteredContacts.length} personne(s) affichée(s)</span>
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--br)', background: page === 1 ? '#F1F5F9' : '#fff', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 12 }}>‹ Précédent</button>
+                  <span>Page {page} / {totalPages}</span>
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--br)', background: page === totalPages ? '#F1F5F9' : '#fff', cursor: page === totalPages ? 'not-allowed' : 'pointer', fontSize: 12 }}>Suivant ›</button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -209,20 +250,57 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
             </table>
           </div>
 
-          <div onClick={() => setShowLegacyTasks(v => !v)} style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--gd)', marginBottom: 12 }}>
-            {showLegacyTasks ? '▾' : '▸'} Relances système ({tasks.length})
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>📥 Boîte de réception ({tasks.length})</div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid var(--br)', borderRadius: 8, padding: '5px 10px' }}>
+                <input value={taskSearch} onChange={e => setTaskSearch(e.target.value)} placeholder="Rechercher..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 12, width: 140 }} />
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--gd)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={taskGroupByVisitor} onChange={e => setTaskGroupByVisitor(e.target.checked)} />
+                Regrouper par visiteur
+              </label>
+            </div>
           </div>
-          {showLegacyTasks && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {tasks.map(t => (
-                <div key={t.id} onClick={() => setSelectedTaskId(t.id)} style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', borderLeft: `4px solid ${PRIORITY_COLORS[t.priority] || '#94A3B8'}`, boxShadow: '0 1px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}>
-                  <div onClick={e => toggleLegacyTask(e, t.id)} style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${PRIORITY_COLORS[t.priority] || '#94A3B8'}`, cursor: 'pointer', flexShrink: 0 }} />
-                  <div style={{ flex: 1, fontSize: 12 }}>
-                    <span style={{ fontWeight: 600 }}>{t.type}</span> — {t.contact?.first_name} {t.contact?.last_name} · Échéance : {t.due_date}
+
+          {taskFolders.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--gy)', textAlign: 'center', padding: '30px 0' }}>Aucune tâche en attente.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {taskFolders.map(folder => {
+                const isOpen = openFolders[folder.key] ?? (folder.key === 'urgentes')
+                const grouped = {}
+                if (taskGroupByVisitor) {
+                  folder.items.forEach(t => {
+                    const name = `${t.contact?.first_name || ''} ${t.contact?.last_name || ''}`.trim() || 'Sans visiteur'
+                    ;(grouped[name] = grouped[name] || []).push(t)
+                  })
+                }
+                return (
+                  <div key={folder.key} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                    <div onClick={() => setOpenFolders(prev => ({ ...prev, [folder.key]: !isOpen }))} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', cursor: 'pointer', background: '#F8FAFC' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{isOpen ? '▾' : '▸'} {folder.label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gy)', background: '#EFF6FF', padding: '2px 10px', borderRadius: 999 }}>{folder.items.length}</span>
+                    </div>
+                    {isOpen && (
+                      <div style={{ padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {taskGroupByVisitor ? (
+                          Object.entries(grouped).map(([name, items]) => (
+                            <div key={name}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gd)', marginBottom: 6 }}>{name}</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
+                                {items.map(t => <TaskRow key={t.id} t={t} onOpen={setSelectedTaskId} onToggle={toggleLegacyTask} />)}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          folder.items.map(t => <TaskRow key={t.id} t={t} onOpen={setSelectedTaskId} onToggle={toggleLegacyTask} />)
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
-              {tasks.length === 0 && <div style={{ fontSize: 12, color: 'var(--gy)' }}>Aucune relance en attente.</div>}
+                )
+              })}
             </div>
           )}
         </div>
@@ -250,6 +328,17 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
           profiles={profiles}
         />
       )}
+    </div>
+  )
+}
+
+function TaskRow({ t, onOpen, onToggle }) {
+  return (
+    <div onClick={() => onOpen(t.id)} style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', borderLeft: `4px solid ${PRIORITY_COLORS[t.priority] || '#94A3B8'}`, boxShadow: '0 1px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+      <div onClick={e => onToggle(e, t.id)} style={{ width: 16, height: 16, borderRadius: 5, border: `2px solid ${PRIORITY_COLORS[t.priority] || '#94A3B8'}`, cursor: 'pointer', flexShrink: 0 }} />
+      <div style={{ flex: 1, fontSize: 12 }}>
+        <span style={{ fontWeight: 600 }}>{t.title || t.type}</span> — {t.contact?.first_name} {t.contact?.last_name} · Échéance : {t.due_date}
+      </div>
     </div>
   )
 }

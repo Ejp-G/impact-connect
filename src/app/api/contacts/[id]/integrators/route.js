@@ -17,10 +17,10 @@ export async function PATCH(request, { params }) {
   // faire partie de l'équipe Suivi (équipe_suivi / responsable_suivi).
   const ids = [integrator1Id, integrator2Id].filter(Boolean)
   if (ids.length) {
-    const { data: profs } = await supabase.from('profiles').select('id,sex,role,also_integrator').in('id', ids)
+    const { data: profs } = await supabase.from('profiles').select('id,sex,role,secondary_roles').in('id', ids)
     const invalid = profs?.find(p =>
       p.sex !== contact.sex ||
-      (!['equipe_suivi', 'responsable_suivi'].includes(p.role) && !p.also_integrator)
+      (!['equipe_suivi', 'responsable_suivi'].includes(p.role) && !(p.secondary_roles || []).includes('equipe_suivi'))
     )
     if (invalid || profs?.length !== ids.length) {
       return NextResponse.json({

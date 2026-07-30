@@ -42,6 +42,8 @@ const TIMELINE_STYLE = {
 const NEED_STATUS_LABEL = { a_traiter: 'À traiter', en_cours: 'En cours', termine: 'Terminé' }
 const NEED_STATUS_COLOR = { a_traiter: '#EF4444', en_cours: '#F97316', termine: '#22C55E' }
 
+const SEX_LABEL = { M: 'Homme', F: 'Femme' }
+
 const ini = (fn, ln) => ((fn || '')[0] || '') + ((ln || '')[0] || '')
 
 function formatDateTime(d) {
@@ -86,6 +88,11 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
               {contact.salvation_call ? 'Appel au salut' : 'Nouveau visiteur'}
             </span>
             {contact.is_minor && <span className="badge" style={{ background: '#FEF3C7', color: '#92400E' }}>Mineur</span>}
+            {!contact.sex && (
+              <span className="badge" style={{ background: '#FFF7ED', color: '#9A3412', fontWeight: 700 }}>
+                Sexe non renseigné — attribution d'intégrateur impossible
+              </span>
+            )}
             {contact.contact_preference === 'none' && (
               <span className="badge" style={{ background: '#FEF2F2', color: '#DC2626', fontWeight: 700 }}>Ne pas contacter</span>
             )}
@@ -115,6 +122,7 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card">
             <div style={{ fontSize: 12, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 12 }}>Informations</div>
+            <InfoRow Icon={Users} value={SEX_LABEL[contact.sex] || 'Sexe non renseigné'} />
             <InfoRow Icon={Phone} value={contact.phone || '—'} />
             <InfoRow Icon={Mail} value={contact.email || '—'} />
             <InfoRow Icon={MapPin} value={contact.commune || '—'} />
@@ -126,7 +134,11 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
 
           <div className="card">
             <div style={{ fontSize: 12, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 12 }}>Intégrateurs</div>
-            {integratorPair.length === 0 ? (
+            {!contact.sex ? (
+              <div style={{ fontSize: 12, background: '#FFF7ED', color: '#9A3412', borderRadius: 8, padding: '8px 10px' }}>
+                Renseignez d'abord le sexe (bouton « Modifier ») pour pouvoir attribuer un binôme d'intégrateurs du même sexe.
+              </div>
+            ) : integratorPair.length === 0 ? (
               <div style={{ fontSize: 13, color: '#94A3B8' }}>Aucun intégrateur assigné.</div>
             ) : (
               integratorPair.map(p => (

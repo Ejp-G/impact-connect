@@ -39,6 +39,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
     if (filter === 'new') return c.created_at?.startsWith(new Date().toISOString().split('T')[0])
     if (filter === 'minor') return c.is_minor
     if (filter === 'salvation') return c.salvation_call
+    if (filter === 'no_contact') return c.contact_preference === 'none'
     return true
   })
 
@@ -62,6 +63,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
     ['alert', 'Urgences', stats.alerts],
     ['new', "Aujourd'hui", stats.today],
     ['minor', 'Mineurs', stats.mineurs],
+    ['no_contact', 'Ne pas contacter', contacts.filter(c => c.contact_preference === 'none').length],
   ]
 
   return (

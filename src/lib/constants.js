@@ -23,10 +23,10 @@ export const ROLES = {
 export const ROLE_NAV = {
   admin:                   'all',
   equipe_accueil:          ['accueil'],
-  responsable_suivi:       ['dashboard','visiteurs','fiches-a-completer','pipeline','suivi','qrcode','journal','rapports','parametres','communications'],
-  equipe_suivi:            ['visiteurs','fiches-a-completer','qrcode','suivi','communications'],
+  responsable_suivi:       ['dashboard','accueil','visiteurs','fiches-a-completer','pipeline','suivi','qrcode','journal','rapports','parametres','communications'],
+  equipe_suivi:            ['dashboard','accueil','visiteurs','fiches-a-completer','pipeline','suivi','jeunesse','carte','rapports','qrcode','communications'],
   pilote_fi:               ['fi','suivi','communications','qrcode'],
-  superviseur:             ['dashboard','visiteurs','pipeline','fi','suivi','rapports','carte','communications'],
+  superviseur:             ['dashboard','accueil','visiteurs','pipeline','fi','suivi','rapports','carte','communications','jeunesse','fiches-a-completer','qrcode','validations'],
   responsable_jeunesse:    ['jeunesse','visiteurs','communications'],
 }
 export const NAV_ITEMS = [

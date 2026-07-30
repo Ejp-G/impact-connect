@@ -24,8 +24,9 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
   const [tab, setTab] = useState('nouveaux')
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const PAGE_SIZE = 25
+  const [periodFilter, setPeriodFilter] = useState('all') // all|today|week|month|year|sunday
+  const [sundayDate, setSundayDate] = useState('')
+  const [openMonths, setOpenMonths] = useState({})
 
   const [reportPanelId, setReportPanelId] = useState(null)
   const [drilldownCategory, setDrilldownCategory] = useState(null)
@@ -55,6 +56,12 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
   const today = new Date().toISOString().slice(0, 10)
 
   const filteredContacts = useMemo(() => {
+    const now = new Date()
+    const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay())
+    const weekStr = startOfWeek.toISOString().slice(0, 10)
+    const monthStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+    const yearStr = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)
+
     return contacts.filter(c => {
       const q = search.toLowerCase()
       if (q && !`${c.first_name} ${c.last_name} ${c.commune || ''}`.toLowerCase().includes(q)) return false
@@ -62,6 +69,12 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
       const lastReport = latestReportByContact[c.id]
       const contactNeeds = needsByContact[c.id] || []
       const hasIntegrators = (c.integrators || []).length > 0
+
+      if (periodFilter === 'today' && c.first_visit_date !== today) return false
+      if (periodFilter === 'week' && !(c.first_visit_date >= weekStr)) return false
+      if (periodFilter === 'month' && !(c.first_visit_date >= monthStr)) return false
+      if (periodFilter === 'year' && !(c.first_visit_date >= yearStr)) return false
+      if (periodFilter === 'sunday' && sundayDate && c.first_visit_date !== sundayDate) return false
 
       if (filter === 'today') return lastReport?.next_contact_date === today
       if (filter === 'late') return lastReport?.next_contact_date && lastReport.next_contact_date < today
@@ -78,13 +91,50 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
       if (filter === 'fi_no') return !c.fi
       return true
     })
-  }, [contacts, filter, search, latestReportByContact, needsByContact, today])
+  }, [contacts, filter, search, periodFilter, sundayDate, latestReportByContact, needsByContact, today])
 
-  const totalPages = Math.max(1, Math.ceil(filteredContacts.length / PAGE_SIZE))
-  const pagedContacts = filteredContacts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  function changeFilter(f) { setFilter(f) }
+  function changeSearch(v) { setSearch(v) }
 
-  function changeFilter(f) { setFilter(f); setPage(1) }
-  function changeSearch(v) { setSearch(v); setPage(1) }
+  // Regroupement chronologique par mois d'arrivee (first_visit_date).
+  // Ordre le plus recent en premier ; seul le mois en cours est ouvert
+  // par defaut, sauf si une recherche trouve une correspondance ailleurs.
+  const INTEGRATED_STAGES = ['integre', 'parcours', 'bapteme', 'service', 'leader_pot', 'leader']
+  const currentMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  const MONTH_NAMES = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+
+  const monthGroups = useMemo(() => {
+    const map = {}
+    filteredContacts.forEach(c => {
+      const d = c.first_visit_date ? new Date(c.first_visit_date) : null
+      const key = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : 'inconnue'
+      ;(map[key] = map[key] || []).push(c)
+    })
+    return Object.entries(map)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([key, items]) => {
+        const [year, month] = key.split('-')
+        const label = key === 'inconnue' ? 'Date inconnue' : `${MONTH_NAMES[parseInt(month, 10) - 1]} ${year}`
+        const integres = items.filter(c => INTEGRATED_STAGES.includes(c.stage)).length
+        const suivis = items.filter(c => !INTEGRATED_STAGES.includes(c.stage)).length
+        const parcoursTermines = items.filter(c => ['parcours','bapteme','service','leader_pot','leader'].includes(c.stage)).length
+        return { key, label, items, integres, suivis, parcoursTermines }
+      })
+  }, [filteredContacts])
+
+  const searchMatchedMonthKeys = useMemo(() => {
+    if (!search.trim()) return new Set()
+    return new Set(monthGroups.filter(g => g.items.length > 0).map(g => g.key))
+  }, [search, monthGroups])
+
+  function isMonthOpen(key) {
+    if (search.trim() && searchMatchedMonthKeys.has(key)) return true
+    if (openMonths[key] !== undefined) return openMonths[key]
+    return key === currentMonthKey
+  }
+  function toggleMonth(key) {
+    setOpenMonths(prev => ({ ...prev, [key]: !isMonthOpen(key) }))
+  }
 
   const needsSummary = useMemo(() => {
     const byCategory = {}
@@ -165,56 +215,78 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
                 </div>
               ))}
             </div>
+            <select value={periodFilter} onChange={e => setPeriodFilter(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--br)', fontSize: 12, fontFamily: 'inherit', background: '#fff' }}>
+              <option value="all">Toutes les périodes</option>
+              <option value="today">Aujourd'hui</option>
+              <option value="week">Cette semaine</option>
+              <option value="month">Ce mois</option>
+              <option value="year">Cette année</option>
+              <option value="sunday">Dimanche de culte précis</option>
+            </select>
+            {periodFilter === 'sunday' && (
+              <input type="date" value={sundayDate} onChange={e => setSundayDate(e.target.value)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--br)', fontSize: 12, fontFamily: 'inherit' }} />
+            )}
           </div>
 
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>1ère visite</th><th>Nom</th><th>Sexe</th><th>Commune</th>
-                    <th>Intégrateurs</th><th>Étape</th><th>Dernier contact</th>
-                    <th>Prochain contact</th><th>Urgence</th><th>Score</th><th>FIJ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagedContacts.map(c => {
-                    const lastReport = latestReportByContact[c.id]
-                    const integratorNames = (c.integrators || []).map(i => i.integrator?.name).filter(Boolean)
-                    return (
-                      <tr key={c.id} onClick={() => setReportPanelId(c.id)} style={{ cursor: 'pointer' }}>
-                        <td style={{ fontSize: 12 }}>{c.first_visit_date || '—'}</td>
-                        <td style={{ fontSize: 13, fontWeight: 600 }}>{c.first_name} {c.last_name}</td>
-                        <td style={{ fontSize: 12 }}>{c.sex}</td>
-                        <td style={{ fontSize: 12 }}>{c.commune || '—'}</td>
-                        <td style={{ fontSize: 11, color: integratorNames.length ? 'var(--gd)' : '#DC2626' }}>
-                          {integratorNames.length ? integratorNames.join(' & ') : 'Non assigné'}
-                        </td>
-                        <td><span className="badge" style={{ background: STAGE_COLOR(c.stage) + '20', color: STAGE_COLOR(c.stage) }}>{STAGE_LABEL(c.stage)}</span></td>
-                        <td style={{ fontSize: 11 }}>{lastReport ? new Date(lastReport.contacted_at).toLocaleDateString('fr-FR') : (c.integrator_contacted ? '—' : 'Jamais')}</td>
-                        <td style={{ fontSize: 11 }}>{lastReport?.next_contact_date || '—'}</td>
-                        <td><AlertDot level={c.alert_level} /></td>
-                        <td style={{ fontSize: 12, fontWeight: 700 }}>{c.integration_score ?? '—'}</td>
-                        <td style={{ fontSize: 11 }}>{c.fi?.name || '—'}</td>
-                      </tr>
-                    )
-                  })}
-                  {filteredContacts.length === 0 && (
-                    <tr><td colSpan={11} style={{ textAlign: 'center', padding: 40, color: 'var(--gy)' }}>Aucun résultat</td></tr>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {monthGroups.map(g => {
+              const open = isMonthOpen(g.key)
+              return (
+                <div key={g.key} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                  <div onClick={() => toggleMonth(g.key)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', cursor: 'pointer', background: '#F8FAFC' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{open ? '▾' : '▸'} {g.label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gy)', background: '#EFF6FF', padding: '2px 10px', borderRadius: 999 }}>{g.items.length} visiteur(s)</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--gy)' }}>
+                      <span><b style={{ color: '#16A34A' }}>{g.integres}</b> intégrés</span>
+                      <span><b style={{ color: '#3B82F6' }}>{g.suivis}</b> suivis</span>
+                      <span><b style={{ color: '#F97316' }}>{g.parcoursTermines}</b> parcours</span>
+                    </div>
+                  </div>
+                  {open && (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>1ère visite</th><th>Nom</th><th>Sexe</th><th>Commune</th>
+                            <th>Intégrateurs</th><th>Étape</th><th>Dernier contact</th>
+                            <th>Prochain contact</th><th>Urgence</th><th>Score</th><th>FIJ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {g.items.map(c => {
+                            const lastReport = latestReportByContact[c.id]
+                            const integratorNames = (c.integrators || []).map(i => i.integrator?.name).filter(Boolean)
+                            const isMatch = search.trim() && `${c.first_name} ${c.last_name}`.toLowerCase().includes(search.toLowerCase())
+                            return (
+                              <tr key={c.id} onClick={() => setReportPanelId(c.id)} style={{ cursor: 'pointer', background: isMatch ? '#FEF9C3' : undefined }}>
+                                <td style={{ fontSize: 12 }}>{c.first_visit_date || '—'}</td>
+                                <td style={{ fontSize: 13, fontWeight: 600 }}>{c.first_name} {c.last_name}</td>
+                                <td style={{ fontSize: 12 }}>{c.sex}</td>
+                                <td style={{ fontSize: 12 }}>{c.commune || '—'}</td>
+                                <td style={{ fontSize: 11, color: integratorNames.length ? 'var(--gd)' : '#DC2626' }}>
+                                  {integratorNames.length ? integratorNames.join(' & ') : 'Non assigné'}
+                                </td>
+                                <td><span className="badge" style={{ background: STAGE_COLOR(c.stage) + '20', color: STAGE_COLOR(c.stage) }}>{STAGE_LABEL(c.stage)}</span></td>
+                                <td style={{ fontSize: 11 }}>{lastReport ? new Date(lastReport.contacted_at).toLocaleDateString('fr-FR') : (c.integrator_contacted ? '—' : 'Jamais')}</td>
+                                <td style={{ fontSize: 11 }}>{lastReport?.next_contact_date || '—'}</td>
+                                <td><AlertDot level={c.alert_level} /></td>
+                                <td style={{ fontSize: 12, fontWeight: 700 }}>{c.integration_score ?? '—'}</td>
+                                <td style={{ fontSize: 11 }}>{c.fi?.name || '—'}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ padding: '12px 16px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: 'var(--gy)' }}>
-              <span>{filteredContacts.length} personne(s) affichée(s)</span>
-              {totalPages > 1 && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--br)', background: page === 1 ? '#F1F5F9' : '#fff', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 12 }}>‹ Précédent</button>
-                  <span>Page {page} / {totalPages}</span>
-                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--br)', background: page === totalPages ? '#F1F5F9' : '#fff', cursor: page === totalPages ? 'not-allowed' : 'pointer', fontSize: 12 }}>Suivant ›</button>
                 </div>
-              )}
-            </div>
+              )
+            })}
+            {monthGroups.length === 0 && (
+              <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--gy)' }}>Aucun résultat</div>
+            )}
           </div>
         </div>
       )}

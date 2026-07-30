@@ -273,6 +273,7 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
 
   async function submitContact() {
     setSavingContact(true)
+    const member = members.find(m => m.id === contactingId)
     const { error } = await supabase.from('contacts').update({
       fi_contacted: true,
       fi_contacted_at: new Date().toISOString(),
@@ -282,6 +283,16 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
     }).eq('id', contactingId)
     setSavingContact(false)
     if (error) { alert(error.message); return }
+
+    // Pipeline automatique : la confirmation du pilote qu'il a contacte
+    // le nouveau pour l'inviter fait passer "Contacte" a "Invitation FI".
+    if (member?.stage === 'contacte') {
+      fetch(`/api/contacts/${contactingId}/stage`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newStage: 'invite_fi' })
+      }).catch(console.error)
+    }
+
     setContactingId(null)
     await openDetail(detailFi)
   }

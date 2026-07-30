@@ -207,6 +207,17 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                     {stageWarning} (l'étape a quand même été changée)
                   </div>
                 )}
+                {contact.stage === 'integre' && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginTop: 12 }}>
+                    <input type="checkbox" onChange={() => { setNewStage('parcours'); submitStageChange() }} style={{ width: 16, height: 16 }} />
+                    A commencé le Parcours de croissance
+                  </label>
+                )}
+                {contact.stage === 'parcours' && (
+                  <div style={{ marginTop: 12, fontSize: 12, color: '#16A34A', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <CheckCircle2 size={13} strokeWidth={2} /> Parcours de croissance commencé
+                  </div>
+                )}
               </div>
 
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18 }}>

@@ -72,7 +72,8 @@ export async function POST(request) {
   const { firstName, lastName, sex, dateOfBirth, phone, whatsapp, email,
           commune, communeId, quartier, firstVisit, salvationCall,
           wantsContact, wantsFI, interests, prayerRequest, howFound, situation,
-          parentLastName, parentFirstName, parentPhone, parentEmail, parentRelation } = body
+          parentLastName, parentFirstName, parentPhone, parentEmail, parentRelation,
+          contactPreference } = body
 
   if (!firstName || !lastName || !sex) {
     return NextResponse.json({ error: 'Prénom, nom et sexe sont obligatoires' }, { status: 400 })
@@ -91,12 +92,18 @@ export async function POST(request) {
     date_of_birth: dateOfBirth || null,
     phone, whatsapp, email,
     commune, commune_id: communeId || null, quartier,
+    // Un contact cree via ce formulaire (saisie manuelle par un agent)
+    // correspond a une visite reelle du jour meme : on renseigne la
+    // vraie date de premiere visite plutot que de laisser ce champ vide
+    // (ce qui faussait les statistiques de croissance jusqu'ici).
+    first_visit_date: new Date().toISOString().slice(0, 10),
     first_visit: firstVisit, salvation_call: salvationCall,
     wants_contact: wantsContact, wants_fi: wantsFI,
     interests, prayer_request: prayerRequest, how_found: howFound, situation,
     parental_status: isMinor ? 'pending' : 'not_required',
     parent_last_name: parentLastName, parent_first_name: parentFirstName,
     parent_phone: parentPhone, parent_email: parentEmail, parent_relation: parentRelation,
+    contact_preference: contactPreference || null,
   }
 
   const { data: contact, error } = await supabase.from('contacts').insert(contactData).select().single()
@@ -107,8 +114,9 @@ export async function POST(request) {
     sendWelcomeEmail(firstName, email).catch(console.error)
   }
 
-  // Attribution automatique (agent + FIJ, avec notification pilote)
-  if (!isMinor && wantsFI) {
+  // Attribution automatique (binome intégrateurs + FIJ, avec notification pilote)
+  // Sauf si la personne a explicitement demande a ne pas etre contactee.
+  if (!isMinor && wantsFI && contactPreference !== 'none') {
     autoAttributeContact({
       contactId: contact.id, sex, communeId: communeId || null, quartier: quartier || null
     }).catch(console.error)
@@ -117,7 +125,7 @@ export async function POST(request) {
   // Notifications admins
   const adminClient = createAdminClient()
   const { data: admins } = await adminClient.from('profiles')
-    .select('id').in('role', ['admin', 'responsable_integration'])
+    .select('id').in('role', ['admin', 'responsable_suivi'])
   if (admins?.length) {
     await adminClient.from('notifications').insert(
       admins.map(a => ({

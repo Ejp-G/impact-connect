@@ -8,7 +8,7 @@ import {
   UserPlus, Heart, Smartphone, FileText, Circle, Pause, RefreshCw,
   Flag, LifeBuoy, Footprints, Building2, Compass, GraduationCap,
   Wallet, Utensils, Car, Briefcase, Accessibility, Frown, Stethoscope,
-  ShieldAlert, Lock, ArrowLeft, MapPin
+  ShieldAlert, Lock, ArrowLeft, MapPin, ChevronUp
 } from 'lucide-react'
 
 // Point d'entree unique du systeme d'icones. Mappe chaque id de
@@ -121,5 +121,5 @@ export {
   UserPlus, Heart, Smartphone, FileText, Circle, Pause, RefreshCw,
   Flag, LifeBuoy, Footprints, Building2, Compass, GraduationCap,
   Wallet, Utensils, Car, Briefcase, Accessibility, Frown, Stethoscope,
-  ShieldAlert, Lock, ArrowLeft, MapPin
+  ShieldAlert, Lock, ArrowLeft, MapPin, ChevronUp, LayoutDashboard
 }

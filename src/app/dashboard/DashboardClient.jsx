@@ -1,8 +1,10 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
-import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock } from '@/lib/icons'
+import { createClient } from '@/lib/supabase/client'
+import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft } from '@/lib/icons'
 
 const ACTIVITY_ICON_MAP = {
   new_contact: UserPlus,
@@ -16,6 +18,8 @@ const ACTIVITY_COLOR_MAP = {
   report: '#3B82F6',
   need: '#F97316',
 }
+const MONTH_SHORT = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+const MONTH_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 
 function timeAgo(dateStr) {
   const h = (Date.now() - new Date(dateStr).getTime()) / 3600000
@@ -25,55 +29,119 @@ function timeAgo(dateStr) {
 }
 
 export default function DashboardClient({ stats, profile }) {
-  const areaRef = useRef(null)
+  const router = useRouter()
+  const supabase = useMemo(() => createClient(), [])
   const pieRef = useRef(null)
-  const areaChartInstance = useRef(null)
   const pieChartInstance = useRef(null)
+  const growthRef = useRef(null)
+  const growthChartInstance = useRef(null)
+
+  const currentYear = new Date().getFullYear()
+  const [drillLevel, setDrillLevel] = useState('year')
+  const [drillMonth, setDrillMonth] = useState(null)
+  const [drillMonthData, setDrillMonthData] = useState([])
+  const [drillDay, setDrillDay] = useState(null)
+  const [drillDayContacts, setDrillDayContacts] = useState([])
+  const [loadingDrill, setLoadingDrill] = useState(false)
 
   useRealtimeRefresh(['contacts', 'tasks', 'familles_impact'])
 
+  async function openMonth(monthIndex) {
+    setLoadingDrill(true)
+    const start = new Date(currentYear, monthIndex, 1).toISOString().slice(0, 10)
+    const end = new Date(currentYear, monthIndex + 1, 1).toISOString().slice(0, 10)
+    const { data } = await supabase.from('contacts')
+      .select('first_visit_date')
+      .gte('first_visit_date', start).lt('first_visit_date', end)
+    const counts = {}
+    data?.forEach(r => { if (r.first_visit_date) counts[r.first_visit_date] = (counts[r.first_visit_date] || 0) + 1 })
+    const sorted = Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)).map(([date, count]) => ({ date, count }))
+    setDrillMonthData(sorted)
+    setDrillMonth(monthIndex)
+    setDrillLevel('month')
+    setLoadingDrill(false)
+  }
+
+  async function openDay(dateStr) {
+    setLoadingDrill(true)
+    const { data } = await supabase.from('contacts')
+      .select('id,first_name,last_name,phone,commune,stage')
+      .eq('first_visit_date', dateStr)
+      .order('first_name')
+    setDrillDayContacts(data || [])
+    setDrillDay(dateStr)
+    setDrillLevel('day')
+    setLoadingDrill(false)
+  }
+
+  function backToYear() { setDrillLevel('year'); setDrillMonth(null); setDrillDay(null) }
+  function backToMonth() { setDrillLevel('month'); setDrillDay(null) }
+
   useEffect(() => {
     let cancelled = false
-
-    const loadCharts = async () => {
+    const loadPie = async () => {
       const { Chart, registerables } = await import('chart.js')
       Chart.register(...registerables)
       if (cancelled) return
-
-      areaChartInstance.current?.destroy()
       pieChartInstance.current?.destroy()
+      if (pieRef.current) {
+        const pieData = Object.entries(stats.stageCounts || {}).slice(0, 6)
+        pieChartInstance.current = new Chart(pieRef.current, {
+          type: 'doughnut',
+          data: { labels: pieData.map(([s]) => STAGE_LABEL(s)), datasets: [{ data: pieData.map(([, v]) => v), backgroundColor: pieData.map(([s]) => STAGE_COLOR(s)), borderWidth: 0 }] },
+          options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } }
+        })
+      }
+    }
+    loadPie()
+    return () => { cancelled = true; pieChartInstance.current?.destroy() }
+  }, [stats])
 
-      if (areaRef.current) {
-        areaChartInstance.current = new Chart(areaRef.current, {
-          type:'line',
-          data:{
-            labels:['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'],
-            datasets:[
-              { label:'Visiteurs', data:stats.monthlyVisitors || Array(12).fill(0), borderColor:'#0B3D91', backgroundColor:'rgba(11,61,145,.08)', fill:true, tension:.4, borderWidth:2 },
-              { label:'Intégrations', data:stats.monthlyIntegrations || Array(12).fill(0), borderColor:'#22C55E', backgroundColor:'rgba(34,197,94,.05)', fill:true, tension:.4, borderWidth:2 },
+  useEffect(() => {
+    if (drillLevel === 'day') return
+    let cancelled = false
+    const loadGrowthChart = async () => {
+      const { Chart, registerables } = await import('chart.js')
+      Chart.register(...registerables)
+      if (cancelled || !growthRef.current) return
+      growthChartInstance.current?.destroy()
+
+      if (drillLevel === 'year') {
+        growthChartInstance.current = new Chart(growthRef.current, {
+          type: 'line',
+          data: {
+            labels: MONTH_SHORT,
+            datasets: [
+              { label: 'Visiteurs', data: stats.monthlyVisitors || Array(12).fill(0), borderColor: '#0B3D91', backgroundColor: 'rgba(11,61,145,.08)', fill: true, tension: .4, borderWidth: 2 },
+              { label: 'Intégrations', data: stats.monthlyIntegrations || Array(12).fill(0), borderColor: '#22C55E', backgroundColor: 'rgba(34,197,94,.05)', fill: true, tension: .4, borderWidth: 2 },
             ]
           },
-          options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:11}}}}, scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'#F1F5F9'},ticks:{font:{size:10}}}}}
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            onClick: (evt, elements) => { if (elements.length) openMonth(elements[0].index) },
+            plugins: { legend: { labels: { font: { size: 11 } } } },
+            scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { grid: { color: '#F1F5F9' }, ticks: { font: { size: 10 } } } }
+          }
         })
-      }
-
-      if (pieRef.current) {
-        const pieData = Object.entries(stats.stageCounts||{}).slice(0,6)
-        pieChartInstance.current = new Chart(pieRef.current, {
-          type:'doughnut',
-          data:{ labels:pieData.map(([s])=>STAGE_LABEL(s)), datasets:[{ data:pieData.map(([,v])=>v), backgroundColor:pieData.map(([s])=>STAGE_COLOR(s)), borderWidth:0 }] },
-          options:{ responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{legend:{display:false}} }
+      } else if (drillLevel === 'month') {
+        growthChartInstance.current = new Chart(growthRef.current, {
+          type: 'bar',
+          data: {
+            labels: drillMonthData.map(d => new Date(d.date).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit' })),
+            datasets: [{ label: 'Visiteurs', data: drillMonthData.map(d => d.count), backgroundColor: '#0B3D9180', borderColor: '#0B3D91', borderWidth: 1.5, borderRadius: 6 }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            onClick: (evt, elements) => { if (elements.length) openDay(drillMonthData[elements[0].index].date) },
+            plugins: { legend: { display: false } },
+            scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { grid: { color: '#F1F5F9' }, ticks: { font: { size: 10 }, stepSize: 1 } } }
+          }
         })
       }
     }
-    loadCharts()
-
-    return () => {
-      cancelled = true
-      areaChartInstance.current?.destroy()
-      pieChartInstance.current?.destroy()
-    }
-  }, [stats])
+    loadGrowthChart()
+    return () => { cancelled = true; growthChartInstance.current?.destroy() }
+  }, [drillLevel, drillMonth, drillMonthData, stats.monthlyVisitors, stats.monthlyIntegrations])
 
   const firstName = profile?.name?.split(' ')[0] || 'Pasteur'
 
@@ -93,7 +161,6 @@ export default function DashboardClient({ stats, profile }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20, maxWidth:1200 }}>
-      {/* Hero vivant */}
       <div style={{ background:'linear-gradient(135deg,#072B6A 0%,#0B3D91 55%,#1452B5 100%)', borderRadius:22, padding:'32px 32px', color:'#fff', position:'relative', overflow:'hidden' }}>
         <div className="hero-circle" style={{ position:'absolute', top:-50, right:-30, width:220, height:220, borderRadius:'50%', border:'1px solid rgba(255,255,255,.1)' }} />
         <div className="hero-circle" style={{ position:'absolute', bottom:-70, right:120, width:140, height:140, borderRadius:'50%', border:'1px solid rgba(255,255,255,.07)', animationDelay:'1.5s' }} />
@@ -132,7 +199,6 @@ export default function DashboardClient({ stats, profile }) {
         </div>
       </div>
 
-      {/* Stat Cards avec halo */}
       <div className="g4">
         {statCards.map(({ Icon, label, value, color, sub }) => (
           <div key={label} className="card stat-halo" style={{ padding:20, borderTop:`3px solid ${color}`, '--halo-color': color+'22' }}>
@@ -150,13 +216,62 @@ export default function DashboardClient({ stats, profile }) {
         ))}
       </div>
 
-      {/* Charts + Activite recente */}
       <div className="g2r">
         <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
           <div className="card">
-            <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>Croissance annuelle</div>
-            <div style={{ fontSize:12, color:'var(--gy)', marginBottom:16 }}>Visiteurs et intégrations</div>
-            <div style={{ height:220 }}><canvas ref={areaRef} /></div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
+              <div>
+                <div style={{ fontSize:15, fontWeight:700 }}>Croissance annuelle</div>
+                <div style={{ fontSize:12, color:'var(--gy)' }}>Cliquez un mois, puis un jour, pour voir le détail</div>
+              </div>
+              {drillLevel !== 'year' && (
+                <button onClick={drillLevel === 'day' ? backToMonth : backToYear} style={backBtnStyle}>
+                  <ArrowLeft size={12} strokeWidth={2} /> Retour
+                </button>
+              )}
+            </div>
+
+            <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, margin:'10px 0' }}>
+              <span onClick={backToYear} style={{ cursor:'pointer', fontWeight: drillLevel==='year'?700:400, color: drillLevel==='year'?'var(--n)':'var(--gy)' }}>{currentYear}</span>
+              {drillMonth !== null && (
+                <>
+                  <span style={{ color:'var(--gy)' }}>›</span>
+                  <span onClick={backToMonth} style={{ cursor:'pointer', fontWeight: drillLevel==='month'?700:400, color: drillLevel==='month'?'var(--n)':'var(--gy)' }}>{MONTH_FULL[drillMonth]}</span>
+                </>
+              )}
+              {drillDay && (
+                <>
+                  <span style={{ color:'var(--gy)' }}>›</span>
+                  <span style={{ fontWeight:700, color:'var(--n)' }}>
+                    {new Date(drillDay).toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {loadingDrill ? (
+              <div style={{ height:220, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--gy)', fontSize:13 }}>Chargement…</div>
+            ) : drillLevel === 'day' ? (
+              <div style={{ maxHeight:260, overflowY:'auto' }}>
+                {drillDayContacts.length === 0 ? (
+                  <div style={{ padding:'30px 0', textAlign:'center', color:'var(--gy)', fontSize:13 }}>Aucun visiteur ce jour-là.</div>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    {drillDayContacts.map(c => (
+                      <div key={c.id} onClick={() => router.push(`/visiteurs/${c.id}`)} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'#F8FAFC', borderRadius:8, cursor:'pointer' }}>
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:600 }}>{c.first_name} {c.last_name}</div>
+                          <div style={{ fontSize:11, color:'var(--gy)' }}>{c.commune || '—'}{c.phone ? ` · ${c.phone}` : ''}</div>
+                        </div>
+                        <span className="badge" style={{ background:STAGE_COLOR(c.stage)+'20', color:STAGE_COLOR(c.stage), fontSize:10 }}>{STAGE_LABEL(c.stage)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ height:220 }}><canvas ref={growthRef} /></div>
+            )}
           </div>
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
@@ -176,7 +291,6 @@ export default function DashboardClient({ stats, profile }) {
         </div>
       </div>
 
-      {/* Activite recente */}
       <div className="card">
         <div style={{ fontSize:15, fontWeight:700, marginBottom:16 }}>Activité récente</div>
         {(!stats.activityFeed || stats.activityFeed.length === 0) ? (
@@ -203,7 +317,6 @@ export default function DashboardClient({ stats, profile }) {
         )}
       </div>
 
-      {/* FI Overview */}
       <div className="card">
         <div style={{ fontSize:15, fontWeight:700, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}>
           <Home size={17} strokeWidth={2} color="var(--n)" /> Familles d'Impact — Capacité
@@ -228,4 +341,9 @@ export default function DashboardClient({ stats, profile }) {
       </div>
     </div>
   )
+}
+
+const backBtnStyle = {
+  display:'flex', alignItems:'center', gap:5, background:'#F1F5F9', border:'none',
+  borderRadius:8, padding:'6px 12px', fontSize:11, fontWeight:600, color:'#64748B', cursor:'pointer'
 }

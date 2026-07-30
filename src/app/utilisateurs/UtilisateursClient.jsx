@@ -18,7 +18,7 @@ const CATEGORY_GROUPS = [
 export default function UtilisateursClient({ users, fis }) {
   const [showModal, setShowModal] = useState(false)
   const [editUser, setEditUser] = useState(null)
-  const [form, setForm] = useState({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, also_integrator:false })
+  const [form, setForm] = useState({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, secondary_roles:[] })
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [openCategories, setOpenCategories] = useState(() => Object.fromEntries(CATEGORY_GROUPS.map(g => [g.key, true])))
@@ -56,12 +56,12 @@ export default function UtilisateursClient({ users, fis }) {
   }
   function openEdit(user) {
     setEditUser(user)
-    setForm({ name:user.name, email:user.email, password:'', role:user.role, sex:user.sex||'F', fi_id:user.fi_id||'', active:user.active, also_integrator:user.also_integrator||false })
+    setForm({ name:user.name, email:user.email, password:'', role:user.role, sex:user.sex||'F', fi_id:user.fi_id||'', active:user.active, secondary_roles:user.secondary_roles||[] })
     setShowModal(true)
   }
   function openAdd() {
     setEditUser(null)
-    setForm({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, also_integrator:false })
+    setForm({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, secondary_roles:[] })
     setShowModal(true)
   }
   const btnLabel = saving ? 'Enregistrement...' : editUser ? 'Mettre a jour' : 'Creer le compte'
@@ -102,9 +102,9 @@ export default function UtilisateursClient({ users, fis }) {
                           <div>
                             <div style={{fontSize:13,fontWeight:600}}>{u.name}</div>
                             <div style={{fontSize:11,color:'var(--gy)'}}>{u.sex==='F'?'Femme':'Homme'}
-                              {u.also_integrator && !['equipe_suivi','responsable_suivi'].includes(u.role) && (
-                                <span style={{marginLeft:6,color:'#3B82F6',fontWeight:600}}>+ Suivi & Intégration</span>
-                              )}
+                              {(u.secondary_roles||[]).map(r => (
+                                <span key={r} style={{marginLeft:6,color:'#3B82F6',fontWeight:600}}>+ {ROLES[r] || r}</span>
+                              ))}
                             </div>
                           </div>
                         </div></td>
@@ -155,17 +155,30 @@ export default function UtilisateursClient({ users, fis }) {
                 ))}
               </div>
             </div>
-            {form.role !== 'equipe_suivi' && form.role !== 'responsable_suivi' && (
-              <div className="form-group">
-                <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-                  <input type="checkbox" checked={form.also_integrator} onChange={e=>setForm({...form,also_integrator:e.target.checked})} style={{width:16,height:16}} />
-                  Fait aussi partie de l&apos;équipe Suivi &amp; Intégration
-                </label>
-                <div style={{fontSize:11,color:'var(--gy)',marginTop:4}}>
-                  Rend cette personne éligible au binôme d&apos;intégrateurs, en plus de son rôle principal.
-                </div>
+            <div className="form-group">
+              <label className="form-label">Appartenances complémentaires</label>
+              <div style={{ fontSize:11, color:'var(--gy)', marginBottom:8 }}>
+                Même mécanisme que "fait aussi partie de Suivi &amp; Intégration", étendu à tous les rôles. Rend éligible aux outils et attributions de ces équipes, en plus du rôle principal.
               </div>
-            )}
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {Object.entries(ROLES).filter(([v]) => v !== form.role).map(([v,l]) => (
+                  <label key={v} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={form.secondary_roles.includes(v)}
+                      onChange={e => setForm({
+                        ...form,
+                        secondary_roles: e.target.checked
+                          ? [...form.secondary_roles, v]
+                          : form.secondary_roles.filter(r => r !== v)
+                      })}
+                      style={{ width:16, height:16 }}
+                    />
+                    Fait également partie de {l}
+                  </label>
+                ))}
+              </div>
+            </div>
             {form.role === 'pilote_fi' && (
               <div className="form-group"><label className="form-label">Famille Impact assignee</label>
                 <select className="form-input" value={form.fi_id} onChange={e=>setForm({...form,fi_id:e.target.value})}>

@@ -24,6 +24,9 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
 
   const [history, setHistory] = useState([])
 
+  const [communesList, setCommunesList] = useState(communes)
+  const [fisList, setFisList] = useState(fis)
+
   const [integratorPair, setIntegratorPair] = useState([])
   const [eligibleIntegrators, setEligibleIntegrators] = useState([])
   const [editingIntegrators, setEditingIntegrators] = useState(false)
@@ -55,6 +58,15 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     } : null)
     setNewStage(data?.stage || '')
     setLoading(false)
+
+    if (!communes.length) {
+      const { data: cs } = await supabase.from('communes').select('id,name').order('name')
+      setCommunesList(cs || [])
+    }
+    if (!fis.length) {
+      const { data: fsRows } = await supabase.from('familles_impact').select('id,name').order('name')
+      setFisList(fsRows || [])
+    }
 
     const { data: auditRows } = await supabase.from('audit_log')
       .select('id,action,details,created_at,performed_by')
@@ -99,7 +111,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
 
   async function saveForm() {
     setSaving(true)
-    const commune = communes.find(c => c.id === form.commune_id)
+    const commune = communesList.find(c => c.id === form.commune_id)
     const { error } = await supabase.from('contacts').update({
       first_name: form.first_name, last_name: form.last_name,
       sex: form.sex || null,
@@ -343,7 +355,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                   <Field label="Commune" style={{ flex: 1 }}>
                     <select value={form.commune_id} onChange={e => setForm({ ...form, commune_id: e.target.value })} style={inputStyle}>
                       <option value="">—</option>
-                      {communes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {communesList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </Field>
                   <Field label="Quartier" style={{ flex: 1 }}><input value={form.quartier} onChange={e => setForm({ ...form, quartier: e.target.value })} style={inputStyle} /></Field>
@@ -366,7 +378,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                 <Field label="FIJ attribuée">
                   <select value={form.fi_id} onChange={e => setForm({ ...form, fi_id: e.target.value })} style={inputStyle}>
                     <option value="">— Aucune —</option>
-                    {fis.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    {fisList.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                   </select>
                 </Field>
                 <Field label="Préférence de contact">

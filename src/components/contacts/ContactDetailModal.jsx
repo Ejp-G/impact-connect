@@ -43,6 +43,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     setContact(data)
     setForm(data ? {
       first_name: data.first_name || '', last_name: data.last_name || '',
+      sex: data.sex || '',
       phone: data.phone || '', whatsapp: data.whatsapp || '', email: data.email || '',
       commune_id: data.commune_id || '', quartier: data.quartier || '',
       fi_id: data.fi_id || '', prayer_request: data.prayer_request || '',
@@ -91,6 +92,8 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
         (p.secondary_roles || []).includes('equipe_suivi')
       )
       setEligibleIntegrators(eligible)
+    } else {
+      setEligibleIntegrators([])
     }
   }
 
@@ -99,6 +102,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     const commune = communes.find(c => c.id === form.commune_id)
     const { error } = await supabase.from('contacts').update({
       first_name: form.first_name, last_name: form.last_name,
+      sex: form.sex || null,
       phone: form.phone, whatsapp: form.whatsapp, email: form.email,
       commune_id: form.commune_id || null, commune: commune?.name || contact.commune,
       quartier: form.quartier, fi_id: form.fi_id || null,
@@ -244,15 +248,26 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                   )}
                 </div>
 
+                {!contact.sex && (
+                  <div style={{ fontSize: 12, background: '#FFF7ED', color: '#9A3412', padding: '8px 12px', borderRadius: 8, marginBottom: integratorPair.length || editingIntegrators ? 10 : 0 }}>
+                    Le sexe de {contact.first_name} n'est pas renseigné. Renseignez-le dans le formulaire ci-dessous
+                    (champ « Sexe ») puis enregistrez : la liste des intégrateurs du même sexe s'affichera alors ici.
+                  </div>
+                )}
+
                 {!editingIntegrators ? (
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                    {integratorPair.length === 0 && <div style={{ fontSize: 13, color: '#94A3B8' }}>Aucun intégrateur assigné.</div>}
+                    {integratorPair.length === 0 && contact.sex && <div style={{ fontSize: 13, color: '#94A3B8' }}>Aucun intégrateur assigné.</div>}
                     {integratorPair.map(p => (
                       <div key={p.position} style={{ fontSize: 13 }}>
                         <span style={{ color: '#94A3B8' }}>Intégrateur {p.position} :</span>{' '}
                         <b>{p.integrator?.name || '—'}</b>
                       </div>
                     ))}
+                  </div>
+                ) : !contact.sex ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setEditingIntegrators(false)} style={secondaryBtnStyle}>Fermer</button>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -267,6 +282,12 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                     <div style={{ fontSize: 11, color: '#94A3B8' }}>
                       Seuls les membres de l'équipe Suivi du même sexe que {contact.first_name} sont proposés.
                     </div>
+                    {eligibleIntegrators.length === 0 && (
+                      <div style={{ fontSize: 11, color: '#9A3412' }}>
+                        Aucun membre de l'équipe Suivi de ce sexe n'est actif pour le moment.
+                        Vérifiez que le sexe est renseigné sur les profils des membres de l'équipe (module Utilisateurs).
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => setEditingIntegrators(false)} style={secondaryBtnStyle}>Annuler</button>
                       <button onClick={saveIntegrators} disabled={savingIntegrators} style={primaryBtnStyle}>
@@ -301,6 +322,18 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                   <Field label="Prénom" style={{ flex: 1 }}><input value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} style={inputStyle} /></Field>
                   <Field label="Nom" style={{ flex: 1 }}><input value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} style={inputStyle} /></Field>
                 </div>
+                <Field label="Sexe">
+                  <select value={form.sex} onChange={e => setForm({ ...form, sex: e.target.value })} style={{ ...inputStyle, borderColor: form.sex ? '#E2E8F0' : '#FDBA74' }}>
+                    <option value="">— Non renseigné —</option>
+                    <option value="M">Homme</option>
+                    <option value="F">Femme</option>
+                  </select>
+                  {!form.sex && (
+                    <div style={{ fontSize: 11, color: '#9A3412', marginTop: 4 }}>
+                      Requis pour l'attribution d'intégrateurs (binôme du même sexe).
+                    </div>
+                  )}
+                </Field>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <Field label="Téléphone" style={{ flex: 1 }}><input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={inputStyle} /></Field>
                   <Field label="WhatsApp" style={{ flex: 1 }}><input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} style={inputStyle} /></Field>

@@ -54,15 +54,18 @@ export default function DashboardClient({ stats, profile }) {
     setLoadingDrill(true)
     const yearStart = `${year}-01-01`
     const yearEnd = `${year + 1}-01-01`
-    const [{ data: visitorRows }, { data: integrationRows }] = await Promise.all([
+    const [{ data: visitorRows }, { data: integrationRows }, { data: cultesRows }] = await Promise.all([
       supabase.from('contacts').select('first_visit_date').gte('first_visit_date', yearStart).lt('first_visit_date', yearEnd),
       supabase.from('contacts').select('integrated_at').not('integrated_at', 'is', null).gte('integrated_at', yearStart).lt('integrated_at', yearEnd),
+      supabase.from('cultes').select('date,nouveaux_comptes').gte('date', yearStart).lt('date', yearEnd),
     ])
     const visitors = Array(12).fill(0)
     visitorRows?.forEach(r => { if (r.first_visit_date) visitors[new Date(r.first_visit_date).getMonth()]++ })
     const integrations = Array(12).fill(0)
     integrationRows?.forEach(r => { integrations[new Date(r.integrated_at).getMonth()]++ })
-    setYearData({ visitors, integrations })
+    const accueil = Array(12).fill(0)
+    cultesRows?.forEach(r => { if (r.nouveaux_comptes) accueil[new Date(r.date).getMonth()] += r.nouveaux_comptes })
+    setYearData({ visitors, integrations, accueil })
     setLoadingDrill(false)
   }
 
@@ -118,8 +121,9 @@ export default function DashboardClient({ stats, profile }) {
     if (drillLevel === 'year') {
       const visitorsData = yearData ? yearData.visitors : (stats.monthlyVisitors || Array(12).fill(0))
       const integrationsData = yearData ? yearData.integrations : (stats.monthlyIntegrations || Array(12).fill(0))
-      rows.push('Mois,Visiteurs,Intégrations')
-      MONTH_FULL.forEach((m, i) => rows.push(`${m},${visitorsData[i]},${integrationsData[i]}`))
+      const accueilData = yearData ? yearData.accueil : (stats.monthlyAccueil || Array(12).fill(0))
+      rows.push('Mois,Visiteurs (formulaire),Intégrations FI,Comptage Accueil')
+      MONTH_FULL.forEach((m, i) => rows.push(`${m},${visitorsData[i]},${integrationsData[i]},${accueilData[i]}`))
     } else if (drillLevel === 'month') {
       rows.push('Date,Visiteurs')
       drillMonthData.forEach(d => rows.push(`${d.date},${d.count}`))
@@ -168,13 +172,15 @@ export default function DashboardClient({ stats, profile }) {
       if (drillLevel === 'year') {
         const visitorsData = yearData ? yearData.visitors : (stats.monthlyVisitors || Array(12).fill(0))
         const integrationsData = yearData ? yearData.integrations : (stats.monthlyIntegrations || Array(12).fill(0))
+        const accueilData = yearData ? yearData.accueil : (stats.monthlyAccueil || Array(12).fill(0))
         growthChartInstance.current = new Chart(growthRef.current, {
           type: 'line',
           data: {
             labels: MONTH_SHORT,
             datasets: [
-              { label: 'Visiteurs', data: visitorsData, borderColor: '#0B3D91', backgroundColor: 'rgba(11,61,145,.08)', fill: true, tension: .4, borderWidth: 2 },
-              { label: 'Intégrations', data: integrationsData, borderColor: '#22C55E', backgroundColor: 'rgba(34,197,94,.05)', fill: true, tension: .4, borderWidth: 2 },
+              { label: 'Visiteurs (formulaire)', data: visitorsData, borderColor: '#0B3D91', backgroundColor: 'rgba(11,61,145,.08)', fill: true, tension: .4, borderWidth: 2 },
+              { label: 'Intégrations FI', data: integrationsData, borderColor: '#22C55E', backgroundColor: 'rgba(34,197,94,.05)', fill: true, tension: .4, borderWidth: 2 },
+              { label: 'Comptage Accueil', data: accueilData, borderColor: '#F97316', backgroundColor: 'rgba(249,115,22,.04)', fill: true, tension: .4, borderWidth: 2, borderDash: [5, 4] },
             ]
           },
           options: {
@@ -208,7 +214,7 @@ export default function DashboardClient({ stats, profile }) {
     }
     loadGrowthChart()
     return () => { cancelled = true; growthChartInstance.current?.destroy() }
-  }, [drillLevel, drillMonth, drillMonthData, yearData, stats.monthlyVisitors, stats.monthlyIntegrations])
+  }, [drillLevel, drillMonth, drillMonthData, yearData, stats.monthlyVisitors, stats.monthlyIntegrations, stats.monthlyAccueil])
 
   const firstName = profile?.name?.split(' ')[0] || 'Pasteur'
 
@@ -353,8 +359,9 @@ export default function DashboardClient({ stats, profile }) {
 
             {drillLevel === 'year' && (
               <div style={{ fontSize:11, color:'var(--gy)', background:'#F8FAFC', borderRadius:8, padding:'8px 10px', marginBottom:4, lineHeight:1.5 }}>
-                <b style={{ color:'#0B3D91' }}>Visiteurs</b> : nombre de nouvelles personnes selon leur date de première visite.{' '}
-                <b style={{ color:'#22C55E' }}>Intégrations</b> : nombre de personnes ayant rejoint une Famille d'Impact ce mois-là (peut concerner des visiteurs arrivés un autre mois).
+                <b style={{ color:'#0B3D91' }}>Visiteurs (formulaire)</b> : fiches réellement créées, selon leur date de première visite.{' '}
+                <b style={{ color:'#22C55E' }}>Intégrations FI</b> : personnes ayant rejoint une Famille d'Impact ce mois-là.{' '}
+                <b style={{ color:'#F97316' }}>Comptage Accueil</b> : nouveaux comptés à l'entrée (Module Accueil), peut différer si des personnes reperées ne remplissent jamais de fiche. Cliquez une ligne dans la légende pour l'afficher/la masquer.
               </div>
             )}
 

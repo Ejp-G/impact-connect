@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Pencil, Calendar } from '@/lib/icons'
+import { Plus, Pencil, Calendar, Trash2 } from '@/lib/icons'
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
@@ -66,6 +66,13 @@ export default function AccueilClient({ cultes, profile }) {
     router.refresh()
   }
 
+  async function deleteCulte(culte) {
+    if (!confirm(`Supprimer le culte du ${new Date(culte.date).toLocaleDateString('fr-FR')} ? Cette action est irréversible.`)) return
+    const { error: err } = await supabase.from('cultes').delete().eq('id', culte.id)
+    if (err) { alert(err.message); return }
+    router.refresh()
+  }
+
   return (
     <div style={{ maxWidth: 900 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -93,9 +100,14 @@ export default function AccueilClient({ cultes, profile }) {
                 <td style={{ fontSize: 12, color: 'var(--gd)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.compte_rendu || '—'}</td>
                 <td style={{ fontSize: 11, color: 'var(--gy)' }}>{c.creator?.name || '—'}</td>
                 <td>
-                  <button onClick={() => openEdit(c)} style={{ background: '#EFF6FF', border: 'none', borderRadius: 6, padding: 6, cursor: 'pointer', display: 'flex' }}>
-                    <Pencil size={13} strokeWidth={2} color="#3B82F6" />
-                  </button>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button onClick={() => openEdit(c)} style={{ background: '#EFF6FF', border: 'none', borderRadius: 6, padding: 6, cursor: 'pointer', display: 'flex' }}>
+                      <Pencil size={13} strokeWidth={2} color="#3B82F6" />
+                    </button>
+                    <button onClick={() => deleteCulte(c)} style={{ background: '#FEF2F2', border: 'none', borderRadius: 6, padding: 6, cursor: 'pointer', display: 'flex' }}>
+                      <Trash2 size={13} strokeWidth={2} color="#DC2626" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

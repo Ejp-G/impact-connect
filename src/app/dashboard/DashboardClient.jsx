@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { createClient } from '@/lib/supabase/client'
-import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft } from '@/lib/icons'
+import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft, ChevronLeft, ChevronRight } from '@/lib/icons'
 
 const ACTIVITY_ICON_MAP = {
   new_contact: UserPlus,
@@ -37,6 +37,8 @@ export default function DashboardClient({ stats, profile }) {
   const growthChartInstance = useRef(null)
 
   const currentYear = new Date().getFullYear()
+  const [viewYear, setViewYear] = useState(currentYear)
+  const [yearData, setYearData] = useState(null) // null = utiliser stats (annee en cours), sinon {visitors:[], integrations:[]}
   const [drillLevel, setDrillLevel] = useState('year')
   const [drillMonth, setDrillMonth] = useState(null)
   const [drillMonthData, setDrillMonthData] = useState([])
@@ -46,10 +48,35 @@ export default function DashboardClient({ stats, profile }) {
 
   useRealtimeRefresh(['contacts', 'tasks', 'familles_impact'])
 
+  // Charge les 12 mois d'une annee differente de l'annee en cours (celle-ci
+  // est deja fournie via stats, calculee cote serveur au chargement initial).
+  async function loadYear(year) {
+    setLoadingDrill(true)
+    const yearStart = `${year}-01-01`
+    const yearEnd = `${year + 1}-01-01`
+    const [{ data: visitorRows }, { data: integrationRows }] = await Promise.all([
+      supabase.from('contacts').select('first_visit_date').gte('first_visit_date', yearStart).lt('first_visit_date', yearEnd),
+      supabase.from('contacts').select('integrated_at').not('integrated_at', 'is', null).gte('integrated_at', yearStart).lt('integrated_at', yearEnd),
+    ])
+    const visitors = Array(12).fill(0)
+    visitorRows?.forEach(r => { if (r.first_visit_date) visitors[new Date(r.first_visit_date).getMonth()]++ })
+    const integrations = Array(12).fill(0)
+    integrationRows?.forEach(r => { integrations[new Date(r.integrated_at).getMonth()]++ })
+    setYearData({ visitors, integrations })
+    setLoadingDrill(false)
+  }
+
+  function goToYear(year) {
+    setViewYear(year)
+    setDrillLevel('year'); setDrillMonth(null); setDrillDay(null)
+    if (year === currentYear) setYearData(null)
+    else loadYear(year)
+  }
+
   async function openMonth(monthIndex) {
     setLoadingDrill(true)
-    const start = new Date(currentYear, monthIndex, 1).toISOString().slice(0, 10)
-    const end = new Date(currentYear, monthIndex + 1, 1).toISOString().slice(0, 10)
+    const start = new Date(viewYear, monthIndex, 1).toISOString().slice(0, 10)
+    const end = new Date(viewYear, monthIndex + 1, 1).toISOString().slice(0, 10)
     const { data } = await supabase.from('contacts')
       .select('first_visit_date')
       .gte('first_visit_date', start).lt('first_visit_date', end)
@@ -107,20 +134,25 @@ export default function DashboardClient({ stats, profile }) {
       growthChartInstance.current?.destroy()
 
       if (drillLevel === 'year') {
+        const visitorsData = yearData ? yearData.visitors : (stats.monthlyVisitors || Array(12).fill(0))
+        const integrationsData = yearData ? yearData.integrations : (stats.monthlyIntegrations || Array(12).fill(0))
         growthChartInstance.current = new Chart(growthRef.current, {
           type: 'line',
           data: {
             labels: MONTH_SHORT,
             datasets: [
-              { label: 'Visiteurs', data: stats.monthlyVisitors || Array(12).fill(0), borderColor: '#0B3D91', backgroundColor: 'rgba(11,61,145,.08)', fill: true, tension: .4, borderWidth: 2 },
-              { label: 'Intégrations', data: stats.monthlyIntegrations || Array(12).fill(0), borderColor: '#22C55E', backgroundColor: 'rgba(34,197,94,.05)', fill: true, tension: .4, borderWidth: 2 },
+              { label: 'Visiteurs', data: visitorsData, borderColor: '#0B3D91', backgroundColor: 'rgba(11,61,145,.08)', fill: true, tension: .4, borderWidth: 2 },
+              { label: 'Intégrations', data: integrationsData, borderColor: '#22C55E', backgroundColor: 'rgba(34,197,94,.05)', fill: true, tension: .4, borderWidth: 2 },
             ]
           },
           options: {
             responsive: true, maintainAspectRatio: false,
             onClick: (evt, elements) => { if (elements.length) openMonth(elements[0].index) },
             plugins: { legend: { labels: { font: { size: 11 } } } },
-            scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { grid: { color: '#F1F5F9' }, ticks: { font: { size: 10 } } } }
+            scales: {
+              x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+              y: { grid: { color: '#F1F5F9' }, beginAtZero: true, ticks: { font: { size: 10 }, stepSize: 1, precision: 0 } }
+            }
           }
         })
       } else if (drillLevel === 'month') {
@@ -134,14 +166,17 @@ export default function DashboardClient({ stats, profile }) {
             responsive: true, maintainAspectRatio: false,
             onClick: (evt, elements) => { if (elements.length) openDay(drillMonthData[elements[0].index].date) },
             plugins: { legend: { display: false } },
-            scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { grid: { color: '#F1F5F9' }, ticks: { font: { size: 10 }, stepSize: 1 } } }
+            scales: {
+              x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+              y: { grid: { color: '#F1F5F9' }, beginAtZero: true, ticks: { font: { size: 10 }, stepSize: 1, precision: 0 } }
+            }
           }
         })
       }
     }
     loadGrowthChart()
     return () => { cancelled = true; growthChartInstance.current?.destroy() }
-  }, [drillLevel, drillMonth, drillMonthData, stats.monthlyVisitors, stats.monthlyIntegrations])
+  }, [drillLevel, drillMonth, drillMonthData, yearData, stats.monthlyVisitors, stats.monthlyIntegrations])
 
   const firstName = profile?.name?.split(' ')[0] || 'Pasteur'
 
@@ -232,7 +267,13 @@ export default function DashboardClient({ stats, profile }) {
             </div>
 
             <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, margin:'10px 0' }}>
-              <span onClick={backToYear} style={{ cursor:'pointer', fontWeight: drillLevel==='year'?700:400, color: drillLevel==='year'?'var(--n)':'var(--gy)' }}>{currentYear}</span>
+              <button onClick={() => goToYear(viewYear - 1)} style={yearNavBtnStyle} title="Année précédente">
+                <ChevronLeft size={12} strokeWidth={2} />
+              </button>
+              <span onClick={backToYear} style={{ cursor:'pointer', fontWeight: drillLevel==='year'?700:400, color: drillLevel==='year'?'var(--n)':'var(--gy)' }}>{viewYear}</span>
+              <button onClick={() => goToYear(viewYear + 1)} style={yearNavBtnStyle} title="Année suivante">
+                <ChevronRight size={12} strokeWidth={2} />
+              </button>
               {drillMonth !== null && (
                 <>
                   <span style={{ color:'var(--gy)' }}>›</span>
@@ -346,4 +387,8 @@ export default function DashboardClient({ stats, profile }) {
 const backBtnStyle = {
   display:'flex', alignItems:'center', gap:5, background:'#F1F5F9', border:'none',
   borderRadius:8, padding:'6px 12px', fontSize:11, fontWeight:600, color:'#64748B', cursor:'pointer'
+}
+const yearNavBtnStyle = {
+  display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20,
+  background:'#F1F5F9', border:'none', borderRadius:6, color:'#64748B', cursor:'pointer', padding:0
 }

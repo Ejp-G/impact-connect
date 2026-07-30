@@ -13,6 +13,7 @@ export const STAGES = [
 ]
 export const ROLES = {
   admin:                   'Administrateur général',
+  equipe_accueil:          'Équipe Accueil',
   responsable_suivi:       'Resp. Suivi & Intégration',
   equipe_suivi:            'Équipe Suivi & Intégration',
   pilote_fi:               'Pilote FI',
@@ -21,6 +22,7 @@ export const ROLES = {
 }
 export const ROLE_NAV = {
   admin:                   'all',
+  equipe_accueil:          ['accueil'],
   responsable_suivi:       ['dashboard','visiteurs','pipeline','suivi','qrcode','journal','rapports','parametres','communications'],
   equipe_suivi:            ['visiteurs','qrcode','suivi','communications'],
   pilote_fi:               ['fi','suivi','communications','qrcode'],
@@ -29,6 +31,7 @@ export const ROLE_NAV = {
 }
 export const NAV_ITEMS = [
   { id:'dashboard',       label:"Tableau de bord",      href:'/dashboard' },
+  { id:'accueil',         label:'Accueil',               href:'/accueil' },
   { id:'visiteurs',       label:'Visiteurs',             href:'/visiteurs',       badge:'contacts' },
   { id:'pipeline',        label:'Pipeline',              href:'/pipeline' },
   { id:'fi',              label:"Familles d'Impact",     href:'/fi' },

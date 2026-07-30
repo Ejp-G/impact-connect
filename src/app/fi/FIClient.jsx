@@ -181,6 +181,22 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
       alert('Cette FIJ contient encore des membres. Réattribue-les à une autre FIJ avant de la supprimer.')
       return
     }
+    if (!isAdmin) {
+      // Un pilote/co-pilote non-admin ne supprime jamais directement :
+      // il soumet une demande, qu'un administrateur devra accepter
+      // depuis la page Demandes de validation.
+      const reason = prompt(`Pourquoi souhaites-tu supprimer la FIJ "${fi.name}" ? (transmis à un administrateur)`)
+      if (reason === null) return
+      const res = await fetch('/api/change-requests', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action_type: 'delete_fi', target_table: 'familles_impact', target_id: fi.id, reason })
+      })
+      const data = await res.json()
+      if (data.error) { alert(data.error); return }
+      alert('Ta demande de suppression a été transmise à un administrateur.')
+      setDetailFi(null)
+      return
+    }
     if (!confirm(`Supprimer la FIJ "${fi.name}" ? Cette action est irréversible.`)) return
     const { error } = await supabase.from('familles_impact').delete().eq('id', fi.id)
     if (error) { alert(error.message); return }
@@ -746,7 +762,9 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
                   {canManage(detailFi) && (
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => { setDetailFi(null); openEdit(detailFi) }} style={secondaryBtnStyle}>Modifier</button>
-                      {isAdmin && <button onClick={() => deleteFi(detailFi)} style={{ ...secondaryBtnStyle, color: '#DC2626', borderColor: '#FCA5A5' }}>Supprimer</button>}
+                      <button onClick={() => deleteFi(detailFi)} style={{ ...secondaryBtnStyle, color: '#DC2626', borderColor: '#FCA5A5' }}>
+                        {isAdmin ? 'Supprimer' : 'Demander la suppression'}
+                      </button>
                     </div>
                   )}
                 </div>

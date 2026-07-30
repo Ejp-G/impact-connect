@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { createClient } from '@/lib/supabase/client'
-import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft, ChevronLeft, ChevronRight } from '@/lib/icons'
+import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft, ChevronLeft, ChevronRight, Download } from '@/lib/icons'
 
 const ACTIVITY_ICON_MAP = {
   new_contact: UserPlus,
@@ -103,6 +103,38 @@ export default function DashboardClient({ stats, profile }) {
 
   function backToYear() { setDrillLevel('year'); setDrillMonth(null); setDrillDay(null) }
   function backToMonth() { setDrillLevel('month'); setDrillDay(null) }
+
+  function downloadChartImage() {
+    if (!growthChartInstance.current) return
+    const url = growthChartInstance.current.toBase64Image()
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `croissance_${viewYear}${drillMonth !== null ? '_' + MONTH_FULL[drillMonth] : ''}.png`
+    link.click()
+  }
+
+  function downloadChartCSV() {
+    const rows = []
+    if (drillLevel === 'year') {
+      const visitorsData = yearData ? yearData.visitors : (stats.monthlyVisitors || Array(12).fill(0))
+      const integrationsData = yearData ? yearData.integrations : (stats.monthlyIntegrations || Array(12).fill(0))
+      rows.push('Mois,Visiteurs,Intégrations')
+      MONTH_FULL.forEach((m, i) => rows.push(`${m},${visitorsData[i]},${integrationsData[i]}`))
+    } else if (drillLevel === 'month') {
+      rows.push('Date,Visiteurs')
+      drillMonthData.forEach(d => rows.push(`${d.date},${d.count}`))
+    } else if (drillLevel === 'day') {
+      rows.push('Prénom,Nom,Commune,Téléphone,Étape')
+      drillDayContacts.forEach(c => rows.push(`${c.first_name},${c.last_name},${c.commune || ''},${c.phone || ''},${STAGE_LABEL(c.stage)}`))
+    }
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `croissance_${viewYear}${drillMonth !== null ? '_' + MONTH_FULL[drillMonth] : ''}${drillDay ? '_' + drillDay : ''}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -259,12 +291,29 @@ export default function DashboardClient({ stats, profile }) {
                 <div style={{ fontSize:15, fontWeight:700 }}>Croissance annuelle</div>
                 <div style={{ fontSize:12, color:'var(--gy)' }}>Cliquez un mois, puis un jour, pour voir le détail</div>
               </div>
-              {drillLevel !== 'year' && (
-                <button onClick={drillLevel === 'day' ? backToMonth : backToYear} style={backBtnStyle}>
-                  <ArrowLeft size={12} strokeWidth={2} /> Retour
+              <div style={{ display:'flex', gap:6 }}>
+                {drillLevel !== 'day' && (
+                  <button onClick={downloadChartImage} style={backBtnStyle} title="Télécharger en image">
+                    <Download size={12} strokeWidth={2} /> PNG
+                  </button>
+                )}
+                <button onClick={downloadChartCSV} style={backBtnStyle} title="Télécharger les données">
+                  <Download size={12} strokeWidth={2} /> CSV
                 </button>
-              )}
+                {drillLevel !== 'year' && (
+                  <button onClick={drillLevel === 'day' ? backToMonth : backToYear} style={backBtnStyle}>
+                    <ArrowLeft size={12} strokeWidth={2} /> Retour
+                  </button>
+                )}
+              </div>
             </div>
+
+            {drillLevel === 'year' && (
+              <div style={{ fontSize:11, color:'var(--gy)', background:'#F8FAFC', borderRadius:8, padding:'8px 10px', marginBottom:4, lineHeight:1.5 }}>
+                <b style={{ color:'#0B3D91' }}>Visiteurs</b> : nombre de nouvelles personnes selon leur date de première visite.{' '}
+                <b style={{ color:'#22C55E' }}>Intégrations</b> : nombre de personnes ayant rejoint une Famille d'Impact ce mois-là (peut concerner des visiteurs arrivés un autre mois).
+              </div>
+            )}
 
             <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, margin:'10px 0' }}>
               <button onClick={() => goToYear(viewYear - 1)} style={yearNavBtnStyle} title="Année précédente">

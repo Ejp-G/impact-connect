@@ -9,6 +9,28 @@ import {
   MessageCircle, Compass, CheckCircle2, XCircle, Clock, NEED_ICON_MAP
 } from '@/lib/icons'
 
+const TIMELINE_STAGES = ['visiteur', 'contacte', 'invite_fi', 'fi1', 'fi2', 'integre', 'parcours']
+
+function ProgressTimeline({ stage }) {
+  const currentIndex = TIMELINE_STAGES.indexOf(stage)
+  return (
+    <div className="card" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto' }}>
+      {TIMELINE_STAGES.map((s, i) => {
+        const done = currentIndex > i
+        const current = currentIndex === i
+        return (
+          <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 999, background: done ? '#F0FDF4' : current ? '#FFFBEB' : '#F8FAFC', fontSize: 11, fontWeight: 600, color: done ? '#16A34A' : current ? '#B45309' : '#94A3B8' }}>
+              <span>{done ? '✔' : current ? '🟡' : '⚪'}</span> {STAGE_LABEL(s)}
+            </div>
+            {i < TIMELINE_STAGES.length - 1 && <span style={{ color: '#E2E8F0' }}>—</span>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 const TIMELINE_STYLE = {
   audit:         { Icon: Clock,         color: '#94A3B8' },
   report:        { Icon: Phone,         color: '#3B82F6' },
@@ -60,6 +82,9 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
           <div style={{ fontSize: 20, fontWeight: 800, color: '#1E293B' }}>{contact.first_name} {contact.last_name}</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
             <span className="badge" style={{ background: STAGE_COLOR(contact.stage) + '20', color: STAGE_COLOR(contact.stage) }}>{STAGE_LABEL(contact.stage)}</span>
+            <span className="badge" style={{ background: contact.salvation_call ? '#FEF3C7' : '#EFF6FF', color: contact.salvation_call ? '#92400E' : '#3B82F6' }}>
+              {contact.salvation_call ? 'Appel au salut' : 'Nouveau visiteur'}
+            </span>
             {contact.is_minor && <span className="badge" style={{ background: '#FEF3C7', color: '#92400E' }}>Mineur</span>}
             {contact.contact_preference === 'none' && (
               <span className="badge" style={{ background: '#FEF2F2', color: '#DC2626', fontWeight: 700 }}>Ne pas contacter</span>
@@ -82,6 +107,8 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
         )}
       </div>
 
+      <ProgressTimeline stage={contact.stage} />
+
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, alignItems: 'start' }}>
 
         {/* Colonne info */}
@@ -93,7 +120,8 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
             <InfoRow Icon={MapPin} value={contact.commune || '—'} />
             <InfoRow Icon={Calendar} value={age !== null ? `${age} ans` : '—'} />
             <InfoRow Icon={Calendar} value={contact.first_visit_date ? `Arrivé(e) le ${contact.first_visit_date}` : '—'} />
-            {contact.welcomed_by?.name && <InfoRow Icon={Users} value={`Accueilli par ${contact.welcomed_by.name}`} />}
+            {contact.welcomed_by_name && <InfoRow Icon={Users} value={`Connecteur : ${contact.welcomed_by_name}`} />}
+            {contact.invited_by && <InfoRow Icon={Users} value={`Invité par : ${contact.invited_by}`} />}
           </div>
 
           <div className="card">

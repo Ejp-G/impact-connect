@@ -91,6 +91,16 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
     if (!error) {
       await supabase.from('contacts').update({ integrator_contacted: true }).eq('id', contactId)
 
+      // Pipeline automatique : le premier compte-rendu d'un intégrateur
+      // fait passer la personne de "Visiteur" a "Contacte", sans aucune
+      // action manuelle sur la page Pipeline.
+      if (contact?.stage === 'visiteur') {
+        fetch(`/api/contacts/${contactId}/stage`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newStage: 'contacte' })
+        }).catch(console.error)
+      }
+
       const needEntries = Object.entries(checkedNeeds)
       if (needEntries.length) {
         const rows = needEntries.map(([categoryId, note]) => {

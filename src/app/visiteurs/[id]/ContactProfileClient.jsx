@@ -61,6 +61,9 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
             <span className="badge" style={{ background: STAGE_COLOR(contact.stage) + '20', color: STAGE_COLOR(contact.stage) }}>{STAGE_LABEL(contact.stage)}</span>
             {contact.is_minor && <span className="badge" style={{ background: '#FEF3C7', color: '#92400E' }}>Mineur</span>}
+            {contact.contact_preference === 'none' && (
+              <span className="badge" style={{ background: '#FEF2F2', color: '#DC2626', fontWeight: 700 }}>Ne pas contacter</span>
+            )}
             {contact.integrator_contacted && (
               <span className="badge" style={{ background: '#DCFCE7', color: '#166534', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <CheckCircle2 size={11} strokeWidth={2} /> Contact confirmé

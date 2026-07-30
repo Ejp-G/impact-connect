@@ -1,17 +1,36 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle } from '@/lib/icons'
+import { AlertTriangle, Trash2 } from '@/lib/icons'
+import { createClient } from '@/lib/supabase/client'
 
 const STATUS_LABELS = { incomplete: { label: 'Incomplet', color: '#DC2626', bg: '#FEF2F2' }, duplicate: { label: 'Doublon', color: '#D97706', bg: '#FFFBEB' } }
 
 export default function FichesACompleterClient({ rows: initialRows }) {
   const router = useRouter()
+  const supabase = createClient()
   const [rows, setRows] = useState(initialRows)
   const [editingId, setEditingId] = useState(null)
   const [editValues, setEditValues] = useState({})
   const [committing, setCommitting] = useState(null)
   const [message, setMessage] = useState('')
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState(null)
+
+  async function deleteRow(row) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const { error } = await supabase.from('import_rows').delete().eq('id', row.id)
+    if (error) { alert(error.message); return }
+    // Trace conservee dans le journal d'audit, comme demande.
+    await supabase.from('audit_log').insert({
+      action: 'Suppression fiche à compléter',
+      entity_type: 'import_row',
+      entity_id: row.id,
+      performed_by: session?.user?.id,
+      details: { batch_id: row.batch_id, mapped_data: row.mapped_data, status: row.status }
+    })
+    setConfirmingDeleteId(null)
+    setRows(prev => prev.filter(r => r.id !== row.id))
+  }
 
   const byBatch = useMemo(() => {
     const map = {}
@@ -114,7 +133,14 @@ export default function FichesACompleterClient({ rows: initialRows }) {
                             <button onClick={() => saveEdit(row)} style={smallBtnStyle}>Enregistrer</button>
                             <button onClick={() => setEditingId(null)} style={smallBtnStyle}>Annuler</button>
                           </div>
-                        ) : row.status !== 'valid' && <button onClick={() => startEdit(row)} style={smallBtnStyle}>Corriger</button>}
+                        ) : (
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {row.status !== 'valid' && <button onClick={() => startEdit(row)} style={smallBtnStyle}>Corriger</button>}
+                            <button onClick={() => setConfirmingDeleteId(row.id)} style={{ ...smallBtnStyle, color: '#DC2626' }}>
+                              <Trash2 size={11} strokeWidth={2} />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )
@@ -124,6 +150,24 @@ export default function FichesACompleterClient({ rows: initialRows }) {
           </div>
         )
       })}
+
+      {confirmingDeleteId && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setConfirmingDeleteId(null)}>
+          <div className="modal" style={{ maxWidth: 420 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <AlertTriangle size={20} strokeWidth={2} color="#DC2626" />
+              <div style={{ fontSize: 16, fontWeight: 700 }}>Supprimer cette fiche ?</div>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--gd)', marginBottom: 20, lineHeight: 1.6 }}>
+              Vous êtes sur le point de supprimer définitivement cette fiche. Cette action est irréversible.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirmingDeleteId(null)} className="btn btn-secondary" style={{ flex: 1 }}>Annuler</button>
+              <button onClick={() => deleteRow(rows.find(r => r.id === confirmingDeleteId))} className="btn" style={{ flex: 1, background: '#DC2626', color: '#fff' }}>Supprimer</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

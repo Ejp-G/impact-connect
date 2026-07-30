@@ -18,19 +18,19 @@ export async function GET() {
 export async function POST(request) {
   const supabase = createClient()
   if (!await checkAdmin(supabase)) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
-  const { email, password, name, role, sex, fi_id, also_integrator } = await request.json()
+  const { email, password, name, role, sex, fi_id, secondary_roles } = await request.json()
   const admin = createAdminClient()
   const { data: authUser, error: authError } = await admin.auth.admin.createUser({
     email, password, email_confirm: true,
     user_metadata: { name, role, sex }
   })
   if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
-  // fi_id et also_integrator ne sont pas geres par le trigger de creation
+  // fi_id et secondary_roles ne sont pas geres par le trigger de creation
   // de profil (base sur user_metadata) : on les met a jour explicitement
   // juste apres la creation du compte.
   const postCreatePatch = {}
   if (fi_id) postCreatePatch.fi_id = fi_id
-  if (also_integrator !== undefined) postCreatePatch.also_integrator = also_integrator
+  if (secondary_roles !== undefined) postCreatePatch.secondary_roles = secondary_roles
   if (Object.keys(postCreatePatch).length > 0) {
     await supabase.from('profiles').update(postCreatePatch).eq('id', authUser.user.id)
   }

@@ -23,8 +23,8 @@ export const ROLES = {
 export const ROLE_NAV = {
   admin:                   'all',
   equipe_accueil:          ['accueil'],
-  responsable_suivi:       ['dashboard','visiteurs','pipeline','suivi','qrcode','journal','rapports','parametres','communications'],
-  equipe_suivi:            ['visiteurs','qrcode','suivi','communications'],
+  responsable_suivi:       ['dashboard','visiteurs','fiches-a-completer','pipeline','suivi','qrcode','journal','rapports','parametres','communications'],
+  equipe_suivi:            ['visiteurs','fiches-a-completer','qrcode','suivi','communications'],
   pilote_fi:               ['fi','suivi','communications','qrcode'],
   superviseur:             ['dashboard','visiteurs','pipeline','fi','suivi','rapports','carte','communications'],
   responsable_jeunesse:    ['jeunesse','visiteurs','communications'],
@@ -33,6 +33,7 @@ export const NAV_ITEMS = [
   { id:'dashboard',       label:"Tableau de bord",      href:'/dashboard' },
   { id:'accueil',         label:'Accueil',               href:'/accueil' },
   { id:'visiteurs',       label:'Visiteurs',             href:'/visiteurs',       badge:'contacts' },
+  { id:'fiches-a-completer', label:'Fiches à compléter', href:'/fiches-a-completer' },
   { id:'pipeline',        label:'Pipeline',              href:'/pipeline' },
   { id:'fi',              label:"Familles d'Impact",     href:'/fi' },
   { id:'suivi',           label:'Suivi & Tâches',        href:'/suivi',            badge:'tasks' },
@@ -43,6 +44,7 @@ export const NAV_ITEMS = [
   { id:'qrcode',          label:'Formulaire QR',         href:'/qrcode' },
   { id:'journal',         label:"Journal d'activité",    href:'/journal' },
   { id:'utilisateurs',    label:'Utilisateurs',          href:'/utilisateurs' },
+  { id:'validations',     label:'Demandes de validation', href:'/validations' },
   { id:'parametres',      label:'Paramètres',            href:'/parametres' },
 ]
 export const COMMUNES_FI = {

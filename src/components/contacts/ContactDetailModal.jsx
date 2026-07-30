@@ -47,7 +47,10 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
       commune_id: data.commune_id || '', quartier: data.quartier || '',
       fi_id: data.fi_id || '', prayer_request: data.prayer_request || '',
       situation: data.situation || '', baptism_date: data.baptism_date || '',
-      contact_preference: data.contact_preference || ''
+      contact_preference: data.contact_preference || '',
+      first_visit_date: data.first_visit_date || '',
+      welcomed_by_name: data.welcomed_by_name || '',
+      salvation_call: data.salvation_call || false
     } : null)
     setNewStage(data?.stage || '')
     setLoading(false)
@@ -78,13 +81,16 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     setIntegrator2Id(pairData?.find(p => p.position === 2)?.integrator?.id || '')
 
     if (data?.sex) {
-      const { data: eligible } = await supabase.from('profiles')
-        .select('id,name,email')
+      const { data: allActive } = await supabase.from('profiles')
+        .select('id,name,email,role,secondary_roles')
         .eq('sex', data.sex)
         .eq('active', true)
-        .or('role.in.(equipe_suivi,responsable_suivi),also_integrator.eq.true')
         .order('name')
-      setEligibleIntegrators(eligible || [])
+      const eligible = (allActive || []).filter(p =>
+        ['equipe_suivi', 'responsable_suivi'].includes(p.role) ||
+        (p.secondary_roles || []).includes('equipe_suivi')
+      )
+      setEligibleIntegrators(eligible)
     }
   }
 
@@ -98,7 +104,10 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
       quartier: form.quartier, fi_id: form.fi_id || null,
       prayer_request: form.prayer_request, situation: form.situation,
       baptism_date: form.baptism_date || null,
-      contact_preference: form.contact_preference || null
+      contact_preference: form.contact_preference || null,
+      first_visit_date: form.first_visit_date || null,
+      welcomed_by_name: form.welcomed_by_name.trim() || null,
+      salvation_call: form.salvation_call
     }).eq('id', contactId)
     setSaving(false)
     if (error) { alert(error.message); return }
@@ -306,6 +315,21 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                   </Field>
                   <Field label="Quartier" style={{ flex: 1 }}><input value={form.quartier} onChange={e => setForm({ ...form, quartier: e.target.value })} style={inputStyle} /></Field>
                 </div>
+                <Field label="Date de première visite">
+                  <input type="date" value={form.first_visit_date} onChange={e => setForm({ ...form, first_visit_date: e.target.value })} style={inputStyle} />
+                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
+                    Référence officielle utilisée dans le Dashboard, la croissance annuelle, les rapports et le Pipeline.
+                  </div>
+                </Field>
+                <Field label="Connecteur (personne qui a accueilli)">
+                  <input value={form.welcomed_by_name} onChange={e => setForm({ ...form, welcomed_by_name: e.target.value })} style={inputStyle} placeholder="Prénom Nom" />
+                </Field>
+                <Field label="Type de visite">
+                  <select value={form.salvation_call ? 'salut' : 'nouveau'} onChange={e => setForm({ ...form, salvation_call: e.target.value === 'salut' })} style={inputStyle}>
+                    <option value="nouveau">Nouveau visiteur</option>
+                    <option value="salut">Appel au salut</option>
+                  </select>
+                </Field>
                 <Field label="FIJ attribuée">
                   <select value={form.fi_id} onChange={e => setForm({ ...form, fi_id: e.target.value })} style={inputStyle}>
                     <option value="">— Aucune —</option>

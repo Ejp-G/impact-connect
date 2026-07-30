@@ -86,6 +86,7 @@ export async function POST(request) {
     phone: phone || null, whatsapp: whatsapp || null, email: email || null,
     commune: commune || null, commune_id: communeId || null, quartier: quartier || null,
     address: address?.trim() || null,
+    first_visit_date: new Date().toISOString().slice(0, 10),
     first_visit: firstVisit, salvation_call: salvationCall,
     wants_contact: wantsContact, wants_fi: wantsFI,
     prayer_request: prayerRequest || null, how_found: howFound || null,
@@ -106,7 +107,13 @@ export async function POST(request) {
     sendWelcomeEmail(firstName, email).catch(console.error)
   }
 
-  if (!isMinor && wantsFI) {
+  // Respect strict de "je prefere ne pas etre contacte(e)" : aucune
+  // attribution automatique (binome d'integrateurs ET FIJ + notification
+  // pilote) n'est declenchee pour ces personnes. Elles restent
+  // enregistrees, visibles et comptabilisees, mais personne n'est charge
+  // de les contacter tant qu'un administrateur ne change pas ce choix
+  // manuellement depuis leur fiche.
+  if (!isMinor && wantsFI && contactPreference !== 'none') {
     autoAttributeContact({
       contactId: contact.id, sex, communeId: communeId || null, quartier: quartier || null
     }).catch(console.error)

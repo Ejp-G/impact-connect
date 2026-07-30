@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { createClient } from '@/lib/supabase/client'
-import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft, ChevronLeft, ChevronRight, Download } from '@/lib/icons'
+import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft, ChevronLeft, ChevronRight, Download, CheckCircle2 } from '@/lib/icons'
 
 const ACTIVITY_ICON_MAP = {
   new_contact: UserPlus,
@@ -282,6 +282,49 @@ export default function DashboardClient({ stats, profile }) {
           </div>
         ))}
       </div>
+
+      {/* Verification du dernier culte (Module Accueil) */}
+      {stats.culteCheck && (() => {
+        const cc = stats.culteCheck
+        const nouveauxDiff = cc.nouveauxComptes != null ? cc.nouveauxComptes - cc.nouveauxReels : 0
+        const salutDiff = cc.salutComptes != null ? cc.salutComptes - cc.salutReels : 0
+        const isConsistent = nouveauxDiff === 0 && salutDiff === 0
+        const issues = []
+        if (nouveauxDiff > 0) issues.push(`${nouveauxDiff} nouveau${nouveauxDiff > 1 ? 'x' : ''} visiteur${nouveauxDiff > 1 ? 's' : ''} non enregistré${nouveauxDiff > 1 ? 's' : ''}`)
+        if (nouveauxDiff < 0) issues.push(`${-nouveauxDiff} visiteur${-nouveauxDiff > 1 ? 's' : ''} enregistré${-nouveauxDiff > 1 ? 's' : ''} en plus du compte Accueil`)
+        if (salutDiff > 0) issues.push(`${salutDiff} appel${salutDiff > 1 ? 's' : ''} au salut non enregistré${salutDiff > 1 ? 's' : ''}`)
+        if (salutDiff < 0) issues.push(`${-salutDiff} appel${-salutDiff > 1 ? 's' : ''} au salut en plus du compte Accueil`)
+
+        return (
+          <div className="card" style={{ borderLeft: `4px solid ${isConsistent ? '#22C55E' : '#F97316'}` }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12 }}>
+              <div>
+                <div style={{ fontSize:14, fontWeight:700, display:'flex', alignItems:'center', gap:8 }}>
+                  {isConsistent ? <CheckCircle2 size={16} strokeWidth={2} color="#22C55E" /> : <AlertCircle size={16} strokeWidth={2} color="#F97316" />}
+                  Vérification du dernier culte — {new Date(cc.date).toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })}
+                </div>
+                <div style={{ fontSize:13, color: isConsistent ? '#16A34A' : '#C2410C', marginTop:6, fontWeight:600 }}>
+                  {isConsistent ? 'Toutes les données sont cohérentes.' : `Il manque : ${issues.join(', ')}`}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:20, fontSize:12 }}>
+                <div>
+                  <div style={{ color:'var(--gy)' }}>Présents</div>
+                  <div style={{ fontWeight:700, fontSize:16 }}>{cc.presents ?? '—'}</div>
+                </div>
+                <div>
+                  <div style={{ color:'var(--gy)' }}>Nouveaux (Accueil / réel)</div>
+                  <div style={{ fontWeight:700, fontSize:16 }}>{cc.nouveauxComptes ?? '—'} / {cc.nouveauxReels}</div>
+                </div>
+                <div>
+                  <div style={{ color:'var(--gy)' }}>Appels au salut (Accueil / réel)</div>
+                  <div style={{ fontWeight:700, fontSize:16 }}>{cc.salutComptes ?? '—'} / {cc.salutReels}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       <div className="g2r">
         <div style={{ display:'flex', flexDirection:'column', gap:20 }}>

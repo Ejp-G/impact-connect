@@ -64,6 +64,7 @@ export async function GET(request) {
     .eq('status', 'active')
     .eq('integrator_contacted', false)
     .not('assignment_date', 'is', null)
+    .neq('contact_preference', 'none')
 
   const { data: responsables } = await supabase
     .from('profiles').select('id,email,name').eq('role', 'responsable_suivi').eq('active', true)

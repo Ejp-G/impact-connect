@@ -46,7 +46,8 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
       phone: data.phone || '', whatsapp: data.whatsapp || '', email: data.email || '',
       commune_id: data.commune_id || '', quartier: data.quartier || '',
       fi_id: data.fi_id || '', prayer_request: data.prayer_request || '',
-      situation: data.situation || '', baptism_date: data.baptism_date || ''
+      situation: data.situation || '', baptism_date: data.baptism_date || '',
+      contact_preference: data.contact_preference || ''
     } : null)
     setNewStage(data?.stage || '')
     setLoading(false)
@@ -96,7 +97,8 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
       commune_id: form.commune_id || null, commune: commune?.name || contact.commune,
       quartier: form.quartier, fi_id: form.fi_id || null,
       prayer_request: form.prayer_request, situation: form.situation,
-      baptism_date: form.baptism_date || null
+      baptism_date: form.baptism_date || null,
+      contact_preference: form.contact_preference || null
     }).eq('id', contactId)
     setSaving(false)
     if (error) { alert(error.message); return }
@@ -179,6 +181,11 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                   <div>
                     <div style={{ fontSize: 10, color: '#94A3B8', textTransform: 'uppercase' }}>Étape actuelle</div>
                     <span style={{ fontSize: 13, fontWeight: 700, color: STAGE_COLOR(contact.stage) }}>{STAGE_LABEL(contact.stage)}</span>
+                    {contact.contact_preference === 'none' && (
+                      <span style={{ marginLeft: 10, fontSize: 11, fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '2px 10px', borderRadius: 999 }}>
+                        Ne pas contacter
+                      </span>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {nextStageId(contact.stage) && (
@@ -293,6 +300,21 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                     <option value="">— Aucune —</option>
                     {fis.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                   </select>
+                </Field>
+                <Field label="Préférence de contact">
+                  <select value={form.contact_preference} onChange={e => setForm({ ...form, contact_preference: e.target.value })} style={inputStyle}>
+                    <option value="">— Non renseignée —</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="telephone">Téléphone</option>
+                    <option value="sms">SMS</option>
+                    <option value="email">Email</option>
+                    <option value="none">Ne pas être contacté(e)</option>
+                  </select>
+                  {form.contact_preference === 'none' && (
+                    <div style={{ fontSize: 11, color: '#DC2626', marginTop: 4 }}>
+                      Aucune tâche, relance ni notification automatique ne sera générée tant que cette préférence reste "Ne pas être contacté(e)".
+                    </div>
+                  )}
                 </Field>
                 <Field label="Demande de prière"><textarea value={form.prayer_request} onChange={e => setForm({ ...form, prayer_request: e.target.value })} style={{ ...inputStyle, minHeight: 50 }} /></Field>
                 <Field label="Situation / notes"><textarea value={form.situation} onChange={e => setForm({ ...form, situation: e.target.value })} style={{ ...inputStyle, minHeight: 50 }} /></Field>

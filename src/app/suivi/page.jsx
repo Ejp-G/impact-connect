@@ -8,18 +8,17 @@ export default async function SuiviPage() {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-  const isAdmin = ['admin', 'responsable_suivi', 'responsable_integration'].includes(profile?.role)
+  const isAdmin = ['admin', 'responsable_suivi'].includes(profile?.role)
 
   const { data: contacts } = await supabase.from('contacts')
     .select(`
       id, first_name, last_name, sex, phone, commune, first_visit_date, created_at, stage,
       alert_level, integration_score, salvation_call, status, integrator_contacted,
-      welcomed_by:profiles!contacts_welcomed_by_fkey(name),
+      welcomed_by_name,
       fi:familles_impact(name),
       integrators:contact_integrators(position, integrator:profiles(id,name))
     `)
     .eq('status', 'active')
-    .not('stage', 'in', '(integre,parcours,bapteme,service,leader_pot,leader)')
     .order('first_visit_date', { ascending: false })
 
   const contactIds = (contacts || []).map(c => c.id)

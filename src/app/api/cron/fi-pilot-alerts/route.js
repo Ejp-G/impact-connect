@@ -12,7 +12,7 @@ function emailWrapper(title, bodyHtml) {
       </div>
       <p style="font-size:16px;font-weight:700;margin-bottom:12px;">${title}</p>
       ${bodyHtml}
-      <div style="border-top:1px solid #E2E8F0;padding-top:16px;margin-top:24px;text-align:center;color:#94A3B8;font-size:12px;">Impact Connect — EJP Guadeloupe</div>
+      <div style="border-top:1px solid #E2E8F0;padding-top:16px;margin-top:24px;text-align:center;color:#94A3B8;font-size:12px;">Prodiges Connect — EJP Guadeloupe</div>
     </div>
   `
 }
@@ -35,6 +35,9 @@ export async function GET(request) {
   const stats = { contactReminders: 0, absenceAlerts: 0, whatsappReminders: 0 }
 
   // ---------- 1. Relance 48h sans 1er contact ----------
+  // Filtre de securite : jamais relancer pour une personne ayant
+  // explicitement demande a ne pas etre contactee (contact_preference
+  // = 'none'), meme si elle a ete rattachee a une FIJ manuellement.
   const cutoff = new Date(Date.now() - 48 * 3600 * 1000).toISOString()
   const { data: uncontacted } = await supabase
     .from('contacts')
@@ -45,6 +48,7 @@ export async function GET(request) {
     .eq('fi_contacted', false)
     .eq('fi_contact_reminder_sent', false)
     .not('fi_id', 'is', null)
+    .neq('contact_preference', 'none')
     .lte('assignment_date', cutoff)
 
   for (const c of uncontacted || []) {
@@ -60,7 +64,7 @@ export async function GET(request) {
     stats.contactReminders++
   }
 
-  // ---------- 2. Escalade absences consécutives ----------
+  // ---------- 2. Escalade absences consecutives ----------
   const { data: attendance } = await supabase
     .from('fi_attendance')
     .select('contact_id, date, present')
@@ -72,7 +76,7 @@ export async function GET(request) {
     byContact[r.contact_id].push(r)
   })
 
-  const { data: responsables } = await supabase.from('profiles').select('email,name').eq('role', 'responsable_integration').eq('active', true)
+  const { data: responsables } = await supabase.from('profiles').select('email,name').eq('role', 'responsable_suivi').eq('active', true)
 
   for (const [contactId, rows] of Object.entries(byContact)) {
     let streak = 0
@@ -84,11 +88,12 @@ export async function GET(request) {
     const { data: contact } = await supabase
       .from('contacts')
       .select(`
-        id, first_name, last_name, fi_absence_alert_weeks,
+        id, first_name, last_name, fi_absence_alert_weeks, contact_preference,
         fi:familles_impact(name, pilot:profiles!familles_impact_pilot_id_fkey(name,email), copilot:profiles!familles_impact_copilot_id_fkey(name,email))
       `)
       .eq('id', contactId).single()
     if (!contact) continue
+    if (contact.contact_preference === 'none') continue
 
     if (streak === 0) {
       if (contact.fi_absence_alert_weeks > 0) {
@@ -126,7 +131,7 @@ export async function GET(request) {
     stats.absenceAlerts++
   }
 
-  // ---------- 3. Intégration WhatsApp après 3 séances ----------
+  // ---------- 3. Integration WhatsApp apres 3 seances ----------
   const presentCounts = {}
   ;(attendance || []).forEach(r => {
     if (r.present) presentCounts[r.contact_id] = (presentCounts[r.contact_id] || 0) + 1
@@ -137,12 +142,13 @@ export async function GET(request) {
     const { data: eligibleContacts } = await supabase
       .from('contacts')
       .select(`
-        id, first_name, last_name, fi_whatsapp_added, fi_whatsapp_reminder_sent,
+        id, first_name, last_name, fi_whatsapp_added, fi_whatsapp_reminder_sent, contact_preference,
         fi:familles_impact(name, pilot:profiles!familles_impact_pilot_id_fkey(name,email), copilot:profiles!familles_impact_copilot_id_fkey(name,email))
       `)
       .in('id', eligibleIds)
       .eq('fi_whatsapp_added', false)
       .eq('fi_whatsapp_reminder_sent', false)
+      .neq('contact_preference', 'none')
 
     for (const c of eligibleContacts || []) {
       const recipients = [c.fi?.pilot, c.fi?.copilot].filter(p => p?.email)

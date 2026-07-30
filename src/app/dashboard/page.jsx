@@ -97,6 +97,15 @@ export default async function DashboardPage() {
   stats.newToday = newToday || 0
   stats.fiTonight = fiTonight
 
+  // ---------- Taches en retard (banniere persistante) ----------
+  const { data: overdueTasks } = await supabase.from('tasks')
+    .select('id,title,type,due_date,contact:contacts(id,first_name,last_name)')
+    .eq('status', 'pending')
+    .lt('due_date', today)
+    .order('due_date', { ascending: true })
+    .limit(20)
+  stats.overdueTasks = overdueTasks || []
+
   // ---------- Verification du dernier culte (Module Accueil) ----------
   const { data: lastCulte } = await supabase.from('cultes')
     .select('*').order('date', { ascending: false }).limit(1).maybeSingle()

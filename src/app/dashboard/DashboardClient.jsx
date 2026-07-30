@@ -234,6 +234,24 @@ export default function DashboardClient({ stats, profile }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20, maxWidth:1200 }}>
+      {stats.overdueTasks && stats.overdueTasks.length > 0 && (
+        <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:14, padding:'14px 18px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, fontWeight:700, color:'#DC2626', fontSize:14, marginBottom:8 }}>
+            <AlertCircle size={16} strokeWidth={2} color="#DC2626" />
+            {stats.overdueTasks.length} tâche{stats.overdueTasks.length>1?'s':''} en retard
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            {stats.overdueTasks.slice(0,5).map(t => (
+              <div key={t.id} style={{ fontSize:13, color:'#991B1B' }}>
+                Vous devez contacter <b>{t.contact?.first_name} {t.contact?.last_name}</b> — {t.title || t.type} (échéance : {t.due_date})
+              </div>
+            ))}
+            {stats.overdueTasks.length > 5 && (
+              <div style={{ fontSize:12, color:'#991B1B', fontStyle:'italic' }}>+ {stats.overdueTasks.length - 5} autre(s), voir Suivi &amp; Tâches</div>
+            )}
+          </div>
+        </div>
+      )}
       <div style={{ background:'linear-gradient(135deg,#072B6A 0%,#0B3D91 55%,#1452B5 100%)', borderRadius:22, padding:'32px 32px', color:'#fff', position:'relative', overflow:'hidden' }}>
         <div className="hero-circle" style={{ position:'absolute', top:-50, right:-30, width:220, height:220, borderRadius:'50%', border:'1px solid rgba(255,255,255,.1)' }} />
         <div className="hero-circle" style={{ position:'absolute', bottom:-70, right:120, width:140, height:140, borderRadius:'50%', border:'1px solid rgba(255,255,255,.07)', animationDelay:'1.5s' }} />

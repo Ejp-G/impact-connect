@@ -108,6 +108,12 @@ export async function POST(request) {
     parent_phone: parentPhone, parent_email: parentEmail, parent_relation: parentRelation,
     parent_address: parentAddress || null,
     contact_preference: contactPreference || null,
+    // Attribution TEMPORAIRE au createur : sera automatiquement
+    // transferee vers l'integrateur reellement designe des qu'il est
+    // assigne (voir trigger trg_sync_task_owner sur contact_integrators).
+    // Sans ca, les taches generees dans l'intervalle n'appartiendraient
+    // a personne et resteraient invisibles pour tout le monde.
+    assigned_to: session.user.id,
   }
 
   const { data: contact, error } = await supabase.from('contacts').insert(contactData).select().single()

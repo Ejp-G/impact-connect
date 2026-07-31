@@ -3,54 +3,31 @@ import { NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { STAGE_LABEL } from '@/lib/constants'
+import { STAGES, STAGE_LABEL } from '@/lib/constants'
 
-// ---------------------------------------------------------------
-// Config extensible : ajouter un 3e (ou 4e) integrateur demain se
-// fait ici, nulle part ailleurs. INTEGRATOR_SLOTS pilote a la fois
-// les colonnes Excel/PDF et la recherche du dernier compte-rendu par
-// position.
-// ---------------------------------------------------------------
 const INTEGRATOR_SLOTS = [1, 2]
 
-const STATUS_STYLES = {
-  ne_pas_contacter: { label: 'Ne pas contacter', color: 'FFE2E8F0', emoji: '⚪' },
-  en_retard:        { label: 'En retard',         color: 'FFFECACA', emoji: '🔴' },
-  reconciliation:   { label: 'Réconciliation',    color: 'FFE9D5FF', emoji: '🟣' },
-  appel_salut:       { label: 'Appel au salut',    color: 'FFFED7AA', emoji: '🟠' },
-  integre:          { label: 'Intégré FI',        color: 'FFBBF7D0', emoji: '🟢' },
-  contacte:         { label: 'Contacté',          color: 'FFBFDBFE', emoji: '🔵' },
-  nouveau:          { label: 'Nouveau',           color: 'FFFEF9C3', emoji: '🟡' },
+const RESULT_LABELS = {
+  repondu: 'Répondu', pas_de_reponse: 'Pas répondu', messagerie: 'Messagerie',
+  numero_invalide: 'Pas répondu',
 }
+const RESULT_OPTIONS = ['Répondu', 'Pas répondu', 'Messagerie', 'WhatsApp envoyé', 'Rendez-vous pris', 'Reporté']
+const PRIORITY_OPTIONS = ['Haute', 'Moyenne', 'Faible']
 
 function computeStatus(c, hasReconciliation) {
-  if (c.contact_preference === 'none') return 'ne_pas_contacter'
-  if (c.alert_level === 'red') return 'en_retard'
-  if (hasReconciliation) return 'reconciliation'
-  if (c.salvation_call) return 'appel_salut'
-  if (['integre', 'parcours', 'bapteme', 'service', 'leader_pot', 'leader'].includes(c.stage)) return 'integre'
-  if (c.integrator_contacted) return 'contacte'
-  return 'nouveau'
-}
-
-function computeAction(c) {
   if (c.contact_preference === 'none') return 'Ne pas contacter'
-  const map = {
-    visiteur: '📞 Appeler',
-    contacte: '🏠 Inviter en FI',
-    invite_fi: '📅 Confirmer présence FI',
-    fi1: '📅 Relancer pour 2ème FI',
-    fi2: '✅ Confirmer intégration',
-    integre: '📖 Parcours de croissance',
-    parcours: '✅ Parcours terminé',
-  }
-  return map[c.stage] || '🙏 Prier / Suivre'
+  if (c.alert_level === 'red') return 'Urgence'
+  if (hasReconciliation) return 'Réconciliation'
+  if (c.salvation_call) return 'Appel au salut'
+  if (['integre', 'parcours', 'bapteme', 'service', 'leader_pot', 'leader'].includes(c.stage)) return 'Intégré FI'
+  if (c.integrator_contacted) return 'Contacté'
+  return 'Nouveau'
 }
 
-function computeSuivi(c) {
-  if (['integre', 'parcours', 'bapteme', 'service', 'leader_pot', 'leader'].includes(c.stage)) return '🟢 Terminé'
-  if (c.integrator_contacted) return '🟡 En cours'
-  return '⬜ Non commencé'
+function computePriority(alertLevel) {
+  if (alertLevel === 'red') return 'Haute'
+  if (alertLevel === 'orange') return 'Moyenne'
+  return 'Faible'
 }
 
 function computeAge(dateOfBirth) {
@@ -58,21 +35,18 @@ function computeAge(dateOfBirth) {
   return Math.floor((Date.now() - new Date(dateOfBirth).getTime()) / (365.25 * 86400000))
 }
 
-const BASE_COLUMNS = [
-  'Statut', 'Nom', 'Prénom', 'Sexe', 'Date de naissance', 'Âge', 'Téléphone', 'Email', 'Adresse',
-  'Commune', 'Date de première visite', 'Connecteur',
-]
-const MID_COLUMNS = [
-  "Famille d'Impact", 'Étape actuelle', 'Dernier contact', 'Prochain contact',
-  'Nombre de contacts', 'Score', 'Priorité', 'Action à réaliser', 'Suivi',
-]
-
-function integratorColumns() {
-  const cols = []
-  INTEGRATOR_SLOTS.forEach(pos => {
-    cols.push(`Intégrateur ${pos}`, `Intégrateur ${pos} — Date`, `Intégrateur ${pos} — Moyen`, `Intégrateur ${pos} — Compte rendu`)
-  })
-  return cols
+function buildColumns() {
+  const integratorCols = INTEGRATOR_SLOTS.map(pos => `Intégrateur ${pos}`)
+  return [
+    'Statut', 'Nom', 'Prénom', 'Sexe', 'Date de naissance', 'Âge', 'Téléphone', 'Email', 'Adresse',
+    'Commune', 'Date de première visite', 'Connecteur',
+    ...integratorCols,
+    "Famille d'Impact", 'Étape actuelle',
+    'Dernier suivi effectué par', 'Date du dernier suivi', 'Prochaine action', 'Date prévue de cette action', 'Résultat', 'Priorité',
+    'Nombre de contacts', 'Score',
+    'Appelé', 'WhatsApp envoyé', 'Invité en FI', 'Revu au culte',
+    'Commentaires / Notes',
+  ]
 }
 
 function buildRow(c, reportsByContact, needsByContact) {
@@ -82,34 +56,41 @@ function buildRow(c, reportsByContact, needsByContact) {
   const integratorsByPos = {}
   ;(c.integrators || []).forEach(i => { integratorsByPos[i.position] = i })
 
-  const lastContactAt = allReports[0]?.contacted_at || null
-  const nextContact = allReports.find(r => r.next_contact_date)?.next_contact_date || null
+  const lastReport = allReports[0] || null
+  const priority = computePriority(c.alert_level)
+
+  const notesPreview = allReports.slice(0, 3)
+    .filter(r => r.notes)
+    .map(r => `[${new Date(r.contacted_at).toLocaleDateString('fr-FR')} — ${r.integrator?.name || '?'}] ${r.notes}`)
+    .join('\n')
 
   const row = {
-    Statut: STATUS_STYLES[status].label,
+    Statut: status,
     Nom: c.last_name || '', Prénom: c.first_name || '', Sexe: c.sex === 'F' ? 'Femme' : 'Homme',
     'Date de naissance': c.date_of_birth || '', 'Âge': computeAge(c.date_of_birth),
     Téléphone: c.phone || '', Email: c.email || '', Adresse: c.address || '',
     Commune: c.commune || '', 'Date de première visite': c.first_visit_date || '',
     Connecteur: c.welcomed_by_name || '',
     "Famille d'Impact": c.fi?.name || '', 'Étape actuelle': STAGE_LABEL(c.stage),
-    'Dernier contact': lastContactAt ? new Date(lastContactAt).toLocaleDateString('fr-FR') : 'Jamais',
-    'Prochain contact': nextContact || '—',
+    'Dernier suivi effectué par': lastReport?.integrator?.name || '—',
+    'Date du dernier suivi': lastReport ? new Date(lastReport.contacted_at).toLocaleDateString('fr-FR') : '',
+    'Prochaine action': lastReport?.next_action || '',
+    'Date prévue de cette action': lastReport?.next_contact_date || '',
+    'Résultat': lastReport?.result ? (RESULT_LABELS[lastReport.result] || '') : '',
+    'Priorité': priority,
     'Nombre de contacts': allReports.length,
     Score: c.integration_score ?? 0,
-    Priorité: c.alert_level === 'red' ? 'Urgent' : c.alert_level === 'orange' ? 'Modérée' : 'Normale',
-    'Action à réaliser': computeAction(c),
-    Suivi: computeSuivi(c),
-    _status: status,
+    'Appelé': !!c.integrator_contacted,
+    'WhatsApp envoyé': !!c.fi_whatsapp_added,
+    'Invité en FI': ['invite_fi', 'fi1', 'fi2', 'integre', 'parcours', 'bapteme', 'service', 'leader_pot', 'leader'].includes(c.stage),
+    'Revu au culte': false,
+    'Commentaires / Notes': notesPreview,
+    _priority: priority,
+    _integre: ['integre', 'parcours', 'bapteme', 'service', 'leader_pot', 'leader'].includes(c.stage),
   }
 
   INTEGRATOR_SLOTS.forEach(pos => {
-    const integrator = integratorsByPos[pos]
-    const lastReportForSlot = allReports.find(r => r.integrator_id === integrator?.integrator_id)
-    row[`Intégrateur ${pos}`] = integrator?.integrator?.name || '—'
-    row[`Intégrateur ${pos} — Date`] = lastReportForSlot ? new Date(lastReportForSlot.contacted_at).toLocaleDateString('fr-FR') : ''
-    row[`Intégrateur ${pos} — Moyen`] = lastReportForSlot?.method || ''
-    row[`Intégrateur ${pos} — Compte rendu`] = lastReportForSlot?.notes || ''
+    row[`Intégrateur ${pos}`] = integratorsByPos[pos]?.integrator?.name || '—'
   })
 
   return row
@@ -128,7 +109,7 @@ export async function POST(request) {
     .select(`
       id,first_name,last_name,sex,date_of_birth,phone,email,address,commune,first_visit_date,
       welcomed_by_name,stage,integration_score,alert_level,contact_preference,salvation_call,
-      integrator_contacted,assigned_to,fi_id,
+      integrator_contacted,fi_whatsapp_added,assigned_to,fi_id,
       fi:familles_impact(name),
       integrators:contact_integrators(position,integrator_id,integrator:profiles(name))
     `)
@@ -157,7 +138,9 @@ export async function POST(request) {
   const contactIds = (contactsRaw || []).map(c => c.id)
   const [{ data: reports }, { data: needs }] = await Promise.all([
     contactIds.length
-      ? supabase.from('integrator_reports').select('contact_id,integrator_id,contacted_at,method,notes,next_contact_date').in('contact_id', contactIds).order('contacted_at', { ascending: false })
+      ? supabase.from('integrator_reports')
+          .select('contact_id,integrator_id,contacted_at,method,result,notes,next_action,next_contact_date,integrator:profiles(name)')
+          .in('contact_id', contactIds).order('contacted_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     contactIds.length
       ? supabase.from('contact_needs').select('contact_id,category').in('contact_id', contactIds)
@@ -178,11 +161,10 @@ export async function POST(request) {
   if (quick.sans_integrateur) contacts = contacts.filter(c => !(c.integrators || []).length)
 
   const rows = contacts.map(c => buildRow(c, reportsByContact, needsByContact))
-
-  const allColumns = [...BASE_COLUMNS, ...integratorColumns(), ...MID_COLUMNS]
+  const allColumns = buildColumns()
 
   if (format === 'xlsx') {
-    const buffer = await buildXlsx(rows, allColumns, profile, includeHistory, reports || [], contacts)
+    const buffer = await buildXlsx(rows, allColumns, includeHistory, reports || [], contacts)
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -192,7 +174,7 @@ export async function POST(request) {
   }
 
   if (format === 'pdf') {
-    const buffer = buildPdf(rows, allColumns, profile, scope, integratorId)
+    const buffer = buildPdf(rows, profile, scope)
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/pdf',
@@ -204,12 +186,7 @@ export async function POST(request) {
   return NextResponse.json({ error: 'Format invalide' }, { status: 400 })
 }
 
-// ---------------------------------------------------------------
-// EXCEL (mise en forme complete : entetes bleu fonce/texte blanc,
-// filtres auto, ligne figee, largeur auto, couleur de ligne par
-// statut). S'ouvre directement dans Google Sheets via Fichier > Importer.
-// ---------------------------------------------------------------
-async function buildXlsx(rows, columns, profile, includeHistory, reports, contacts) {
+async function buildXlsx(rows, columns, includeHistory, reports, contacts) {
   const workbook = new ExcelJS.Workbook()
   workbook.creator = 'Prodiges Connect'
   workbook.created = new Date()
@@ -219,32 +196,50 @@ async function buildXlsx(rows, columns, profile, includeHistory, reports, contac
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 },
   })
 
-  sheet.columns = columns.map(c => ({ header: c, key: c, width: Math.max(14, c.length + 2) }))
+  const checkboxCols = ['Appelé', 'WhatsApp envoyé', 'Invité en FI', 'Revu au culte']
+  sheet.columns = columns.map(c => ({
+    header: c, key: c,
+    width: c === 'Commentaires / Notes' ? 60 : checkboxCols.includes(c) ? 12 : Math.max(14, c.length + 2),
+  }))
 
   const headerRow = sheet.getRow(1)
   headerRow.eachCell(cell => {
-    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, name: 'Calibri', size: 11 }
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF072B6A' } }
     cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
   })
-  headerRow.height = 24
+  headerRow.height = 26
 
-  rows.forEach(r => {
+  const priorityCol = columns.indexOf('Priorité') + 1
+  const stageCol = columns.indexOf('Étape actuelle') + 1
+  const resultCol = columns.indexOf('Résultat') + 1
+  const notesCol = columns.indexOf('Commentaires / Notes') + 1
+
+  rows.forEach((r, idx) => {
     const dataRow = sheet.addRow(r)
-    const style = STATUS_STYLES[r._status]
+    const zebra = idx % 2 === 1
     dataRow.eachCell((cell, colNumber) => {
-      if (columns[colNumber - 1] === 'Statut') return
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: style.color } }
-      cell.alignment = { vertical: 'middle', wrapText: true }
+      cell.font = { name: 'Calibri', size: 10.5 }
+      cell.alignment = { vertical: 'middle', wrapText: colNumber === notesCol }
+      cell.border = { bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } } }
+      if (zebra) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
     })
+    const priorityCell = dataRow.getCell(priorityCol)
+    if (r._priority === 'Haute') priorityCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFECACA' } }
+    else if (r._priority === 'Moyenne') priorityCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFED7AA' } }
+    if (r._integre) dataRow.getCell(stageCol).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBBF7D0' } }
+
+    dataRow.getCell(priorityCol).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${PRIORITY_OPTIONS.join(',')}"`] }
+    dataRow.getCell(resultCol).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${RESULT_OPTIONS.join(',')}"`] }
+    dataRow.getCell(stageCol).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${STAGES.map(s => s.label).join(',')}"`] }
   })
 
   sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } }
 
   if (includeHistory) {
     const histSheet = workbook.addWorksheet('Historique complet', { views: [{ state: 'frozen', ySplit: 1 }] })
-    const histColumns = ['Visiteur', 'Date', 'Intégrateur', 'Type de contact', 'Compte rendu', 'Prochaine action']
-    histSheet.columns = histColumns.map(c => ({ header: c, key: c, width: Math.max(16, c.length + 2) }))
+    const histColumns = ['Visiteur', 'Date', 'Intégrateur', 'Type de contact', 'Résultat', 'Compte rendu', 'Prochaine action']
+    histSheet.columns = histColumns.map(c => ({ header: c, key: c, width: c === 'Compte rendu' ? 50 : Math.max(16, c.length + 2) }))
     const hHeader = histSheet.getRow(1)
     hHeader.eachCell(cell => {
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
@@ -252,15 +247,17 @@ async function buildXlsx(rows, columns, profile, includeHistory, reports, contac
     })
     const contactById = {}
     contacts.forEach(c => { contactById[c.id] = `${c.first_name} ${c.last_name}` })
-    reports.forEach(r => {
-      histSheet.addRow({
+    reports.forEach((r, idx) => {
+      const histRow = histSheet.addRow({
         Visiteur: contactById[r.contact_id] || '—',
         Date: new Date(r.contacted_at).toLocaleDateString('fr-FR'),
-        Intégrateur: r.integrator_id || '',
+        Intégrateur: r.integrator?.name || '',
         'Type de contact': r.method || '',
+        'Résultat': RESULT_LABELS[r.result] || r.result || '',
         'Compte rendu': r.notes || '',
-        'Prochaine action': r.next_contact_date || '',
+        'Prochaine action': r.next_action || '',
       })
+      if (idx % 2 === 1) histRow.eachCell(cell => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } } })
     })
     histSheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: histColumns.length } }
   }
@@ -268,10 +265,7 @@ async function buildXlsx(rows, columns, profile, includeHistory, reports, contac
   return await workbook.xlsx.writeBuffer()
 }
 
-// ---------------------------------------------------------------
-// PDF (A4 paysage, pret a imprimer)
-// ---------------------------------------------------------------
-function buildPdf(rows, columns, profile, scope, integratorId) {
+function buildPdf(rows, profile, scope) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const today = new Date().toLocaleDateString('fr-FR')
 
@@ -287,11 +281,8 @@ function buildPdf(rows, columns, profile, scope, integratorId) {
   }
   doc.text(`Nombre total de visiteurs : ${rows.length}`, 200, 20)
 
-  // Colonnes essentielles seulement pour la lisibilite A4 (le detail
-  // complet reste dans l'export Excel) : le PDF est pense pour un
-  // usage terrain rapide, pas pour remplacer la feuille de calcul.
   const pdfColumns = ['Statut', 'Nom', 'Prénom', 'Téléphone', 'Commune', 'Étape actuelle',
-    'Intégrateur 1', 'Intégrateur 2', 'Dernier contact', 'Prochain contact', 'Action à réaliser', 'Suivi']
+    'Intégrateur 1', 'Intégrateur 2', 'Dernier suivi effectué par', 'Prochaine action', 'Résultat', 'Priorité']
 
   const tableRows = rows.map(r => pdfColumns.map(c => String(r[c] ?? '')))
 
@@ -301,17 +292,19 @@ function buildPdf(rows, columns, profile, scope, integratorId) {
     startY: 35,
     styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
     headStyles: { fillColor: [7, 43, 106], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
     didParseCell: (data) => {
       if (data.section === 'body') {
-        const status = rows[data.row.index]._status
-        const hex = STATUS_STYLES[status]?.color?.slice(2) // retire l'alpha ARGB
-        if (hex) {
-          const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16)
-          data.cell.styles.fillColor = [r, g, b]
+        const row = rows[data.row.index]
+        const colName = pdfColumns[data.column.index]
+        if (colName === 'Priorité') {
+          if (row._priority === 'Haute') data.cell.styles.fillColor = [254, 202, 202]
+          else if (row._priority === 'Moyenne') data.cell.styles.fillColor = [254, 215, 170]
         }
+        if (colName === 'Étape actuelle' && row._integre) data.cell.styles.fillColor = [187, 247, 208]
       }
     },
-    didDrawPage: (data) => {
+    didDrawPage: () => {
       doc.setFontSize(8)
       doc.setTextColor(150)
       doc.text(`Page ${doc.internal.getNumberOfPages()}`, doc.internal.pageSize.getWidth() - 20, doc.internal.pageSize.getHeight() - 8)

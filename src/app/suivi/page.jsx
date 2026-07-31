@@ -8,7 +8,18 @@ export default async function SuiviPage() {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-  const isAdmin = ['admin', 'responsable_suivi'].includes(profile?.role)
+  // Les statistiques globales (Dashboard, Pipeline, Rapports) restent
+  // partagees par toute l'equipe. En revanche, cette page de travail
+  // quotidien (Suivi & Taches) est desormais strictement PERSONNELLE,
+  // y compris pour un administrateur : chacun ne voit que les visiteurs
+  // et taches dont il est le responsable reel, pour que sa liste
+  // diminue au fur et a mesure qu'il assigne des integrateurs plutot
+  // que de rester englue avec tout ce qu'il a cree ou importe.
+  // Evolution prevue plus tard : un selecteur admin "Mes taches /
+  // Taches de {membre} / Toutes les taches" pourra remplacer ce filtre
+  // fixe sans toucher au reste de la page — il suffira de faire varier
+  // la valeur passee a .eq('assigned_to', ...) ci-dessous.
+  const myId = session.user.id
 
   const { data: contacts } = await supabase.from('contacts')
     .select(`
@@ -19,6 +30,7 @@ export default async function SuiviPage() {
       integrators:contact_integrators(position, integrator:profiles(id,name))
     `)
     .eq('status', 'active')
+    .eq('assigned_to', myId)
     .order('first_visit_date', { ascending: false })
 
   const contactIds = (contacts || []).map(c => c.id)
@@ -36,11 +48,11 @@ export default async function SuiviPage() {
         .in('contact_id', contactIds)
     : { data: [] }
 
-  let taskQuery = supabase.from('tasks')
+  const { data: tasks } = await supabase.from('tasks')
     .select('*, contact:contacts(id,first_name,last_name,sex,commune), assignee:profiles!tasks_assigned_to_fkey(id,name)')
-    .eq('status', 'pending').order('due_date', { ascending: true })
-  if (!isAdmin) taskQuery = taskQuery.eq('assigned_to', session.user.id)
-  const { data: tasks } = await taskQuery
+    .eq('status', 'pending')
+    .eq('assigned_to', myId)
+    .order('due_date', { ascending: true })
 
   const { data: profiles } = await supabase.from('profiles').select('id,name').eq('active', true).order('name')
 

@@ -98,13 +98,27 @@ export default async function DashboardPage() {
   stats.fiTonight = fiTonight
 
   // ---------- Taches en retard (banniere persistante) ----------
+  // Filtree sur l'utilisateur connecte : chacun ne voit que ses propres
+  // taches, jamais celles de toute l'equipe (sauf a etre soi-meme
+  // assigne dessus).
   const { data: overdueTasks } = await supabase.from('tasks')
     .select('id,title,type,due_date,contact:contacts(id,first_name,last_name)')
     .eq('status', 'pending')
+    .eq('assigned_to', session.user.id)
     .lt('due_date', today)
     .order('due_date', { ascending: true })
     .limit(20)
   stats.overdueTasks = overdueTasks || []
+
+  // ---------- Mon espace de suivi ----------
+  const [{ data: myTasksToday }, { count: myContactsCount }] = await Promise.all([
+    supabase.from('tasks').select('id,title,type,due_date,contact:contacts(id,first_name,last_name)')
+      .eq('status', 'pending').eq('assigned_to', session.user.id).eq('due_date', today),
+    supabase.from('contacts').select('*', { count:'exact', head:true })
+      .eq('status', 'active').eq('assigned_to', session.user.id),
+  ])
+  stats.myTasksToday = myTasksToday || []
+  stats.myContactsCount = myContactsCount || 0
 
   // ---------- Verification du dernier culte (Module Accueil) ----------
   const { data: lastCulte } = await supabase.from('cultes')

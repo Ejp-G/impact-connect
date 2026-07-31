@@ -51,7 +51,7 @@ export default function QRFormClient() {
   function validateStep2() {
     const e = {}
     if (!form.firstName.trim()) e.firstName = 'Le prénom est obligatoire.'
-    if (!form.lastName.trim()) e.lastName = 'Le nom est obligatoire.'
+    if (!isMinor && !form.lastName.trim()) e.lastName = 'Le nom est obligatoire.'
     if (!isValidEmail(form.email)) e.email = 'Cette adresse email ne semble pas valide.'
     if (!isValidPhone(form.phone)) e.phone = 'Ce numéro ne semble pas valide.'
     if (isMinor && !form.parentLastName.trim()) e.parentLastName = 'Le nom du parent est requis pour un mineur.'

@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { PRIORITY_COLORS, STAGE_LABEL, STAGE_COLOR, NEED_CATEGORIES } from '@/lib/constants'
 import TaskDetailModal from '@/components/tasks/TaskDetailModal'
 import NewcomerReportPanel from '@/components/suivi/NewcomerReportPanel'
@@ -21,7 +21,8 @@ function AlertDot({ level }) {
 
 export default function SuiviClient({ contacts, reports, needs, tasks: initialTasks, profiles = [], profile }) {
   const router = useRouter()
-  const [tab, setTab] = useState('nouveaux')
+  const searchParams = useSearchParams()
+  const [tab, setTab] = useState(searchParams.get('tab') || 'nouveaux')
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [periodFilter, setPeriodFilter] = useState('all') // all|today|week|month|year|sunday

@@ -5,7 +5,8 @@ import { PRIORITY_COLORS, STAGE_LABEL, STAGE_COLOR, NEED_CATEGORIES } from '@/li
 import TaskDetailModal from '@/components/tasks/TaskDetailModal'
 import NewcomerReportPanel from '@/components/suivi/NewcomerReportPanel'
 import NeedsDrilldownModal from '@/components/suivi/NeedsDrilldownModal'
-import { Users, CheckSquare, Compass, NEED_ICON_MAP } from '@/lib/icons'
+import ExportModal from '@/components/suivi/ExportModal'
+import { Users, CheckSquare, Compass, NEED_ICON_MAP, Download } from '@/lib/icons'
 
 const FILTERS = [
   ['all', 'Tous'], ['today', 'À contacter aujourd\'hui'], ['late', 'En retard'],
@@ -19,7 +20,7 @@ function AlertDot({ level }) {
   return <span style={{ display:'inline-block', width:9, height:9, borderRadius:'50%', background:color }} />
 }
 
-export default function SuiviClient({ contacts, reports, needs, tasks: initialTasks, profiles = [], profile, canViewTeam = false, suiviTeam = [], viewAs = 'me' }) {
+export default function SuiviClient({ contacts, reports, needs, tasks: initialTasks, profiles = [], profile, canViewTeam = false, suiviTeam = [], viewAs = 'me', fis = [], communes = [] }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [tab, setTab] = useState(searchParams.get('tab') || 'nouveaux')
@@ -35,6 +36,7 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
   const [taskSearch, setTaskSearch] = useState('')
   const [taskGroupByVisitor, setTaskGroupByVisitor] = useState(false)
   const [openFolders, setOpenFolders] = useState({})
+  const [showExport, setShowExport] = useState(false)
 
   const [tasks, setTasks] = useState(initialTasks)
 
@@ -225,6 +227,11 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
 
       {tab === 'nouveaux' && (
         <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <button onClick={() => setShowExport(true)} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Download size={14} strokeWidth={2} /> Exporter
+            </button>
+          </div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid var(--br)', borderRadius: 10, padding: '8px 14px' }}>
               <input value={search} onChange={e => changeSearch(e.target.value)} placeholder="Rechercher..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 13, width: 160 }} />
@@ -422,6 +429,15 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
           taskId={selectedTaskId}
           onClose={() => { setSelectedTaskId(null); router.refresh() }}
           profiles={profiles}
+        />
+      )}
+      {showExport && (
+        <ExportModal
+          onClose={() => setShowExport(false)}
+          fis={fis}
+          communes={communes}
+          suiviTeam={suiviTeam}
+          canViewTeam={canViewTeam}
         />
       )}
     </div>

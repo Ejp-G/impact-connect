@@ -51,11 +51,15 @@ export async function POST(request) {
   const { firstName, lastName, sex, dateOfBirth, phone, whatsapp, email,
           commune, communeId, quartier, address, firstVisit, salvationCall,
           wantsFI, prayerRequest, howFound,
-          parentLastName, parentFirstName, parentPhone, parentEmail,
+          parentLastName, parentFirstName, parentPhone, parentEmail, parentAddress,
           contactPreference, availability, invitedBy, welcomedByName, prayerCategories } = body
 
-  if (!firstName?.trim() || !lastName?.trim() || !sex) {
-    return NextResponse.json({ error: 'Prénom, nom et sexe sont obligatoires' }, { status: 400 })
+  const isMinor = dateOfBirth
+    ? new Date(dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear() - 18))
+    : false
+
+  if (!firstName?.trim() || !sex || (!isMinor && !lastName?.trim())) {
+    return NextResponse.json({ error: 'Prénom et sexe sont obligatoires (nom obligatoire pour un majeur)' }, { status: 400 })
   }
 
   if (!welcomedByName?.trim()) {
@@ -67,21 +71,14 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Adresse email invalide' }, { status: 400 })
   }
 
-  const isMinor = dateOfBirth
-    ? new Date(dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear() - 18))
-    : false
-
   if (isMinor && (!parentLastName?.trim() || !parentPhone?.trim())) {
     return NextResponse.json({ error: 'Informations du parent obligatoires pour les mineurs' }, { status: 400 })
   }
 
-  // Deduit du choix de preference de contact : si la personne demande a
-  // ne pas etre contactee, on ne peut pas la marquer "souhaite etre
-  // contactee" en meme temps (contradiction evitee).
   const wantsContact = contactPreference !== 'none'
 
   const contactData = {
-    first_name: firstName.trim(), last_name: lastName.trim(), sex,
+    first_name: firstName.trim(), last_name: lastName?.trim() || null, sex,
     date_of_birth: dateOfBirth || null,
     phone: phone || null, whatsapp: whatsapp || null, email: email || null,
     commune: commune || null, commune_id: communeId || null, quartier: quartier || null,
@@ -93,6 +90,7 @@ export async function POST(request) {
     parental_status: isMinor ? 'pending' : 'not_required',
     parent_last_name: parentLastName || null, parent_first_name: parentFirstName || null,
     parent_phone: parentPhone || null, parent_email: parentEmail || null,
+    parent_address: parentAddress || null,
     contact_preference: contactPreference || null,
     availability: availability?.length ? availability : null,
     invited_by: invitedBy?.trim() || "Je suis venu(e) seul(e).",

@@ -69,6 +69,8 @@ export default async function SuiviPage({ searchParams }) {
   const { data: tasks } = await tasksQuery
 
   const { data: profiles } = await supabase.from('profiles').select('id,name').eq('active', true).order('name')
+  const { data: fis } = await supabase.from('familles_impact').select('id,name').eq('status', 'active').order('name')
+  const { data: communes } = await supabase.from('communes').select('id,name').eq('active', true).order('name')
 
   return (
     <AppLayout profile={profile} pageId="suivi" title="Suivi & Tâches">
@@ -82,6 +84,8 @@ export default async function SuiviPage({ searchParams }) {
         canViewTeam={canViewTeam}
         suiviTeam={suiviTeam}
         viewAs={canViewTeam ? viewAs : 'me'}
+        fis={fis || []}
+        communes={communes || []}
       />
     </AppLayout>
   )

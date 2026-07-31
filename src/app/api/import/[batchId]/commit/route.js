@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createClient as createServerClient } from '@/lib/supabase/server';
 import { VISITEURS_TABLE, COLUMN_MAP, SITUATION_FIELDS } from '@/lib/import/config';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -29,7 +30,7 @@ function normalizeDateFr(value) {
 // texte lisible dans `situation` plutot que d'etre mal assignes a une
 // colonne technique (ex: stage, assigned_to) qu'ils ne peuvent pas
 // remplir correctement automatiquement.
-function toVisiteurRecord(mappedData) {
+function toVisiteurRecord(mappedData, importedBy) {
   const record = {};
   Object.entries(COLUMN_MAP).forEach(([canonicalField, columnName]) => {
     let value = mappedData[canonicalField];
@@ -51,6 +52,12 @@ function toVisiteurRecord(mappedData) {
     record.situation = situationLines.join('\n');
   }
 
+  // Attribution TEMPORAIRE a la personne qui valide l'import : sera
+  // automatiquement transferee vers l'integrateur reellement designe
+  // des qu'il est assigne (voir trigger trg_sync_task_owner). Sans ca,
+  // les taches generees dans l'intervalle n'appartiendraient a personne.
+  if (importedBy) record.assigned_to = importedBy;
+
   return record;
 }
 
@@ -60,6 +67,13 @@ function toVisiteurRecord(mappedData) {
 export async function POST(request, { params }) {
   const { batchId } = params;
   try {
+    // Identifie qui valide l'import (session cookie, distincte du
+    // client service-role utilise pour ecrire) afin d'attribuer
+    // temporairement les fiches importees a cette personne.
+    const sessionClient = createServerClient();
+    const { data: { session } } = await sessionClient.auth.getSession();
+    const importedBy = session?.user?.id || null;
+
     await supabase.from('import_batches').update({ status: 'committing' }).eq('id', batchId);
     const { data: rows, error: rowsError } = await supabase
       .from('import_rows')
@@ -70,7 +84,7 @@ export async function POST(request, { params }) {
     if (rows.length === 0) {
       return Response.json({ error: 'Aucune ligne valide à importer' }, { status: 400 });
     }
-    const visiteurRecords = rows.map((r) => toVisiteurRecord(r.mapped_data));
+    const visiteurRecords = rows.map((r) => toVisiteurRecord(r.mapped_data, importedBy));
     const { data: inserted, error: insertError } = await supabase
       .from(VISITEURS_TABLE)
       .insert(visiteurRecords)

@@ -219,10 +219,10 @@ export default function DashboardClient({ stats, profile }) {
   const firstName = profile?.name?.split(' ')[0] || 'Pasteur'
 
   const statCards = [
-    { Icon: Users, label: 'Total contacts', value: stats.totalContacts || 0, color: '#0B3D91', sub: null },
-    { Icon: Home, label: "Familles d'Impact", value: stats.fiData?.length || 0, color: '#22C55E', sub: stats.fiPausedCount > 0 ? `dont ${stats.fiPausedCount} en pause` : null },
-    { Icon: AlertCircle, label: 'Alertes urgentes', value: stats.alertsRed || 0, color: '#EF4444', sub: null },
-    { Icon: CheckSquare, label: 'Tâches en attente', value: stats.pendingTasks || 0, color: '#F97316', sub: null },
+    { Icon: Users, label: 'Total contacts', value: stats.totalContacts || 0, color: '#0B3D91', sub: null, href: '/visiteurs' },
+    { Icon: Home, label: "Familles d'Impact", value: stats.fiData?.length || 0, color: '#22C55E', sub: stats.fiPausedCount > 0 ? `dont ${stats.fiPausedCount} en pause` : null, href: '/fi' },
+    { Icon: AlertCircle, label: 'Alertes urgentes', value: stats.alertsRed || 0, color: '#EF4444', sub: null, href: '/visiteurs?filter=alert' },
+    { Icon: CheckSquare, label: 'Tâches en attente', value: stats.pendingTasks || 0, color: '#F97316', sub: null, href: '/suivi?tab=taches' },
   ]
 
   const todayChecklist = [
@@ -252,6 +252,30 @@ export default function DashboardClient({ stats, profile }) {
           </div>
         </div>
       )}
+
+      {(stats.myContactsCount > 0 || stats.myTasksToday?.length > 0) && (
+        <div className="card" style={{ borderLeft: '4px solid #0B3D91' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:12 }}>
+            <div>
+              <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>👤 Mon espace de suivi</div>
+              <div style={{ fontSize:13, color:'var(--gy)' }}>
+                Vous suivez <b style={{ color:'#0B3D91' }}>{stats.myContactsCount}</b> visiteur(s), dont <b style={{ color:'#F97316' }}>{stats.myTasksToday?.length || 0}</b> tâche(s) à faire aujourd'hui.
+              </div>
+            </div>
+            <button onClick={() => router.push('/visiteurs?filter=mine')} style={{ ...backBtnStyle, background:'#0B3D91', color:'#fff' }}>Voir mes visiteurs</button>
+          </div>
+          {stats.myTasksToday?.length > 0 && (
+            <div style={{ marginTop:14, display:'flex', flexDirection:'column', gap:6 }}>
+              {stats.myTasksToday.slice(0,4).map(t => (
+                <div key={t.id} style={{ fontSize:12, color:'var(--gd)' }}>
+                  <b>{t.contact?.first_name} {t.contact?.last_name}</b> — {t.title || t.type}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ background:'linear-gradient(135deg,#072B6A 0%,#0B3D91 55%,#1452B5 100%)', borderRadius:22, padding:'32px 32px', color:'#fff', position:'relative', overflow:'hidden' }}>
         <div className="hero-circle" style={{ position:'absolute', top:-50, right:-30, width:220, height:220, borderRadius:'50%', border:'1px solid rgba(255,255,255,.1)' }} />
         <div className="hero-circle" style={{ position:'absolute', bottom:-70, right:120, width:140, height:140, borderRadius:'50%', border:'1px solid rgba(255,255,255,.07)', animationDelay:'1.5s' }} />
@@ -275,12 +299,14 @@ export default function DashboardClient({ stats, profile }) {
 
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
             {[
-              ['Visiteurs ce mois', stats.newThisMonth || 0, '↑'],
-              ['Intégrations', stats.stageCounts?.integre || 0, '↑'],
-              ['Appels au salut', stats.salvations || 0, '↑'],
-              ['Tâches en attente', stats.pendingTasks || 0, ''],
-            ].map(([lb,v,ch])=>(
-              <div key={lb} style={{ background:'rgba(255,255,255,.1)', borderRadius:12, padding:'14px 16px' }}>
+              ['Visiteurs ce mois', stats.newThisMonth || 0, '↑', '/visiteurs?filter=new'],
+              ['Intégrations', stats.stageCounts?.integre || 0, '↑', '/pipeline?etape=integre'],
+              ['Appels au salut', stats.salvations || 0, '↑', '/visiteurs?filter=salvation'],
+              ['Tâches en attente', stats.pendingTasks || 0, '', '/suivi?tab=taches'],
+            ].map(([lb,v,ch,href])=>(
+              <div key={lb} onClick={() => router.push(href)} style={{ background:'rgba(255,255,255,.1)', borderRadius:12, padding:'14px 16px', cursor:'pointer', transition:'background .15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.16)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,.1)'}>
                 <div style={{ fontSize:11, opacity:.7, marginBottom:4, fontWeight:500 }}>{lb}</div>
                 <div style={{ fontSize:26, fontWeight:800, letterSpacing:'-.5px' }}>{v}</div>
                 {ch && <div style={{ fontSize:11, color:'#86EFAC', marginTop:2 }}>{ch} ce mois</div>}
@@ -291,8 +317,10 @@ export default function DashboardClient({ stats, profile }) {
       </div>
 
       <div className="g4">
-        {statCards.map(({ Icon, label, value, color, sub }) => (
-          <div key={label} className="card stat-halo" style={{ padding:20, borderTop:`3px solid ${color}`, '--halo-color': color+'22' }}>
+        {statCards.map(({ Icon, label, value, color, sub, href }) => (
+          <div key={label} onClick={() => router.push(href)} className="card stat-halo" style={{ padding:20, borderTop:`3px solid ${color}`, '--halo-color': color+'22', cursor:'pointer', transition:'transform .15s' }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
             <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', position:'relative', zIndex:1 }}>
               <div>
                 <div style={{ fontSize:13, color:'#64748B', fontWeight:500, marginBottom:8 }}>{label}</div>

@@ -23,7 +23,7 @@ export default async function DashboardPage() {
       .eq('status','active').gte('first_visit_date', startOfMonth),
     supabase.from('contacts').select('*', { count:'exact', head:true }).eq('salvation_call', true)
       .gte('first_visit_date', startOfMonth),
-    supabase.from('tasks').select('*', { count:'exact', head:true }).eq('status','pending'),
+    supabase.from('tasks').select('*', { count:'exact', head:true }).eq('status','pending').eq('assigned_to', session.user.id),
     supabase.from('contacts').select('*', { count:'exact', head:true }).eq('alert_level','red').eq('status','active'),
     // Toutes les FIJ sauf celles definitivement fermees : une FIJ "en
     // developpement" ou "en pause" reste une FIJ existante et doit

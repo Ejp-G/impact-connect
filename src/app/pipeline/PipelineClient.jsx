@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { scoreColor } from '@/lib/utils'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
@@ -47,6 +47,7 @@ function CompactCard({ c, onClick }) {
 
 export default function PipelineClient({ contacts, fis = [], communes = [], stageEvolution = {} }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [viewMode, setViewMode] = useState('pipeline')
   const [drawerStage, setDrawerStage] = useState(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -55,7 +56,7 @@ export default function PipelineClient({ contacts, fis = [], communes = [], stag
   const [secteur, setSecteur] = useState('')
   const [fiFilter, setFiFilter] = useState('')
   const [piloteFilter, setPiloteFilter] = useState('')
-  const [etapeFilter, setEtapeFilter] = useState('')
+  const [etapeFilter, setEtapeFilter] = useState(searchParams.get('etape') || '')
   const [advanced, setAdvanced] = useState({})
   const [sortField, setSortField] = useState('name')
   const [sortDir, setSortDir] = useState('asc')
@@ -198,6 +199,9 @@ export default function PipelineClient({ contacts, fis = [], communes = [], stag
       {viewMode === 'pipeline' ? (
         <div style={{ display:'grid', gridTemplateColumns:'1fr 220px', gap:20, alignItems:'start' }}>
           <div>
+            <div style={{ fontSize:11, color:'var(--gy)', marginBottom:8 }}>
+              Le premier chiffre est le nombre de personnes à cette étape. <b>"% du pipeline"</b> = part de cette étape parmi toutes les personnes en parcours. <b>"vs 30j précédents"</b> = évolution du nombre de personnes arrivées à cette étape par rapport au mois précédent.
+            </div>
             <div style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:8 }}>
               {FUNNEL_STAGES.map((stageId, i) => {
                 const Icon = STAGE_ICON_MAP[stageId]
@@ -213,13 +217,12 @@ export default function PipelineClient({ contacts, fis = [], communes = [], stag
                       </div>
                       <div style={{ fontSize:11, fontWeight:700, color:'var(--gd)', marginBottom:6 }}>{STAGE_LABEL(stageId)}</div>
                       <div style={{ fontSize:26, fontWeight:800, color:'#1E293B' }}>{count}</div>
-                      <div style={{ fontSize:11, color:'var(--gy)', marginTop:2 }}>
-                        {pct}%{stageEvolution[stageId] !== null && stageEvolution[stageId] !== undefined && (
-                          <span style={{ color: stageEvolution[stageId] >= 0 ? '#16A34A' : '#DC2626', fontWeight:700, marginLeft:4 }}>
-                            {stageEvolution[stageId] >= 0 ? '↑' : '↓'} {Math.abs(stageEvolution[stageId])}%
-                          </span>
-                        )}
-                      </div>
+                      <div style={{ fontSize:10, color:'var(--gy)', marginTop:4 }}>{pct}% du pipeline</div>
+                      {stageEvolution[stageId] !== null && stageEvolution[stageId] !== undefined && (
+                        <div style={{ fontSize:10, marginTop:2, color: stageEvolution[stageId] >= 0 ? '#16A34A' : '#DC2626', fontWeight:700 }}>
+                          {stageEvolution[stageId] >= 0 ? '↑' : '↓'} {Math.abs(stageEvolution[stageId])}% vs 30j précédents
+                        </div>
+                      )}
                     </div>
                     {i < FUNNEL_STAGES.length - 1 && <ArrowRight size={16} strokeWidth={2} color="#CBD5E1" style={{ flexShrink:0 }} />}
                   </div>
@@ -290,24 +293,26 @@ export default function PipelineClient({ contacts, fis = [], communes = [], stag
       )}
 
       {drawerStage && (
-        <div onClick={() => setDrawerStage(null)} style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.4)', zIndex:1000 }}>
-          <div onClick={e => e.stopPropagation()} style={{ position:'absolute', top:0, right:0, bottom:0, width:380, maxWidth:'90vw', background:'#fff', boxShadow:'-8px 0 32px rgba(0,0,0,.15)', display:'flex', flexDirection:'column', animation:'slideInDrawer .2s ease' }}>
-            <style>{`@keyframes slideInDrawer { from { transform:translateX(100%); } to { transform:translateX(0); } }`}</style>
-            <div style={{ padding:'18px 20px', borderBottom:'1px solid #F1F5F9', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <div style={{ fontSize:15, fontWeight:700 }}>
+        <div onClick={() => setDrawerStage(null)} style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.5)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:20, width:'100%', maxWidth:920, maxHeight:'85vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.25)', animation:'fadeInModal .2s ease' }}>
+            <style>{`@keyframes fadeInModal { from { opacity:0; transform:scale(.97); } to { opacity:1; transform:scale(1); } }`}</style>
+            <div style={{ padding:'22px 28px', borderBottom:'1px solid #F1F5F9', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ fontSize:18, fontWeight:800 }}>
                 {drawerStage === '__baptises' ? '💧 Baptisés' : drawerStage === '__service' ? '🤝 En service' : STAGE_LABEL(drawerStage)}
-                {' '}({drawerCountForDisplay})
+                {' '}<span style={{ color:'var(--gy)', fontWeight:600, fontSize:15 }}>({drawerCountForDisplay})</span>
               </div>
-              <button onClick={() => setDrawerStage(null)} style={{ background:'#F1F5F9', border:'none', borderRadius:8, width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-                <X size={14} strokeWidth={2} />
+              <button onClick={() => setDrawerStage(null)} style={{ background:'#F1F5F9', border:'none', borderRadius:10, width:34, height:34, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                <X size={16} strokeWidth={2} />
               </button>
             </div>
-            <div style={{ flex:1, overflowY:'auto', padding:16, display:'flex', flexDirection:'column', gap:8 }}>
-              {drawerListForDisplay.map(c => (
-                <CompactCard key={c.id} c={c} onClick={() => router.push(`/visiteurs/${c.id}`)} />
-              ))}
+            <div style={{ flex:1, overflowY:'auto', padding:24 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:12 }}>
+                {drawerListForDisplay.map(c => (
+                  <CompactCard key={c.id} c={c} onClick={() => router.push(`/visiteurs/${c.id}`)} />
+                ))}
+              </div>
               {drawerCountForDisplay === 0 && (
-                <div style={{ textAlign:'center', color:'var(--gy)', fontSize:13, padding:30 }}>Personne dans cette catégorie.</div>
+                <div style={{ textAlign:'center', color:'var(--gy)', fontSize:13, padding:50 }}>Personne dans cette catégorie.</div>
               )}
             </div>
           </div>

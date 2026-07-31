@@ -72,23 +72,26 @@ export async function POST(request) {
   const { firstName, lastName, sex, dateOfBirth, phone, whatsapp, email,
           commune, communeId, quartier, firstVisit, salvationCall,
           wantsContact, wantsFI, interests, prayerRequest, howFound, situation,
-          parentLastName, parentFirstName, parentPhone, parentEmail, parentRelation,
+          parentLastName, parentFirstName, parentPhone, parentEmail, parentRelation, parentAddress,
           contactPreference } = body
 
-  if (!firstName || !lastName || !sex) {
-    return NextResponse.json({ error: 'Prénom, nom et sexe sont obligatoires' }, { status: 400 })
-  }
-
+  // isMinor calcule AVANT la validation : le nom de famille n'est pas
+  // obligatoire pour un mineur (on ne connait parfois que le prenom a
+  // la premiere venue), mais reste obligatoire pour un majeur.
   const isMinor = dateOfBirth
     ? new Date(dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear() - 18))
     : false
+
+  if (!firstName || !sex || (!isMinor && !lastName)) {
+    return NextResponse.json({ error: 'Prénom et sexe sont obligatoires (nom obligatoire pour un majeur)' }, { status: 400 })
+  }
 
   if (isMinor && (!parentLastName || !parentPhone)) {
     return NextResponse.json({ error: 'Informations du parent obligatoires pour les mineurs' }, { status: 400 })
   }
 
   const contactData = {
-    first_name: firstName, last_name: lastName, sex,
+    first_name: firstName, last_name: lastName || null, sex,
     date_of_birth: dateOfBirth || null,
     phone, whatsapp, email,
     commune, commune_id: communeId || null, quartier,
@@ -103,6 +106,7 @@ export async function POST(request) {
     parental_status: isMinor ? 'pending' : 'not_required',
     parent_last_name: parentLastName, parent_first_name: parentFirstName,
     parent_phone: parentPhone, parent_email: parentEmail, parent_relation: parentRelation,
+    parent_address: parentAddress || null,
     contact_preference: contactPreference || null,
   }
 

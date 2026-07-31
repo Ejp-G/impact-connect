@@ -18,7 +18,8 @@ export default async function SuiviPage({ searchParams }) {
   // cote serveur, pas seulement cote UI, meme si le parametre d'URL
   // est manipule directement).
   const myId = session.user.id
-  const canViewTeam = ['admin', 'responsable_suivi'].includes(profile?.role)
+  const canViewTeam = ['admin', 'responsable_suivi', 'superviseur'].includes(profile?.role)
+    || (profile?.secondary_roles || []).includes('responsable_suivi')
   const viewAs = canViewTeam ? (searchParams?.viewAs || 'me') : 'me'
   const viewingAll = viewAs === 'all'
   const targetId = viewAs === 'me' || !canViewTeam ? myId : viewAs

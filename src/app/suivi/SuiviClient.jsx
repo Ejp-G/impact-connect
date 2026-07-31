@@ -19,7 +19,7 @@ function AlertDot({ level }) {
   return <span style={{ display:'inline-block', width:9, height:9, borderRadius:'50%', background:color }} />
 }
 
-export default function SuiviClient({ contacts, reports, needs, tasks: initialTasks, profiles = [], profile }) {
+export default function SuiviClient({ contacts, reports, needs, tasks: initialTasks, profiles = [], profile, canViewTeam = false, suiviTeam = [], viewAs = 'me' }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [tab, setTab] = useState(searchParams.get('tab') || 'nouveaux')
@@ -96,6 +96,13 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
 
   function changeFilter(f) { setFilter(f) }
   function changeSearch(v) { setSearch(v) }
+
+  function changeViewAs(v) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (v === 'me') params.delete('viewAs')
+    else params.set('viewAs', v)
+    router.push(`/suivi?${params.toString()}`)
+  }
 
   // Regroupement chronologique par mois d'arrivee (first_visit_date).
   // Ordre le plus recent en premier ; seul le mois en cours est ouvert
@@ -188,7 +195,7 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
 
   return (
     <div style={{ maxWidth: 1200 }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
         {[['nouveaux', 'Suivi des nouveaux', Users], ['taches', 'Tâches', CheckSquare]].map(([id, label, Icon]) => (
           <div key={id} onClick={() => setTab(id)} style={{
             padding: '10px 20px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700,
@@ -198,7 +205,23 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
             <Icon size={15} strokeWidth={2} /> {label}
           </div>
         ))}
+
+        {canViewTeam && (
+          <select value={viewAs} onChange={e => changeViewAs(e.target.value)} style={{ marginLeft: 'auto', padding: '9px 14px', borderRadius: 10, border: '1px solid var(--br)', fontSize: 12, fontFamily: 'inherit', background: '#fff', color: 'var(--gd)', fontWeight: 600 }}>
+            <option value="me">👤 Mes tâches</option>
+            {suiviTeam.filter(m => m.id !== profile?.id).map(m => (
+              <option key={m.id} value={m.id}>Tâches de {m.name}</option>
+            ))}
+            <option value="all">🌐 Toute l'équipe</option>
+          </select>
+        )}
       </div>
+
+      {canViewTeam && viewAs !== 'me' && (
+        <div style={{ background: '#EFF6FF', color: '#1D4ED8', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, marginBottom: 16 }}>
+          {viewAs === 'all' ? "Vous consultez les visiteurs et tâches de toute l'équipe." : `Vous consultez le portefeuille de ${suiviTeam.find(m => m.id === viewAs)?.name || 'ce membre'}.`}
+        </div>
+      )}
 
       {tab === 'nouveaux' && (
         <div>
@@ -362,12 +385,12 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
                             <div key={name}>
                               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gd)', marginBottom: 6 }}>{name}</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
-                                {items.map(t => <TaskRow key={t.id} t={t} onOpen={setSelectedTaskId} onToggle={toggleLegacyTask} />)}
+                                {items.map(t => <TaskRow key={t.id} t={t} onOpen={setSelectedTaskId} onToggle={toggleLegacyTask} showAssignee={viewAs !== 'me'} />)}
                               </div>
                             </div>
                           ))
                         ) : (
-                          folder.items.map(t => <TaskRow key={t.id} t={t} onOpen={setSelectedTaskId} onToggle={toggleLegacyTask} />)
+                          folder.items.map(t => <TaskRow key={t.id} t={t} onOpen={setSelectedTaskId} onToggle={toggleLegacyTask} showAssignee={viewAs !== 'me'} />)
                         )}
                       </div>
                     )}
@@ -405,12 +428,13 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
   )
 }
 
-function TaskRow({ t, onOpen, onToggle }) {
+function TaskRow({ t, onOpen, onToggle, showAssignee }) {
   return (
     <div onClick={() => onOpen(t.id)} style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', borderLeft: `4px solid ${PRIORITY_COLORS[t.priority] || '#94A3B8'}`, boxShadow: '0 1px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
       <div onClick={e => onToggle(e, t.id)} style={{ width: 16, height: 16, borderRadius: 5, border: `2px solid ${PRIORITY_COLORS[t.priority] || '#94A3B8'}`, cursor: 'pointer', flexShrink: 0 }} />
       <div style={{ flex: 1, fontSize: 12 }}>
         <span style={{ fontWeight: 600 }}>{t.title || t.type}</span> — {t.contact?.first_name} {t.contact?.last_name} · Échéance : {t.due_date}
+        {showAssignee && t.assignee?.name && <span style={{ color: 'var(--gy)' }}> · {t.assignee.name}</span>}
       </div>
     </div>
   )

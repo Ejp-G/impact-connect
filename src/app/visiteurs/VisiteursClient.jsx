@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { STAGE_LABEL, STAGE_COLOR, STAGES } from '@/lib/constants'
 import { formatDate, scoreColor } from '@/lib/utils'
 import ImportModal from '@/components/contacts/ImportModal'
@@ -13,7 +13,8 @@ function AlertDot({ level }) {
 }
 
 export default function VisiteursClient({ contacts, stats, fis, communes, profile }) {
-  const [filter, setFilter] = useState('all')
+  const searchParams = useSearchParams()
+  const [filter, setFilter] = useState(searchParams.get('filter') || 'all')
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -40,6 +41,8 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
     if (filter === 'minor') return c.is_minor
     if (filter === 'salvation') return c.salvation_call
     if (filter === 'no_contact') return c.contact_preference === 'none'
+    if (filter === 'salvation') return c.salvation_call === true
+    if (filter === 'mine') return c.agent?.id === profile?.id
     return true
   })
 

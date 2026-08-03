@@ -244,6 +244,7 @@ export default function DashboardClient({ stats, profile }) {
             {stats.overdueTasks.slice(0,5).map(t => (
               <div key={t.id} style={{ fontSize:13, color:'#991B1B' }}>
                 Vous devez contacter <b>{t.contact?.first_name} {t.contact?.last_name}</b> — {t.title || t.type} (échéance : {t.due_date})
+                {stats.overdueIsTeamWide && t.assignee?.name && <span> · <i>{t.assignee.name}</i></span>}
               </div>
             ))}
             {stats.overdueTasks.length > 5 && (

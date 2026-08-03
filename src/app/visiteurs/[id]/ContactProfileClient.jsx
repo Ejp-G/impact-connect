@@ -181,6 +181,10 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
     ? Math.floor((Date.now() - new Date(contact.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
     : null
 
+  const parentalAuthorized = ['autorise', 'authorized', 'approved', 'valide'].includes((contact.parental_status || '').toLowerCase())
+  const parentName = [contact.parent_first_name, contact.parent_last_name].filter(Boolean).join(' ')
+  const missingParentInfo = !parentName || !contact.parent_phone
+
   const TABS = [
     ['apercu', 'Aperçu'],
     ['besoins', `Besoins (${needs.length})`],
@@ -207,6 +211,21 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
               {contact.salvation_call ? 'Appel au salut' : 'Nouveau visiteur'}
             </span>
             {contact.is_minor && <span className="badge" style={{ background: '#FEF3C7', color: '#92400E' }}>Mineur</span>}
+            {contact.is_minor && missingParentInfo && (
+              <span className="badge" style={{ background: '#FFF7ED', color: '#9A3412', fontWeight: 700 }}>
+                Représentant légal non renseigné
+              </span>
+            )}
+            {contact.is_minor && !missingParentInfo && !parentalAuthorized && (
+              <span className="badge" style={{ background: '#FFF7ED', color: '#9A3412', fontWeight: 700 }}>
+                Autorisation parentale non confirmée
+              </span>
+            )}
+            {contact.is_minor && parentalAuthorized && (
+              <span className="badge" style={{ background: '#DCFCE7', color: '#166534', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <CheckCircle2 size={11} strokeWidth={2} /> Autorisation parentale
+              </span>
+            )}
             {!contact.sex && (
               <span className="badge" style={{ background: '#FFF7ED', color: '#9A3412', fontWeight: 700 }}>
                 Sexe non renseigné — attribution d'intégrateur impossible
@@ -250,6 +269,38 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
             {contact.welcomed_by_name && <InfoRow Icon={Users} value={`Connecteur : ${contact.welcomed_by_name}`} />}
             {contact.invited_by && <InfoRow Icon={Users} value={`Invité par : ${contact.invited_by}`} />}
           </div>
+
+          {contact.is_minor && (
+            <div className="card" style={{ border: missingParentInfo || !parentalAuthorized ? '1px solid #FED7AA' : undefined }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 12 }}>
+                Représentant légal
+              </div>
+              {missingParentInfo ? (
+                <div style={{ fontSize: 12, background: '#FFF7ED', color: '#9A3412', borderRadius: 8, padding: '8px 10px', marginBottom: parentName || contact.parent_phone ? 10 : 0 }}>
+                  {!parentName && !contact.parent_phone
+                    ? 'Aucun représentant légal renseigné. Utilisez le bouton « Modifier » pour le compléter.'
+                    : 'Informations incomplètes : le nom et le téléphone du représentant sont requis.'}
+                </div>
+              ) : null}
+              {parentName && (
+                <InfoRow Icon={Users} value={`${parentName}${contact.parent_relation ? ` (${contact.parent_relation})` : ''}`} />
+              )}
+              {contact.parent_phone && <InfoRow Icon={Phone} value={contact.parent_phone} />}
+              {contact.parent_email && <InfoRow Icon={Mail} value={contact.parent_email} />}
+              {contact.parent_address && <InfoRow Icon={MapPin} value={contact.parent_address} />}
+              <div style={{
+                fontSize: 12, fontWeight: 700, borderRadius: 8, padding: '8px 10px', marginTop: 8,
+                color: parentalAuthorized ? '#16A34A' : '#9A3412',
+                background: parentalAuthorized ? '#F0FDF4' : '#FFF7ED'
+              }}>
+                {parentalAuthorized
+                  ? `Autorisation parentale obtenue${contact.parental_auth_date ? ` le ${new Date(contact.parental_auth_date).toLocaleDateString('fr-FR')}` : ''}`
+                  : contact.parental_status
+                    ? `Autorisation parentale : ${contact.parental_status}`
+                    : 'Aucune autorisation parentale enregistrée'}
+              </div>
+            </div>
+          )}
 
           <div className="card">
             <div style={{ fontSize: 12, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 12 }}>Intégrateurs</div>

@@ -98,17 +98,21 @@ export default async function DashboardPage() {
   stats.fiTonight = fiTonight
 
   // ---------- Taches en retard (banniere persistante) ----------
-  // Filtree sur l'utilisateur connecte : chacun ne voit que ses propres
-  // taches, jamais celles de toute l'equipe (sauf a etre soi-meme
-  // assigne dessus).
-  const { data: overdueTasks } = await supabase.from('tasks')
-    .select('id,title,type,due_date,contact:contacts(id,first_name,last_name)')
+  // Personnelle pour un intégrateur normal ; visible sur TOUTE
+  // l'équipe pour superviseur/responsable_suivi/admin (role de
+  // garde-fou), y compris via le role secondaire responsable_suivi.
+  const isSupervisorView = ['admin', 'responsable_suivi', 'superviseur'].includes(profile?.role)
+    || (profile?.secondary_roles || []).includes('responsable_suivi')
+  let overdueQuery = supabase.from('tasks')
+    .select('id,title,type,due_date,contact:contacts(id,first_name,last_name),assignee:profiles!tasks_assigned_to_fkey(name)')
     .eq('status', 'pending')
-    .eq('assigned_to', session.user.id)
     .lt('due_date', today)
     .order('due_date', { ascending: true })
     .limit(20)
+  if (!isSupervisorView) overdueQuery = overdueQuery.eq('assigned_to', session.user.id)
+  const { data: overdueTasks } = await overdueQuery
   stats.overdueTasks = overdueTasks || []
+  stats.overdueIsTeamWide = isSupervisorView
 
   // ---------- Mon espace de suivi ----------
   const [{ data: myTasksToday }, { count: myContactsCount }] = await Promise.all([

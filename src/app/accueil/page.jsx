@@ -10,13 +10,22 @@ export default async function AccueilPage() {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
 
   const { data: cultes } = await supabase.from('cultes')
-    .select('*, creator:profiles(name)')
+    .select(`
+      *, creator:profiles!cultes_created_by_fkey(name),
+      conducteur_priere_stars:profiles!cultes_conducteur_priere_stars_id_fkey(name),
+      conducteur_priere_debut:profiles!cultes_conducteur_priere_debut_id_fkey(name),
+      moderateur:profiles!cultes_moderateur_id_fkey(name),
+      referent_jour:profiles!cultes_referent_jour_id_fkey(name),
+      orateur:profiles!cultes_orateur_id_fkey(name)
+    `)
     .order('date', { ascending: false })
-    .limit(52)
+    .limit(104)
+
+  const { data: profiles } = await supabase.from('profiles').select('id,name').eq('active', true).order('name')
 
   return (
     <AppLayout profile={profile} pageId="accueil" title="Accueil">
-      <AccueilClient cultes={cultes || []} profile={profile} />
+      <AccueilClient cultes={cultes || []} profile={profile} profiles={profiles || []} />
     </AppLayout>
   )
 }

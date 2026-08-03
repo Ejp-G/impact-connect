@@ -245,7 +245,7 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
             <InfoRow Icon={Phone} value={contact.phone || '—'} />
             <InfoRow Icon={Mail} value={contact.email || '—'} />
             <InfoRow Icon={MapPin} value={contact.commune || '—'} />
-            <InfoRow Icon={Calendar} value={age !== null ? `${age} ans` : '—'} />
+            <InfoRow Icon={Calendar} value={contact.date_of_birth ? `Né(e) le ${new Date(contact.date_of_birth).toLocaleDateString('fr-FR')}${age !== null ? ` (${age} ans)` : ''}` : 'Date de naissance non renseignée'} />
             <InfoRow Icon={Calendar} value={contact.first_visit_date ? `Arrivé(e) le ${contact.first_visit_date}` : '—'} />
             {contact.welcomed_by_name && <InfoRow Icon={Users} value={`Connecteur : ${contact.welcomed_by_name}`} />}
             {contact.invited_by && <InfoRow Icon={Users} value={`Invité par : ${contact.invited_by}`} />}

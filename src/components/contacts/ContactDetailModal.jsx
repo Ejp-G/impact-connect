@@ -7,6 +7,7 @@ import { Users, CheckCircle2, X } from '@/lib/icons'
 
 const AUTHORIZED_VALUES = ['autorise', 'authorized', 'approved', 'valide']
 const REFUSED_VALUES = ['refuse', 'refused', 'rejected']
+const PENDING_VALUES = ['pending', 'en_attente']
 
 function parentalStatusInfo(status, authDate) {
   const s = (status || '').toLowerCase()
@@ -19,8 +20,8 @@ function parentalStatusInfo(status, authDate) {
   if (REFUSED_VALUES.includes(s)) {
     return { label: 'Autorisation parentale refusée', color: '#DC2626', bg: '#FEF2F2' }
   }
-  if (s) {
-    return { label: `Autorisation parentale : ${status}`, color: '#B45309', bg: '#FFFBEB' }
+  if (PENDING_VALUES.includes(s)) {
+    return { label: "En attente d'autorisation parentale", color: '#B45309', bg: '#FFFBEB' }
   }
   return { label: 'Aucune autorisation parentale enregistrée', color: '#B45309', bg: '#FFFBEB' }
 }
@@ -53,6 +54,19 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   const [integrator1Id, setIntegrator1Id] = useState('')
   const [integrator2Id, setIntegrator2Id] = useState('')
   const [savingIntegrators, setSavingIntegrators] = useState(false)
+  const [savingParental, setSavingParental] = useState(false)
+
+  async function setParentalStatus(status) {
+    setSavingParental(true)
+    const { error } = await supabase.from('contacts').update({
+      parental_status: status,
+      parental_auth_date: status === 'authorized' ? new Date().toISOString() : null
+    }).eq('id', contactId)
+    setSavingParental(false)
+    if (error) { alert(error.message); return }
+    await load()
+    router.refresh()
+  }
 
   useEffect(() => {
     if (contactId) load()
@@ -202,9 +216,16 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   // Âge calculé en direct sur la date saisie dans le formulaire :
   // la section « Représentant légal » apparaît dès que la date correspond
   // à un mineur, sans attendre l'enregistrement ni le trigger update_is_minor.
-  const formAge = form?.date_of_birth
-    ? Math.floor((Date.now() - new Date(form.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
-    : null
+  // Calcul en heure locale (pas via new Date('YYYY-MM-DD') qui décale d'un
+  // jour en Guadeloupe, UTC-4).
+  let formAge = null
+  if (form?.date_of_birth) {
+    const [by, bm, bd] = String(form.date_of_birth).slice(0, 10).split('-').map(Number)
+    const birth = new Date(by, bm - 1, bd)
+    const now = new Date()
+    formAge = now.getFullYear() - birth.getFullYear()
+    if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) formAge--
+  }
   const formIsMinor = formAge !== null ? formAge < 18 : !!contact?.is_minor
   const parentalInfo = parentalStatusInfo(contact?.parental_status, contact?.parental_auth_date)
   const missingParentInfo = formIsMinor && form && (
@@ -406,6 +427,35 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
 
                     <div style={{ fontSize: 12, fontWeight: 700, color: parentalInfo.color, background: parentalInfo.bg, borderRadius: 8, padding: '8px 10px' }}>
                       {parentalInfo.label}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => setParentalStatus('authorized')}
+                        disabled={savingParental}
+                        style={{ padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid #BBF7D0', background: '#F0FDF4', color: '#16A34A' }}
+                      >
+                        ✓ Autorisation obtenue
+                      </button>
+                      <button
+                        onClick={() => setParentalStatus('pending')}
+                        disabled={savingParental}
+                        style={{ padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid #FDE68A', background: '#FFFBEB', color: '#B45309' }}
+                      >
+                        En attente
+                      </button>
+                      <button
+                        onClick={() => setParentalStatus('refused')}
+                        disabled={savingParental}
+                        style={{ padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626' }}
+                      >
+                        ✗ Refusée
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 11, color: '#9A3412' }}>
+                      {savingParental
+                        ? 'Enregistrement du statut…'
+                        : "Le statut est enregistré immédiatement. « Autorisation obtenue » horodate l'accord à la date du jour."}
                     </div>
 
                     {missingParentInfo && (

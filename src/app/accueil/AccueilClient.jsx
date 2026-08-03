@@ -18,16 +18,16 @@ function todayISO() { return new Date().toISOString().slice(0, 10) }
 const emptyForm = {
   date: todayISO(), heure_debut: '', heure_fin: '', type_culte: 'Dimanche',
   stars_total: '', stars_hommes: '', stars_femmes: '',
-  conducteur_priere_stars_id: '', conducteur_priere_debut_id: '', moderateur_id: '', referent_jour_id: '', orateur_id: '',
-  autres_stars: [],
-  presents: '', freq_hommes: '', freq_femmes: '', freq_jeunes: '', freq_enfants: '', freq_bebes: '', freq_autre: '',
+  conducteur_priere_stars: '', conducteur_priere_debut: '', moderateur: '', referent_jour: '', orateur: '',
+  autres_stars: '',
+  presents: '', freq_hommes: '', freq_femmes: '', freq_jeunes: '', freq_enfants: '', freq_bebes: '', freq_autre: '', freq_autre_precision: '',
   titre_message: '', nouveaux_comptes: '', appels_au_salut_comptes: '',
   points_positifs: '', points_negatifs: '', actions_amelioration: '', compte_rendu: '',
 }
 
 function toNumOrNull(v) { return v === '' || v === null || v === undefined ? null : Number(v) }
 
-export default function AccueilClient({ cultes, profile, profiles }) {
+export default function AccueilClient({ cultes, profile }) {
   const router = useRouter()
   const supabase = createClient()
   const [showWizard, setShowWizard] = useState(false)
@@ -66,12 +66,12 @@ export default function AccueilClient({ cultes, profile, profiles }) {
     setForm({
       date: culte.date, heure_debut: culte.heure_debut || '', heure_fin: culte.heure_fin || '', type_culte: culte.type_culte || 'Dimanche',
       stars_total: culte.stars_total ?? '', stars_hommes: culte.stars_hommes ?? '', stars_femmes: culte.stars_femmes ?? '',
-      conducteur_priere_stars_id: culte.conducteur_priere_stars_id || '', conducteur_priere_debut_id: culte.conducteur_priere_debut_id || '',
-      moderateur_id: culte.moderateur_id || '', referent_jour_id: culte.referent_jour_id || '', orateur_id: culte.orateur_id || '',
-      autres_stars: culte.autres_stars || [],
+      conducteur_priere_stars: culte.conducteur_priere_stars || '', conducteur_priere_debut: culte.conducteur_priere_debut || '',
+      moderateur: culte.moderateur || '', referent_jour: culte.referent_jour || '', orateur: culte.orateur || '',
+      autres_stars: culte.autres_stars || '',
       presents: culte.presents ?? '', freq_hommes: culte.freq_hommes ?? '', freq_femmes: culte.freq_femmes ?? '',
       freq_jeunes: culte.freq_jeunes ?? '', freq_enfants: culte.freq_enfants ?? '', freq_bebes: culte.freq_bebes ?? '',
-      freq_autre: culte.freq_autre ?? '',
+      freq_autre: culte.freq_autre ?? '', freq_autre_precision: culte.freq_autre_precision || '',
       titre_message: culte.titre_message || '', nouveaux_comptes: culte.nouveaux_comptes ?? '', appels_au_salut_comptes: culte.appels_au_salut_comptes ?? '',
       points_positifs: culte.points_positifs || '', points_negatifs: culte.points_negatifs || '',
       actions_amelioration: culte.actions_amelioration || '', compte_rendu: culte.compte_rendu || '',
@@ -80,13 +80,6 @@ export default function AccueilClient({ cultes, profile, profiles }) {
     setStep(0)
     setViewingCulte(null)
     setShowWizard(true)
-  }
-
-  function toggleAutreStar(id) {
-    setForm(prev => ({
-      ...prev,
-      autres_stars: prev.autres_stars.includes(id) ? prev.autres_stars.filter(x => x !== id) : [...prev.autres_stars, id]
-    }))
   }
 
   const freqSum = ['freq_hommes', 'freq_femmes', 'freq_jeunes', 'freq_enfants', 'freq_bebes', 'freq_autre']
@@ -100,12 +93,12 @@ export default function AccueilClient({ cultes, profile, profiles }) {
     const payload = {
       date: form.date, heure_debut: form.heure_debut || null, heure_fin: form.heure_fin || null, type_culte: form.type_culte,
       stars_total: toNumOrNull(form.stars_total), stars_hommes: toNumOrNull(form.stars_hommes), stars_femmes: toNumOrNull(form.stars_femmes),
-      conducteur_priere_stars_id: form.conducteur_priere_stars_id || null, conducteur_priere_debut_id: form.conducteur_priere_debut_id || null,
-      moderateur_id: form.moderateur_id || null, referent_jour_id: form.referent_jour_id || null, orateur_id: form.orateur_id || null,
-      autres_stars: form.autres_stars.length ? form.autres_stars : null,
+      conducteur_priere_stars: form.conducteur_priere_stars.trim() || null, conducteur_priere_debut: form.conducteur_priere_debut.trim() || null,
+      moderateur: form.moderateur.trim() || null, referent_jour: form.referent_jour.trim() || null, orateur: form.orateur.trim() || null,
+      autres_stars: form.autres_stars.trim() || null,
       presents: toNumOrNull(form.presents), freq_hommes: toNumOrNull(form.freq_hommes), freq_femmes: toNumOrNull(form.freq_femmes),
       freq_jeunes: toNumOrNull(form.freq_jeunes), freq_enfants: toNumOrNull(form.freq_enfants), freq_bebes: toNumOrNull(form.freq_bebes),
-      freq_autre: toNumOrNull(form.freq_autre),
+      freq_autre: toNumOrNull(form.freq_autre), freq_autre_precision: form.freq_autre_precision.trim() || null,
       titre_message: form.titre_message || null,
       nouveaux_comptes: toNumOrNull(form.nouveaux_comptes), appels_au_salut_comptes: toNumOrNull(form.appels_au_salut_comptes),
       points_positifs: form.points_positifs || null, points_negatifs: form.points_negatifs || null,
@@ -134,8 +127,6 @@ export default function AccueilClient({ cultes, profile, profiles }) {
     if (err) { alert(err.message); return }
     router.refresh()
   }
-
-  const nameById = (id) => profiles.find(p => p.id === id)?.name || '—'
 
   return (
     <div style={{ maxWidth: 1000 }}>
@@ -215,18 +206,18 @@ export default function AccueilClient({ cultes, profile, profiles }) {
             <ViewSection title="Service STAR">
               <ViewRow label="Stars (total)" value={viewingCulte.stars_total} />
               <ViewRow label="Hommes / Femmes" value={`${viewingCulte.stars_hommes ?? '—'} / ${viewingCulte.stars_femmes ?? '—'}`} />
-              <ViewRow label="Conducteur prière Stars" value={viewingCulte.conducteur_priere_stars?.name} />
-              <ViewRow label="Conducteur prière début" value={viewingCulte.conducteur_priere_debut?.name} />
-              <ViewRow label="Modérateur" value={viewingCulte.moderateur?.name} />
-              <ViewRow label="Référent du jour" value={viewingCulte.referent_jour?.name} />
-              <ViewRow label="Orateur" value={viewingCulte.orateur?.name} />
-              <ViewRow label="Autres Stars" value={(viewingCulte.autres_stars || []).map(nameById).join(', ') || '—'} />
+              <ViewRow label="Conducteur prière Stars" value={viewingCulte.conducteur_priere_stars} />
+              <ViewRow label="Conducteur prière début" value={viewingCulte.conducteur_priere_debut} />
+              <ViewRow label="Modérateur" value={viewingCulte.moderateur} />
+              <ViewRow label="Référent du jour" value={viewingCulte.referent_jour} />
+              <ViewRow label="Orateur" value={viewingCulte.orateur} />
+              <ViewRow label="Autres stars aidés ou en service" value={viewingCulte.autres_stars} block />
             </ViewSection>
             <ViewSection title="Fréquentation">
-              <ViewRow label="Total auditorium" value={viewingCulte.presents} />
+              <ViewRow label="Total auditorium (incluant les stars en service)" value={viewingCulte.presents} />
               <ViewRow label="Hommes / Femmes" value={`${viewingCulte.freq_hommes ?? '—'} / ${viewingCulte.freq_femmes ?? '—'}`} />
               <ViewRow label="Jeunes / Enfants / Bébés" value={`${viewingCulte.freq_jeunes ?? '—'} / ${viewingCulte.freq_enfants ?? '—'} / ${viewingCulte.freq_bebes ?? '—'}`} />
-              <ViewRow label="Tatas / Tontons" value={`${viewingCulte.freq_tatas ?? '—'} / ${viewingCulte.freq_tontons ?? '—'}`} />
+              <ViewRow label="Autre" value={viewingCulte.freq_autre != null ? `${viewingCulte.freq_autre}${viewingCulte.freq_autre_precision ? ' — ' + viewingCulte.freq_autre_precision : ''}` : '—'} />
             </ViewSection>
             <ViewSection title="Vie du culte">
               <ViewRow label="Titre / Thème" value={viewingCulte.titre_message} />
@@ -292,35 +283,25 @@ export default function AccueilClient({ cultes, profile, profiles }) {
                   <div className="form-group"><label className="form-label">Femmes</label><input type="number" min={0} className="form-input" value={form.stars_femmes} onChange={e => setForm({ ...form, stars_femmes: e.target.value })} /></div>
                 </div>
                 {[
-                  ['conducteur_priere_stars_id', 'Conducteur de la prière des Stars'],
-                  ['conducteur_priere_debut_id', 'Conducteur de la prière du début'],
-                  ['moderateur_id', 'Modérateur'],
-                  ['referent_jour_id', 'Référent du jour'],
-                  ['orateur_id', 'Orateur'],
+                  ['conducteur_priere_stars', 'Conducteur de la prière des Stars'],
+                  ['conducteur_priere_debut', 'Conducteur de la prière du début'],
+                  ['moderateur', 'Modérateur'],
+                  ['referent_jour', 'Référent du jour'],
+                  ['orateur', 'Orateur'],
                 ].map(([key, label]) => (
                   <div key={key} className="form-group"><label className="form-label">{label}</label>
-                    <select className="form-input" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })}>
-                      <option value="">— Sélectionner —</option>
-                      {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <input className="form-input" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} placeholder="Prénom Nom" />
                   </div>
                 ))}
-                <div className="form-group"><label className="form-label">Autres Stars ayant servi</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 140, overflowY: 'auto', border: '1px solid var(--br)', borderRadius: 10, padding: 10 }}>
-                    {profiles.map(p => (
-                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', padding: '4px 8px', borderRadius: 6, background: form.autres_stars.includes(p.id) ? 'rgba(11,61,145,.08)' : 'transparent' }}>
-                        <input type="checkbox" checked={form.autres_stars.includes(p.id)} onChange={() => toggleAutreStar(p.id)} style={{ width: 14, height: 14 }} />
-                        {p.name}
-                      </label>
-                    ))}
-                  </div>
+                <div className="form-group"><label className="form-label">Autres stars AIDÉS ou en SERVICE (ce jour) :</label>
+                  <textarea className="form-input" rows={2} style={{ resize: 'vertical' }} value={form.autres_stars} onChange={e => setForm({ ...form, autres_stars: e.target.value })} placeholder="Prénoms/noms séparés par des virgules" />
                 </div>
               </div>
             )}
 
             {step === 2 && (
               <div>
-                <div className="form-group"><label className="form-label">Nombre total dans l'auditorium</label><input type="number" min={0} className="form-input" value={form.presents} onChange={e => setForm({ ...form, presents: e.target.value })} /></div>
+                <div className="form-group"><label className="form-label">Nombre total dans l'auditorium (incluant les stars en service)</label><input type="number" min={0} className="form-input" value={form.presents} onChange={e => setForm({ ...form, presents: e.target.value })} /></div>
                 <div className="g2">
                   <div className="form-group"><label className="form-label">Hommes</label><input type="number" min={0} className="form-input" value={form.freq_hommes} onChange={e => setForm({ ...form, freq_hommes: e.target.value })} /></div>
                   <div className="form-group"><label className="form-label">Femmes</label><input type="number" min={0} className="form-input" value={form.freq_femmes} onChange={e => setForm({ ...form, freq_femmes: e.target.value })} /></div>
@@ -331,9 +312,9 @@ export default function AccueilClient({ cultes, profile, profiles }) {
                 </div>
                 <div className="g2">
                   <div className="form-group"><label className="form-label">Bébés</label><input type="number" min={0} className="form-input" value={form.freq_bebes} onChange={e => setForm({ ...form, freq_bebes: e.target.value })} /></div>
-                  <div className="form-group"><label className="form-label">Tatas</label><input type="number" min={0} className="form-input" value={form.freq_tatas} onChange={e => setForm({ ...form, freq_tatas: e.target.value })} /></div>
+                  <div className="form-group"><label className="form-label">Autre</label><input type="number" min={0} className="form-input" value={form.freq_autre} onChange={e => setForm({ ...form, freq_autre: e.target.value })} /></div>
                 </div>
-                <div className="form-group"><label className="form-label">Tontons</label><input type="number" min={0} className="form-input" value={form.freq_tontons} onChange={e => setForm({ ...form, freq_tontons: e.target.value })} /></div>
+                <div className="form-group"><label className="form-label">Précision (facultatif)</label><input className="form-input" value={form.freq_autre_precision} onChange={e => setForm({ ...form, freq_autre_precision: e.target.value })} placeholder="Préciser si vous le souhaitez" /></div>
                 <div style={{ fontSize: 12, color: freqSum && Number(form.presents) && freqSum !== Number(form.presents) ? '#D97706' : 'var(--gy)', background: '#F8FAFC', borderRadius: 8, padding: '8px 12px' }}>
                   Total calculé depuis la répartition : <b>{freqSum}</b>
                   {form.presents && Number(form.presents) !== freqSum && ' (différent du total auditorium saisi — vérifiez si besoin)'}

@@ -51,6 +51,26 @@ function formatDateTime(d) {
   return new Date(d).toLocaleString('fr-FR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
 }
 
+// Formatte une date seule (YYYY-MM-DD) sans conversion de fuseau horaire.
+// new Date('2014-05-21') est interprété comme minuit UTC, ce qui affiche
+// la veille en Guadeloupe (UTC-4). On découpe donc la chaîne directement.
+function formatDateOnly(d) {
+  if (!d) return null
+  const [y, m, day] = String(d).slice(0, 10).split('-')
+  return `${day}/${m}/${y}`
+}
+
+// Âge exact calculé en local, sans décalage UTC.
+function computeAge(d) {
+  if (!d) return null
+  const [y, m, day] = String(d).slice(0, 10).split('-').map(Number)
+  const birth = new Date(y, m - 1, day)
+  const now = new Date()
+  let age = now.getFullYear() - birth.getFullYear()
+  if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) age--
+  return age
+}
+
 /* ============================================================
    MODAL DE SUPPRESSION DÉFINITIVE (admin uniquement)
    - exige la saisie exacte du nom complet du visiteur
@@ -177,11 +197,12 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
   const isAdmin = profile?.role === 'admin'
   const canEdit = isAdmin || profile?.role === 'responsable_suivi' || profile?.role === 'responsable_integration'
 
-  const age = contact.date_of_birth
-    ? Math.floor((Date.now() - new Date(contact.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
-    : null
+  const age = computeAge(contact.date_of_birth)
 
-  const parentalAuthorized = ['autorise', 'authorized', 'approved', 'valide'].includes((contact.parental_status || '').toLowerCase())
+  const parentalStatusNorm = (contact.parental_status || '').toLowerCase()
+  const parentalAuthorized = ['autorise', 'authorized', 'approved', 'valide'].includes(parentalStatusNorm)
+  const parentalPending = ['pending', 'en_attente'].includes(parentalStatusNorm)
+  const parentalRefused = ['refuse', 'refused', 'rejected'].includes(parentalStatusNorm)
   const parentName = [contact.parent_first_name, contact.parent_last_name].filter(Boolean).join(' ')
   const missingParentInfo = !parentName || !contact.parent_phone
 
@@ -264,8 +285,8 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
             <InfoRow Icon={Phone} value={contact.phone || '—'} />
             <InfoRow Icon={Mail} value={contact.email || '—'} />
             <InfoRow Icon={MapPin} value={contact.commune || '—'} />
-            <InfoRow Icon={Calendar} value={contact.date_of_birth ? `Né(e) le ${new Date(contact.date_of_birth).toLocaleDateString('fr-FR')}${age !== null ? ` (${age} ans)` : ''}` : 'Date de naissance non renseignée'} />
-            <InfoRow Icon={Calendar} value={contact.first_visit_date ? `Arrivé(e) le ${contact.first_visit_date}` : '—'} />
+            <InfoRow Icon={Calendar} value={contact.date_of_birth ? `Né(e) le ${formatDateOnly(contact.date_of_birth)}${age !== null ? ` (${age} ans)` : ''}` : 'Date de naissance non renseignée'} />
+            <InfoRow Icon={Calendar} value={contact.first_visit_date ? `Arrivé(e) le ${formatDateOnly(contact.first_visit_date)}` : '—'} />
             {contact.welcomed_by_name && <InfoRow Icon={Users} value={`Connecteur : ${contact.welcomed_by_name}`} />}
             {contact.invited_by && <InfoRow Icon={Users} value={`Invité par : ${contact.invited_by}`} />}
           </div>
@@ -290,14 +311,16 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
               {contact.parent_address && <InfoRow Icon={MapPin} value={contact.parent_address} />}
               <div style={{
                 fontSize: 12, fontWeight: 700, borderRadius: 8, padding: '8px 10px', marginTop: 8,
-                color: parentalAuthorized ? '#16A34A' : '#9A3412',
-                background: parentalAuthorized ? '#F0FDF4' : '#FFF7ED'
+                color: parentalAuthorized ? '#16A34A' : parentalRefused ? '#DC2626' : '#9A3412',
+                background: parentalAuthorized ? '#F0FDF4' : parentalRefused ? '#FEF2F2' : '#FFF7ED'
               }}>
                 {parentalAuthorized
                   ? `Autorisation parentale obtenue${contact.parental_auth_date ? ` le ${new Date(contact.parental_auth_date).toLocaleDateString('fr-FR')}` : ''}`
-                  : contact.parental_status
-                    ? `Autorisation parentale : ${contact.parental_status}`
-                    : 'Aucune autorisation parentale enregistrée'}
+                  : parentalRefused
+                    ? 'Autorisation parentale refusée'
+                    : parentalPending
+                      ? "En attente d'autorisation parentale"
+                      : 'Aucune autorisation parentale enregistrée'}
               </div>
             </div>
           )}

@@ -1,12 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { STAGE_LABEL, STAGE_COLOR, NEED_CATEGORIES } from '@/lib/constants'
 import { scoreColor } from '@/lib/utils'
 import ContactDetailModal from '@/components/contacts/ContactDetailModal'
-// ⚠️ Aligner cet import sur celui utilisé dans ContactDetailModal.jsx
-// (même client Supabase que pour le self-fetch des communes/FI)
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import {
   ArrowLeft, Pencil, Phone, Mail, MapPin, Calendar, Users, Home,
   MessageCircle, Compass, CheckCircle2, XCircle, Clock, NEED_ICON_MAP
@@ -61,6 +59,7 @@ function formatDateTime(d) {
      refait côté serveur, trace dans deletion_log)
    ============================================================ */
 function DeleteVisitorModal({ contact, onClose, onDeleted }) {
+  const supabase = useMemo(() => createClient(), [])
   const [confirmName, setConfirmName] = useState('')
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)

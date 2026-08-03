@@ -47,6 +47,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     setForm(data ? {
       first_name: data.first_name || '', last_name: data.last_name || '',
       sex: data.sex || '',
+      date_of_birth: data.date_of_birth || '',
       phone: data.phone || '', whatsapp: data.whatsapp || '', email: data.email || '',
       commune_id: data.commune_id || '', quartier: data.quartier || '',
       fi_id: data.fi_id || '', prayer_request: data.prayer_request || '',
@@ -115,6 +116,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     const { error } = await supabase.from('contacts').update({
       first_name: form.first_name, last_name: form.last_name,
       sex: form.sex || null,
+      date_of_birth: form.date_of_birth || null,
       phone: form.phone, whatsapp: form.whatsapp, email: form.email,
       commune_id: form.commune_id || null, commune: commune?.name || contact.commune,
       quartier: form.quartier, fi_id: form.fi_id || null,
@@ -334,18 +336,26 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                   <Field label="Prénom" style={{ flex: 1 }}><input value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} style={inputStyle} /></Field>
                   <Field label="Nom" style={{ flex: 1 }}><input value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} style={inputStyle} /></Field>
                 </div>
-                <Field label="Sexe">
-                  <select value={form.sex} onChange={e => setForm({ ...form, sex: e.target.value })} style={{ ...inputStyle, borderColor: form.sex ? '#E2E8F0' : '#FDBA74' }}>
-                    <option value="">— Non renseigné —</option>
-                    <option value="M">Homme</option>
-                    <option value="F">Femme</option>
-                  </select>
-                  {!form.sex && (
-                    <div style={{ fontSize: 11, color: '#9A3412', marginTop: 4 }}>
-                      Requis pour l'attribution d'intégrateurs (binôme du même sexe).
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <Field label="Sexe" style={{ flex: 1 }}>
+                    <select value={form.sex} onChange={e => setForm({ ...form, sex: e.target.value })} style={{ ...inputStyle, borderColor: form.sex ? '#E2E8F0' : '#FDBA74' }}>
+                      <option value="">— Non renseigné —</option>
+                      <option value="M">Homme</option>
+                      <option value="F">Femme</option>
+                    </select>
+                    {!form.sex && (
+                      <div style={{ fontSize: 11, color: '#9A3412', marginTop: 4 }}>
+                        Requis pour l'attribution d'intégrateurs (binôme du même sexe).
+                      </div>
+                    )}
+                  </Field>
+                  <Field label="Date de naissance" style={{ flex: 1 }}>
+                    <input type="date" value={form.date_of_birth} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} style={inputStyle} />
+                    <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
+                      Sert au calcul de l'âge et du statut « Mineur ».
                     </div>
-                  )}
-                </Field>
+                  </Field>
+                </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <Field label="Téléphone" style={{ flex: 1 }}><input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={inputStyle} /></Field>
                   <Field label="WhatsApp" style={{ flex: 1 }}><input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} style={inputStyle} /></Field>

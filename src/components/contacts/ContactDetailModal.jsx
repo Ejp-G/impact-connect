@@ -5,6 +5,26 @@ import { createClient } from '@/lib/supabase/client'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { Users, CheckCircle2, X } from '@/lib/icons'
 
+const AUTHORIZED_VALUES = ['autorise', 'authorized', 'approved', 'valide']
+const REFUSED_VALUES = ['refuse', 'refused', 'rejected']
+
+function parentalStatusInfo(status, authDate) {
+  const s = (status || '').toLowerCase()
+  if (AUTHORIZED_VALUES.includes(s)) {
+    return {
+      label: `Autorisation parentale obtenue${authDate ? ` le ${new Date(authDate).toLocaleDateString('fr-FR')}` : ''}`,
+      color: '#16A34A', bg: '#F0FDF4'
+    }
+  }
+  if (REFUSED_VALUES.includes(s)) {
+    return { label: 'Autorisation parentale refusée', color: '#DC2626', bg: '#FEF2F2' }
+  }
+  if (s) {
+    return { label: `Autorisation parentale : ${status}`, color: '#B45309', bg: '#FFFBEB' }
+  }
+  return { label: 'Aucune autorisation parentale enregistrée', color: '#B45309', bg: '#FFFBEB' }
+}
+
 export default function ContactDetailModal({ contactId, onClose, communes = [], fis = [] }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -48,6 +68,9 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
       first_name: data.first_name || '', last_name: data.last_name || '',
       sex: data.sex || '',
       date_of_birth: data.date_of_birth || '',
+      parent_first_name: data.parent_first_name || '', parent_last_name: data.parent_last_name || '',
+      parent_relation: data.parent_relation || '', parent_phone: data.parent_phone || '',
+      parent_email: data.parent_email || '', parent_address: data.parent_address || '',
       phone: data.phone || '', whatsapp: data.whatsapp || '', email: data.email || '',
       commune_id: data.commune_id || '', quartier: data.quartier || '',
       fi_id: data.fi_id || '', prayer_request: data.prayer_request || '',
@@ -117,6 +140,12 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
       first_name: form.first_name, last_name: form.last_name,
       sex: form.sex || null,
       date_of_birth: form.date_of_birth || null,
+      parent_first_name: form.parent_first_name.trim() || null,
+      parent_last_name: form.parent_last_name.trim() || null,
+      parent_relation: form.parent_relation.trim() || null,
+      parent_phone: form.parent_phone.trim() || null,
+      parent_email: form.parent_email.trim() || null,
+      parent_address: form.parent_address.trim() || null,
       phone: form.phone, whatsapp: form.whatsapp, email: form.email,
       commune_id: form.commune_id || null, commune: commune?.name || contact.commune,
       quartier: form.quartier, fi_id: form.fi_id || null,
@@ -169,6 +198,18 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
 
   const isAdmin = currentProfile?.role === 'admin'
   const canManageIntegrators = isAdmin || currentProfile?.role === 'responsable_suivi'
+
+  // Âge calculé en direct sur la date saisie dans le formulaire :
+  // la section « Représentant légal » apparaît dès que la date correspond
+  // à un mineur, sans attendre l'enregistrement ni le trigger update_is_minor.
+  const formAge = form?.date_of_birth
+    ? Math.floor((Date.now() - new Date(form.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
+    : null
+  const formIsMinor = formAge !== null ? formAge < 18 : !!contact?.is_minor
+  const parentalInfo = parentalStatusInfo(contact?.parental_status, contact?.parental_auth_date)
+  const missingParentInfo = formIsMinor && form && (
+    !(form.parent_first_name.trim() || form.parent_last_name.trim()) || !form.parent_phone.trim()
+  )
 
   async function saveIntegrators() {
     setSavingIntegrators(true)
@@ -356,6 +397,47 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                     </div>
                   </Field>
                 </div>
+
+                {formIsMinor && (
+                  <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#9A3412', textTransform: 'uppercase', letterSpacing: .5 }}>
+                      Représentant légal {formAge !== null ? `(mineur — ${formAge} ans)` : '(mineur)'}
+                    </div>
+
+                    <div style={{ fontSize: 12, fontWeight: 700, color: parentalInfo.color, background: parentalInfo.bg, borderRadius: 8, padding: '8px 10px' }}>
+                      {parentalInfo.label}
+                    </div>
+
+                    {missingParentInfo && (
+                      <div style={{ fontSize: 11, color: '#9A3412' }}>
+                        Le nom et le téléphone du représentant légal sont requis pour un visiteur mineur.
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <Field label="Prénom du représentant" style={{ flex: 1 }}>
+                        <input value={form.parent_first_name} onChange={e => setForm({ ...form, parent_first_name: e.target.value })} style={{ ...inputStyle, background: '#fff' }} />
+                      </Field>
+                      <Field label="Nom du représentant" style={{ flex: 1 }}>
+                        <input value={form.parent_last_name} onChange={e => setForm({ ...form, parent_last_name: e.target.value })} style={{ ...inputStyle, background: '#fff' }} />
+                      </Field>
+                    </div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <Field label="Lien de parenté" style={{ flex: 1 }}>
+                        <input value={form.parent_relation} onChange={e => setForm({ ...form, parent_relation: e.target.value })} placeholder="Père, Mère, Tuteur…" style={{ ...inputStyle, background: '#fff' }} />
+                      </Field>
+                      <Field label="Téléphone du représentant" style={{ flex: 1 }}>
+                        <input value={form.parent_phone} onChange={e => setForm({ ...form, parent_phone: e.target.value })} style={{ ...inputStyle, background: '#fff', borderColor: form.parent_phone.trim() ? '#E2E8F0' : '#FDBA74' }} />
+                      </Field>
+                    </div>
+                    <Field label="Email du représentant">
+                      <input value={form.parent_email} onChange={e => setForm({ ...form, parent_email: e.target.value })} style={{ ...inputStyle, background: '#fff' }} />
+                    </Field>
+                    <Field label="Adresse du représentant">
+                      <input value={form.parent_address} onChange={e => setForm({ ...form, parent_address: e.target.value })} style={{ ...inputStyle, background: '#fff' }} />
+                    </Field>
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 10 }}>
                   <Field label="Téléphone" style={{ flex: 1 }}><input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={inputStyle} /></Field>
                   <Field label="WhatsApp" style={{ flex: 1 }}><input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} style={inputStyle} /></Field>

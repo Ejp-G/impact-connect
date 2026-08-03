@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/birthday",
-      "schedule": "0 8 * * *"
+      "schedule": "0 12 * * *"
     },
     {
       "path": "/api/cron/fi-pilot-alerts",

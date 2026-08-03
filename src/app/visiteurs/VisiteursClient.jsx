@@ -12,13 +12,17 @@ function AlertDot({ level }) {
   return <span style={{ display:'inline-block', width:9, height:9, borderRadius:'50%', background:color }} />
 }
 
-export default function VisiteursClient({ contacts, stats, fis, communes, profile }) {
+const normName = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim()
+const normPhone = p => (p || '').replace(/\D/g, '')
+
+export default function VisiteursClient({ contacts, stats, fis, communes, profile, duplicates = [] }) {
   const searchParams = useSearchParams()
   const [filter, setFilter] = useState(searchParams.get('filter') || 'all')
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [showDuplicates, setShowDuplicates] = useState(false)
   const [form, setForm] = useState({
     firstName:'',lastName:'',sex:'F',phone:'',whatsapp:'',email:'',
     commune:'',communeId:'',quartier:'',firstVisit:true,salvationCall:false,
@@ -31,17 +35,24 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
 
   const isMinor = form.dateOfBirth && new Date(form.dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear()-18))
 
+  // Ensemble des fiches appartenant à un groupe de doublons (marquage des lignes)
+  const duplicateIds = new Set(duplicates.flatMap(g => g.contacts.map(c => c.id)))
+
   const filtered = contacts.filter(c => {
     const q = search.toLowerCase()
-    const matchSearch = !q || (c.first_name+' '+c.last_name+' '+(c.commune||'')).toLowerCase().includes(q)
+    const haystack = (c.first_name+' '+c.last_name+' '+(c.commune||'')+' '+(c.phone||'')+' '+normPhone(c.phone)).toLowerCase()
+    const matchSearch = !q || haystack.includes(q)
     if (!matchSearch) return false
     if (filter === 'alert') return c.alert_level === 'red'
     if (filter === 'orange') return c.alert_level === 'orange'
     if (filter === 'new') return c.created_at?.startsWith(new Date().toISOString().split('T')[0])
     if (filter === 'minor') return c.is_minor
-    if (filter === 'salvation') return c.salvation_call
-    if (filter === 'no_contact') return c.contact_preference === 'none'
+    if (filter === 'men') return c.sex === 'M'
+    if (filter === 'women') return c.sex === 'F'
+    if (filter === 'no_integrator') return !(c.integrators?.length)
+    if (filter === 'duplicates') return duplicateIds.has(c.id)
     if (filter === 'salvation') return c.salvation_call === true
+    if (filter === 'no_contact') return c.contact_preference === 'none'
     if (filter === 'mine') return c.agent?.id === profile?.id
     return true
   })
@@ -49,6 +60,23 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
   const ini = (fn, ln) => ((fn||'')[0]||'') + ((ln||'')[0]||'')
 
   async function saveVisitor() {
+    // Garde-fou anti-doublon : vérifier si une fiche existe déjà avec
+    // le même nom complet ou le même numéro de téléphone
+    const newName = normName(`${form.firstName} ${form.lastName}`)
+    const newPhone = normPhone(form.phone)
+    const existing = contacts.find(c =>
+      (newName && normName(`${c.first_name} ${c.last_name}`) === newName) ||
+      (newPhone.length >= 6 && normPhone(c.phone) === newPhone)
+    )
+    if (existing) {
+      const ok = window.confirm(
+        `⚠ Une fiche existe déjà pour ${existing.first_name} ${existing.last_name}` +
+        `${existing.phone ? ` (${existing.phone})` : ''}, arrivé(e) le ${formatDate(existing.first_visit_date) || '—'}.\n\n` +
+        `Créer quand même une NOUVELLE fiche ?\n(Annuler pour éviter un doublon)`
+      )
+      if (!ok) return
+    }
+
     setSaving(true)
     const res = await fetch('/api/visitors', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -66,6 +94,10 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
     ['alert', 'Urgences', stats.alerts],
     ['new', "Aujourd'hui", stats.today],
     ['minor', 'Mineurs', stats.mineurs],
+    ['men', 'Hommes', stats.hommes],
+    ['women', 'Femmes', stats.femmes],
+    ['no_integrator', 'Sans intégrateur', stats.sansIntegrateur],
+    ...(stats.doublons > 0 ? [['duplicates', 'Doublons', stats.doublons]] : []),
     ['no_contact', 'Ne pas contacter', contacts.filter(c => c.contact_preference === 'none').length],
   ]
 
@@ -74,7 +106,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:12 }}>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {filterBtns.map(([f,l,c])=>(
-            <div key={f} onClick={()=>setFilter(f)} style={{ padding:'6px 14px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, background:filter===f?'var(--n)':'#F1F5F9', color:filter===f?'#fff':'#64748B', display:'flex', alignItems:'center', gap:5 }}>
+            <div key={f} onClick={()=>setFilter(f)} style={{ padding:'6px 14px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, background:filter===f?'var(--n)':f==='duplicates'?'#FFF7ED':'#F1F5F9', color:filter===f?'#fff':f==='duplicates'?'#9A3412':'#64748B', display:'flex', alignItems:'center', gap:5 }}>
               {l} <span style={{ background:filter===f?'rgba(255,255,255,.2)':'#E2E8F0', padding:'0 5px', borderRadius:999, fontSize:10 }}>{c}</span>
             </div>
           ))}
@@ -95,6 +127,53 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
         </div>
       </div>
 
+      {/* ─── Alerte doublons potentiels ─── */}
+      {duplicates.length > 0 && (
+        <div className="card" style={{ border:'1px solid #FED7AA', background:'#FFF7ED', marginBottom:16 }}>
+          <div
+            onClick={()=>setShowDuplicates(v=>!v)}
+            style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}
+          >
+            <div style={{ fontSize:13, fontWeight:700, color:'#9A3412' }}>
+              ⚠ {duplicates.length} doublon(s) potentiel(s) détecté(s) ({stats.doublons} fiches concernées)
+            </div>
+            <span style={{ fontSize:12, color:'#9A3412', fontWeight:600 }}>{showDuplicates ? 'Masquer ▲' : 'Voir le détail ▼'}</span>
+          </div>
+          {showDuplicates && (
+            <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:10 }}>
+              {duplicates.map((g, i) => (
+                <div key={i} style={{ background:'#fff', borderRadius:10, padding:12 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'#9A3412', textTransform:'uppercase', marginBottom:8 }}>
+                    Groupe {i+1} — {g.reasons.join(' + ')}
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    {g.contacts.map(c => (
+                      <div
+                        key={c.id}
+                        onClick={()=>router.push(`/visiteurs/${c.id}`)}
+                        style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, fontSize:12, cursor:'pointer', padding:'6px 8px', borderRadius:8, background:'#F8FAFC', flexWrap:'wrap' }}
+                      >
+                        <span style={{ fontWeight:700, color:'var(--n)' }}>{c.name}</span>
+                        <span style={{ color:'#64748B' }}>{c.phone || 'sans tél.'}</span>
+                        <span className="badge" style={{ background:STAGE_COLOR(c.stage)+'20', color:STAGE_COLOR(c.stage) }}>{STAGE_LABEL(c.stage)}</span>
+                        <span style={{ color:'#64748B' }}>score {c.score ?? 0}</span>
+                        <span style={{ color:'#94A3B8' }}>créée le {formatDate(c.created_at)}</span>
+                        <span style={{ color:'var(--n)', fontWeight:600 }}>Ouvrir →</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div style={{ fontSize:12, color:'#9A3412', lineHeight:1.5 }}>
+                Comment traiter un doublon : ouvrez les deux fiches, complétez celle à conserver
+                (la plus avancée / la plus complète), puis un administrateur supprime l'autre via
+                la « Zone dangereuse » en bas de sa fiche (suppression tracée dans le journal).
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="card" style={{ padding:0, overflow:'hidden' }}>
         <div style={{ overflowX:'auto' }}>
           <table>
@@ -103,7 +182,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
             </tr></thead>
             <tbody>
               {filtered.map(c => (
-                <tr key={c.id} onClick={() => router.push(`/visiteurs/${c.id}`)} style={{ cursor: 'pointer' }}>
+                <tr key={c.id} onClick={() => router.push(`/visiteurs/${c.id}`)} style={{ cursor: 'pointer', background: duplicateIds.has(c.id) ? '#FFFBF5' : undefined }}>
                   <td><div style={{ display:'flex', alignItems:'center', gap:10 }}>
                     <div style={{ width:32, height:32, borderRadius:'50%', background:c.sex==='F'?'#8B5CF6':'var(--n)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:11, fontWeight:700, flexShrink:0 }}>
                       {ini(c.first_name, c.last_name)}
@@ -111,6 +190,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
                     <div>
                       <div style={{ fontSize:13, fontWeight:600 }}>{c.first_name} {c.last_name}
                         {c.is_minor && <span style={{ fontSize:10, background:'#FEF3C7', color:'#92400E', padding:'1px 5px', borderRadius:4, marginLeft:6 }}>mineur</span>}
+                        {duplicateIds.has(c.id) && <span style={{ fontSize:10, background:'#FFF7ED', color:'#9A3412', padding:'1px 5px', borderRadius:4, marginLeft:6, fontWeight:700 }}>doublon ?</span>}
                       </div>
                       <div style={{ fontSize:11, color:'var(--gy)' }}>{formatDate(c.first_visit_date)}</div>
                     </div>

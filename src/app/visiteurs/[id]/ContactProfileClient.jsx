@@ -4,6 +4,9 @@ import { useRouter } from 'next/navigation'
 import { STAGE_LABEL, STAGE_COLOR, NEED_CATEGORIES } from '@/lib/constants'
 import { scoreColor } from '@/lib/utils'
 import ContactDetailModal from '@/components/contacts/ContactDetailModal'
+// ⚠️ Aligner cet import sur celui utilisé dans ContactDetailModal.jsx
+// (même client Supabase que pour le self-fetch des communes/FI)
+import { supabase } from '@/lib/supabase'
 import {
   ArrowLeft, Pencil, Phone, Mail, MapPin, Calendar, Users, Home,
   MessageCircle, Compass, CheckCircle2, XCircle, Clock, NEED_ICON_MAP
@@ -50,10 +53,127 @@ function formatDateTime(d) {
   return new Date(d).toLocaleString('fr-FR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
 }
 
+/* ============================================================
+   MODAL DE SUPPRESSION DÉFINITIVE (admin uniquement)
+   - exige la saisie exacte du nom complet du visiteur
+   - exige un motif (5 caractères minimum)
+   - appelle la RPC sécurisée delete_visiteur (contrôle admin
+     refait côté serveur, trace dans deletion_log)
+   ============================================================ */
+function DeleteVisitorModal({ contact, onClose, onDeleted }) {
+  const [confirmName, setConfirmName] = useState('')
+  const [reason, setReason] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  const expectedName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim()
+  const nameMatches = confirmName.trim().toLowerCase() === expectedName.toLowerCase()
+  const reasonOk = reason.trim().length >= 5
+  const canDelete = nameMatches && reasonOk && !loading
+
+  async function handleDelete() {
+    if (!canDelete) return
+    setLoading(true)
+    setError(null)
+    const { error: rpcError } = await supabase.rpc('delete_visiteur', {
+      p_contact_id: contact.id,
+      p_reason: reason.trim(),
+    })
+    if (rpcError) {
+      setError(rpcError.message)
+      setLoading(false)
+    } else {
+      onDeleted()
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, .55)', zIndex: 1000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+    }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, boxShadow: '0 20px 50px rgba(0,0,0,.25)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <XCircle size={18} strokeWidth={2} color="#DC2626" />
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#991B1B' }}>Suppression définitive</div>
+        </div>
+
+        <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, marginBottom: 12 }}>
+          Vous êtes sur le point de supprimer <b>définitivement</b> la fiche de{' '}
+          <b>{expectedName}</b> ainsi que <b>toutes ses données liées</b> (tâches de suivi,
+          communications, besoins, présences, assignations d'intégrateurs, historique).
+        </div>
+        <div style={{ fontSize: 12, background: '#FEF2F2', color: '#991B1B', borderRadius: 10, padding: '10px 12px', marginBottom: 16, fontWeight: 600 }}>
+          Cette action est irréversible. Une trace (qui, quand, pourquoi) sera conservée
+          dans le journal des suppressions.
+        </div>
+
+        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+          Pour confirmer, tapez le nom complet : <span style={{ color: '#DC2626' }}>{expectedName}</span>
+        </label>
+        <input
+          type="text"
+          value={confirmName}
+          onChange={e => setConfirmName(e.target.value)}
+          placeholder={expectedName}
+          autoComplete="off"
+          style={{
+            width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13,
+            border: `1.5px solid ${confirmName && !nameMatches ? '#FCA5A5' : '#E2E8F0'}`,
+            outline: 'none', marginBottom: 14, boxSizing: 'border-box'
+          }}
+        />
+
+        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+          Motif de la suppression (obligatoire)
+        </label>
+        <textarea
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Ex. : doublon de la fiche de…, demande RGPD de la personne, fiche de test…"
+          rows={3}
+          style={{
+            width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13,
+            border: `1.5px solid ${reason && !reasonOk ? '#FCA5A5' : '#E2E8F0'}`,
+            outline: 'none', resize: 'vertical', marginBottom: 8, boxSizing: 'border-box', fontFamily: 'inherit'
+          }}
+        />
+
+        {error && (
+          <div style={{ fontSize: 12, color: '#DC2626', background: '#FEF2F2', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
+          <button onClick={onClose} className="btn btn-secondary" disabled={loading}>
+            Annuler
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={!canDelete}
+            style={{
+              padding: '9px 16px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700,
+              cursor: canDelete ? 'pointer' : 'not-allowed',
+              background: canDelete ? '#DC2626' : '#FCA5A5',
+              color: '#fff', transition: 'background .15s'
+            }}
+          >
+            {loading ? 'Suppression…' : 'Supprimer définitivement'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ContactProfileClient({ contact, integratorPair, timeline, needs, communications, reports, profile }) {
   const router = useRouter()
   const [tab, setTab] = useState('apercu')
   const [showEdit, setShowEdit] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
 
   const isAdmin = profile?.role === 'admin'
   const canEdit = isAdmin || profile?.role === 'responsable_suivi' || profile?.role === 'responsable_integration'
@@ -277,12 +397,48 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
         </div>
       </div>
 
+      {/* ============================================================
+          ZONE DANGEREUSE — visible uniquement pour les admins
+          ============================================================ */}
+      {isAdmin && (
+        <div className="card" style={{ marginTop: 24, border: '1px solid #FECACA' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 10 }}>
+            Zone dangereuse
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 13, color: '#64748B', maxWidth: 560, lineHeight: 1.5 }}>
+              Supprimer définitivement cette fiche et toutes ses données liées.
+              Action réservée aux administrateurs, tracée dans le journal des
+              suppressions, et <b>irréversible</b>.
+            </div>
+            <button
+              onClick={() => setShowDelete(true)}
+              style={{
+                padding: '9px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                background: '#fff', color: '#DC2626', border: '1.5px solid #FCA5A5',
+                cursor: 'pointer', flexShrink: 0
+              }}
+            >
+              Supprimer ce visiteur
+            </button>
+          </div>
+        </div>
+      )}
+
       {showEdit && (
         <ContactDetailModal
           contactId={contact.id}
           onClose={() => { setShowEdit(false); router.refresh() }}
           communes={[]}
           fis={[]}
+        />
+      )}
+
+      {showDelete && (
+        <DeleteVisitorModal
+          contact={contact}
+          onClose={() => setShowDelete(false)}
+          onDeleted={() => { setShowDelete(false); router.push('/visiteurs'); router.refresh() }}
         />
       )}
     </div>

@@ -267,8 +267,15 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     <div onClick={onClose} style={overlayStyle}>
       <div onClick={e => e.stopPropagation()} style={modalStyle}>
 
-        {/* En-tete : toujours visible (ne defile pas), croix de fermeture
-            presente meme pendant le chargement. */}
+        {/* Croix de fermeture : ancree en position absolue dans l'angle
+            superieur droit du MODAL (pas de l'en-tete). Elle reste visible
+            en permanence, quel que soit le defilement ou l'etat de
+            chargement, et passe au-dessus de tout le contenu (zIndex). */}
+        <button onClick={onClose} title="Fermer" aria-label="Fermer la fiche" style={closeBtnStyle}>
+          <X size={18} strokeWidth={2.5} />
+        </button>
+
+        {/* En-tete : toujours visible (ne defile pas). */}
         <div style={modalHeaderStyle}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -278,15 +285,24 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
               {loading || !contact ? 'Chargement…' : `${contact.commune || '—'} ${contact.is_minor ? '· Mineur' : ''}`}
             </div>
           </div>
-          <button onClick={onClose} title="Fermer" style={closeBtnStyle}><X size={16} strokeWidth={2.5} /></button>
         </div>
 
         {loading || !contact ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>Chargement…</div>
         ) : (
           <>
-            {/* Zone centrale : seule cette partie defile. */}
-            <div style={{ padding: 20, overflowY: 'auto', flex: 1, minHeight: 0 }}>
+            {/* Zone centrale : seule cette partie defile, et UNIQUEMENT
+                verticalement. overflowX hidden + touchAction pan-y
+                empechent tout glissement horizontal du contenu (le
+                comportement observe sur mobile), et overscrollBehavior
+                contain evite que le defilement ne se propage a la page
+                derriere le modal. */}
+            <div style={{
+              padding: 20, flex: 1, minHeight: 0,
+              overflowY: 'auto', overflowX: 'hidden',
+              touchAction: 'pan-y', overscrollBehavior: 'contain',
+              WebkitOverflowScrolling: 'touch', maxWidth: '100%'
+            }}>
 
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: changingStage ? 10 : 0, flexWrap: 'wrap', gap: 8 }}>
@@ -610,28 +626,31 @@ function Field({ label, children, style }) {
 }
 
 const overlayStyle = {
-  position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, .55)', zIndex: 1000,
+  position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, .55)', zIndex: 99999,
   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-  boxSizing: 'border-box'
+  boxSizing: 'border-box', overflow: 'hidden', touchAction: 'none'
 }
 const modalStyle = {
-  background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680,
-  maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+  position: 'relative', background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680,
+  maxHeight: '85vh', display: 'flex', flexDirection: 'column',
+  overflowX: 'hidden', overflowY: 'hidden',
   boxShadow: '0 20px 50px rgba(0,0,0,.25)', boxSizing: 'border-box'
 }
 const modalHeaderStyle = {
-  padding: '16px 20px', background: 'linear-gradient(135deg,var(--nd) 0%,var(--n) 100%)',
+  padding: '16px 52px 16px 20px', background: 'linear-gradient(135deg,var(--nd) 0%,var(--n) 100%)',
   color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  gap: 12, flexShrink: 0
+  gap: 12, flexShrink: 0, borderTopLeftRadius: 16, borderTopRightRadius: 16
 }
 const modalFooterStyle = {
   padding: '12px 20px', borderTop: '1px solid #E2E8F0', background: '#FAFBFC',
   display: 'flex', justifyContent: 'flex-end', gap: 10, flexShrink: 0
 }
 const closeBtnStyle = {
-  background: 'rgba(255,255,255,.2)', border: 'none', color: '#fff', width: 32, height: 32,
-  borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center',
-  justifyContent: 'center', flexShrink: 0
+  position: 'absolute', top: 10, right: 10, zIndex: 50,
+  background: '#fff', border: '1px solid #E2E8F0', color: '#0F172A',
+  width: 36, height: 36, borderRadius: '50%', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  boxShadow: '0 2px 8px rgba(0,0,0,.2)', flexShrink: 0, padding: 0
 }
 const inputStyle = {
   width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0',

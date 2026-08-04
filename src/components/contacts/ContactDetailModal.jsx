@@ -249,8 +249,8 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   if (!contactId) return null
 
   return (
-    <div onClick={onClose} style={overlayStyle}>
-      <div onClick={e => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 680 }}>
+    <div onClick={onClose} className="modal-overlay">
+      <div onClick={e => e.stopPropagation()} className="modal" style={{ maxWidth: 680, padding: 0 }}>
         {loading || !contact ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>Chargement…</div>
         ) : (
@@ -578,18 +578,10 @@ function Field({ label, children, style }) {
   )
 }
 
-const overlayStyle = {
-  position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
-}
-const modalStyle = {
-  background: '#fff', borderRadius: 16, width: '100%', maxHeight: '90vh',
-  overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.3)'
-}
 const modalHeaderStyle = {
   padding: '18px 20px', background: 'linear-gradient(135deg,var(--nd) 0%,var(--n) 100%)',
   color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  borderTopLeftRadius: 16, borderTopRightRadius: 16, position: 'sticky', top: 0, zIndex: 1
+  borderTopLeftRadius: 16, borderTopRightRadius: 16
 }
 const closeBtnStyle = {
   background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', width: 28, height: 28,

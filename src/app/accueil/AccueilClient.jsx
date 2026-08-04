@@ -153,107 +153,113 @@ export default function AccueilClient({ cultes, profile }) {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <table>
-          <thead>
-            <tr><th>Date</th><th>Présents</th><th>Nouveaux</th><th>Appels au salut</th><th>Compte rendu</th><th>Enregistré par</th><th></th></tr>
-          </thead>
-          <tbody>
-            {filteredCultes.map(c => (
-              <tr key={c.id} onClick={() => setViewingCulte(c)} style={{ cursor: 'pointer' }}>
-                <td style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Calendar size={13} strokeWidth={2} color="var(--gy)" />
-                  {new Date(c.date).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
-                </td>
-                <td style={{ fontSize: 13 }}>{c.presents ?? '—'}</td>
-                <td style={{ fontSize: 13 }}>{c.nouveaux_comptes ?? '—'}</td>
-                <td style={{ fontSize: 13 }}>{c.appels_au_salut_comptes ?? '—'}</td>
-                <td style={{ fontSize: 12, color: 'var(--gd)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.compte_rendu || '—'}</td>
-                <td style={{ fontSize: 11, color: 'var(--gy)' }}>{c.creator?.name || '—'}</td>
-                <td onClick={e => e.stopPropagation()}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => openEdit(c)} style={{ background: '#EFF6FF', border: 'none', borderRadius: 6, padding: 6, cursor: 'pointer', display: 'flex' }}>
-                      <Pencil size={13} strokeWidth={2} color="#3B82F6" />
-                    </button>
-                    <button onClick={() => deleteCulte(c)} style={{ background: '#FEF2F2', border: 'none', borderRadius: 6, padding: 6, cursor: 'pointer', display: 'flex' }}>
-                      <Trash2 size={13} strokeWidth={2} color="#DC2626" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {filteredCultes.length === 0 && (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--gy)' }}>Aucun culte enregistré pour le moment.</td></tr>
-            )}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead>
+              <tr><th>Date</th><th>Présents</th><th>Nouveaux</th><th>Appels au salut</th><th>Compte rendu</th><th>Enregistré par</th><th></th></tr>
+            </thead>
+            <tbody>
+              {filteredCultes.map(c => (
+                <tr key={c.id} onClick={() => setViewingCulte(c)} style={{ cursor: 'pointer' }}>
+                  <td style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                    <Calendar size={13} strokeWidth={2} color="var(--gy)" />
+                    {new Date(c.date).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                  </td>
+                  <td style={{ fontSize: 13 }}>{c.presents ?? '—'}</td>
+                  <td style={{ fontSize: 13 }}>{c.nouveaux_comptes ?? '—'}</td>
+                  <td style={{ fontSize: 13 }}>{c.appels_au_salut_comptes ?? '—'}</td>
+                  <td style={{ fontSize: 12, color: 'var(--gd)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.compte_rendu || '—'}</td>
+                  <td style={{ fontSize: 11, color: 'var(--gy)', whiteSpace: 'nowrap' }}>{c.creator?.name || '—'}</td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => openEdit(c)} style={{ background: '#EFF6FF', border: 'none', borderRadius: 6, padding: 6, cursor: 'pointer', display: 'flex' }}>
+                        <Pencil size={13} strokeWidth={2} color="#3B82F6" />
+                      </button>
+                      <button onClick={() => deleteCulte(c)} style={{ background: '#FEF2F2', border: 'none', borderRadius: 6, padding: 6, cursor: 'pointer', display: 'flex' }}>
+                        <Trash2 size={13} strokeWidth={2} color="#DC2626" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filteredCultes.length === 0 && (
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--gy)', whiteSpace: 'normal' }}>Aucun culte enregistré pour le moment.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {viewingCulte && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setViewingCulte(null)}>
-          <div className="modal" style={{ maxWidth: 640 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div className="modal" style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexShrink: 0 }}>
               <div style={{ fontSize: 18, fontWeight: 700 }}>Culte du {new Date(viewingCulte.date).toLocaleDateString('fr-FR')}</div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => openEdit(viewingCulte)} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Pencil size={13} strokeWidth={2} /> Modifier</button>
                 <button onClick={() => setViewingCulte(null)} style={{ width: 32, height: 32, borderRadius: 8, background: '#F1F5F9', border: 'none', cursor: 'pointer' }}><X size={16} strokeWidth={2} /></button>
               </div>
             </div>
-
-            <ViewSection title="Informations générales">
-              <ViewRow label="Type" value={viewingCulte.type_culte} />
-              <ViewRow label="Horaires" value={`${viewingCulte.heure_debut || '—'} à ${viewingCulte.heure_fin || '—'}`} />
-            </ViewSection>
-            <ViewSection title="Service STAR">
-              <ViewRow label="Stars (total)" value={viewingCulte.stars_total} />
-              <ViewRow label="Hommes / Femmes" value={`${viewingCulte.stars_hommes ?? '—'} / ${viewingCulte.stars_femmes ?? '—'}`} />
-              <ViewRow label="Conducteur prière Stars" value={viewingCulte.conducteur_priere_stars} />
-              <ViewRow label="Conducteur prière début" value={viewingCulte.conducteur_priere_debut} />
-              <ViewRow label="Modérateur" value={viewingCulte.moderateur} />
-              <ViewRow label="Référent du jour" value={viewingCulte.referent_jour} />
-              <ViewRow label="Orateur" value={viewingCulte.orateur} />
-              <ViewRow label="Autres stars aidés ou en service" value={viewingCulte.autres_stars} block />
-            </ViewSection>
-            <ViewSection title="Fréquentation">
-              <ViewRow label="Total auditorium (incluant les stars en service)" value={viewingCulte.presents} />
-              <ViewRow label="Hommes / Femmes" value={`${viewingCulte.freq_hommes ?? '—'} / ${viewingCulte.freq_femmes ?? '—'}`} />
-              <ViewRow label="Jeunes / Enfants / Bébés" value={`${viewingCulte.freq_jeunes ?? '—'} / ${viewingCulte.freq_enfants ?? '—'} / ${viewingCulte.freq_bebes ?? '—'}`} />
-              <ViewRow label="Autre" value={viewingCulte.freq_autre != null ? `${viewingCulte.freq_autre}${viewingCulte.freq_autre_precision ? ' — ' + viewingCulte.freq_autre_precision : ''}` : '—'} />
-            </ViewSection>
-            <ViewSection title="Vie du culte">
-              <ViewRow label="Titre / Thème" value={viewingCulte.titre_message} />
-              <ViewRow label="Appels au salut" value={viewingCulte.appels_au_salut_comptes} />
-              <ViewRow label="Nouveaux" value={viewingCulte.nouveaux_comptes} />
-            </ViewSection>
-            <ViewSection title="Compte rendu" last>
-              <ViewRow label="Points positifs" value={viewingCulte.points_positifs} block />
-              <ViewRow label="Points négatifs" value={viewingCulte.points_negatifs} block />
-              <ViewRow label="Actions d'amélioration" value={viewingCulte.actions_amelioration} block />
-              <ViewRow label="Commentaires" value={viewingCulte.compte_rendu} block />
-            </ViewSection>
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              <ViewSection title="Informations générales">
+                <ViewRow label="Type" value={viewingCulte.type_culte} />
+                <ViewRow label="Horaires" value={`${viewingCulte.heure_debut || '—'} à ${viewingCulte.heure_fin || '—'}`} />
+              </ViewSection>
+              <ViewSection title="Service STAR">
+                <ViewRow label="Stars (total)" value={viewingCulte.stars_total} />
+                <ViewRow label="Hommes / Femmes" value={`${viewingCulte.stars_hommes ?? '—'} / ${viewingCulte.stars_femmes ?? '—'}`} />
+                <ViewRow label="Conducteur prière Stars" value={viewingCulte.conducteur_priere_stars} />
+                <ViewRow label="Conducteur prière début" value={viewingCulte.conducteur_priere_debut} />
+                <ViewRow label="Modérateur" value={viewingCulte.moderateur} />
+                <ViewRow label="Référent du jour" value={viewingCulte.referent_jour} />
+                <ViewRow label="Orateur" value={viewingCulte.orateur} />
+                <ViewRow label="Autres stars aidés ou en service" value={viewingCulte.autres_stars} block />
+              </ViewSection>
+              <ViewSection title="Fréquentation">
+                <ViewRow label="Total auditorium (incluant les stars en service)" value={viewingCulte.presents} />
+                <ViewRow label="Hommes / Femmes" value={`${viewingCulte.freq_hommes ?? '—'} / ${viewingCulte.freq_femmes ?? '—'}`} />
+                <ViewRow label="Jeunes / Enfants / Bébés" value={`${viewingCulte.freq_jeunes ?? '—'} / ${viewingCulte.freq_enfants ?? '—'} / ${viewingCulte.freq_bebes ?? '—'}`} />
+                <ViewRow label="Autre" value={viewingCulte.freq_autre != null ? `${viewingCulte.freq_autre}${viewingCulte.freq_autre_precision ? ' — ' + viewingCulte.freq_autre_precision : ''}` : '—'} />
+              </ViewSection>
+              <ViewSection title="Vie du culte">
+                <ViewRow label="Titre / Thème" value={viewingCulte.titre_message} />
+                <ViewRow label="Appels au salut" value={viewingCulte.appels_au_salut_comptes} />
+                <ViewRow label="Nouveaux" value={viewingCulte.nouveaux_comptes} />
+              </ViewSection>
+              <ViewSection title="Compte rendu" last>
+                <ViewRow label="Points positifs" value={viewingCulte.points_positifs} block />
+                <ViewRow label="Points négatifs" value={viewingCulte.points_negatifs} block />
+                <ViewRow label="Actions d'amélioration" value={viewingCulte.actions_amelioration} block />
+                <ViewRow label="Commentaires" value={viewingCulte.compte_rendu} block />
+              </ViewSection>
+            </div>
           </div>
         </div>
       )}
 
       {showWizard && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowWizard(false)}>
-          <div className="modal" style={{ maxWidth: 620 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{editing ? 'Modifier le culte' : 'Nouveau culte'}</div>
-              <button onClick={() => setShowWizard(false)} style={{ width: 32, height: 32, borderRadius: 8, background: '#F1F5F9', border: 'none', cursor: 'pointer' }}><X size={16} strokeWidth={2} /></button>
-            </div>
+          <div className="modal" style={{ maxWidth: 620, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ flexShrink: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>{editing ? 'Modifier le culte' : 'Nouveau culte'}</div>
+                <button onClick={() => setShowWizard(false)} style={{ width: 32, height: 32, borderRadius: 8, background: '#F1F5F9', border: 'none', cursor: 'pointer' }}><X size={16} strokeWidth={2} /></button>
+              </div>
 
-            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-              {STEPS.map((s, i) => (
-                <div key={s.label} style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ height: 4, borderRadius: 2, background: i <= step ? 'var(--n)' : '#E2E8F0', marginBottom: 6, transition: 'background .3s' }} />
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: i === step ? 'var(--n)' : 'var(--gy)' }}>
-                    <s.Icon size={12} strokeWidth={2} />
+              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                {STEPS.map((s, i) => (
+                  <div key={s.label} style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ height: 4, borderRadius: 2, background: i <= step ? 'var(--n)' : '#E2E8F0', marginBottom: 6, transition: 'background .3s' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: i === step ? 'var(--n)' : 'var(--gy)' }}>
+                      <s.Icon size={12} strokeWidth={2} />
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: 'var(--n)', marginBottom: 16 }}>{STEPS[step].label}</div>
             </div>
-            <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: 'var(--n)', marginBottom: 16 }}>{STEPS[step].label}</div>
 
+            <div style={{ overflowY: 'auto', flex: 1 }}>
             {error && <div style={{ background: '#FEF2F2', color: '#DC2626', padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: 13 }}>{error}</div>}
 
             {step === 0 && (
@@ -340,8 +346,9 @@ export default function AccueilClient({ cultes, profile }) {
                 <div className="form-group"><label className="form-label">Commentaires</label><textarea className="form-input" rows={3} style={{ resize: 'vertical' }} value={form.compte_rendu} onChange={e => setForm({ ...form, compte_rendu: e.target.value })} /></div>
               </div>
             )}
+            </div>
 
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20, flexShrink: 0 }}>
               {step > 0 && <button onClick={() => setStep(s => s - 1)} className="btn btn-secondary" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><ChevronLeft size={14} strokeWidth={2} /> Précédent</button>}
               {step < STEPS.length - 1 ? (
                 <button onClick={() => setStep(s => s + 1)} className="btn btn-primary" style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>Suivant <ChevronRight size={14} strokeWidth={2} /></button>

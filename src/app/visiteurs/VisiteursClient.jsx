@@ -245,11 +245,12 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
 
       {showModal && (
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowModal(false)}>
-          <div className="modal">
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
+          <div className="modal" style={{ display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24, flexShrink:0 }}>
               <div style={{ fontSize:18, fontWeight:700 }}>Nouveau visiteur</div>
-              <button onClick={()=>setShowModal(false)} style={{ width:32, height:32, borderRadius:8, background:'#F1F5F9', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--gd)' }}><X size={16} strokeWidth={2} /></button>
+              <button onClick={()=>setShowModal(false)} style={{ width:32, height:32, borderRadius:8, background:'#F1F5F9', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--gd)', flexShrink:0 }}><X size={16} strokeWidth={2} /></button>
             </div>
+            <div style={{ overflowY:'auto', flex:1 }}>
             <div className="g2">
               <div className="form-group"><label className="form-label">Prenom *</label><input className="form-input" value={form.firstName} onChange={e=>setForm({...form,firstName:e.target.value})} /></div>
               <div className="form-group"><label className="form-label">Nom *</label><input className="form-input" value={form.lastName} onChange={e=>setForm({...form,lastName:e.target.value})} /></div>
@@ -287,7 +288,8 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
                 </label>
               ))}
             </div>
-            <div style={{ display:'flex', gap:12, marginTop:8 }}>
+            </div>
+            <div style={{ display:'flex', gap:12, marginTop:8, flexShrink:0 }}>
               <button onClick={()=>setShowModal(false)} className="btn btn-secondary" style={{ flex:1 }}>Annuler</button>
               <button onClick={saveVisitor} disabled={saving} className="btn btn-primary" style={{ flex:2 }}>
                 {saving ? 'Enregistrement...' : 'Enregistrer + Attribuer'}

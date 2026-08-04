@@ -5,7 +5,7 @@ import { STAGE_LABEL, STAGE_COLOR, STAGES } from '@/lib/constants'
 import { formatDate, scoreColor } from '@/lib/utils'
 import ImportModal from '@/components/contacts/ImportModal'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
-import { Search, Upload } from '@/lib/icons'
+import { Search, Upload, Filter, X } from '@/lib/icons'
 
 function AlertDot({ level }) {
   const color = level === 'red' ? '#EF4444' : level === 'orange' ? '#F97316' : '#22C55E'
@@ -18,6 +18,7 @@ const normPhone = p => (p || '').replace(/\D/g, '')
 export default function VisiteursClient({ contacts, stats, fis, communes, profile, duplicates = [] }) {
   const searchParams = useSearchParams()
   const [filter, setFilter] = useState(searchParams.get('filter') || 'all')
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -104,12 +105,29 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
   return (
     <div style={{ maxWidth:1200 }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:12 }}>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+        <div className="filter-chips-desktop" style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {filterBtns.map(([f,l,c])=>(
             <div key={f} onClick={()=>setFilter(f)} style={{ padding:'6px 14px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, background:filter===f?'var(--n)':f==='duplicates'?'#FFF7ED':'#F1F5F9', color:filter===f?'#fff':f==='duplicates'?'#9A3412':'#64748B', display:'flex', alignItems:'center', gap:5 }}>
               {l} <span style={{ background:filter===f?'rgba(255,255,255,.2)':'#E2E8F0', padding:'0 5px', borderRadius:999, fontSize:10 }}>{c}</span>
             </div>
           ))}
+        </div>
+        <div className="filter-btn-mobile" style={{ position:'relative' }}>
+          <button onClick={() => setShowFilterMenu(v => !v)} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:10, border:'1px solid var(--br)', background: filter!=='all' ? 'rgba(11,61,145,.08)' : '#fff', color: filter!=='all' ? 'var(--n)' : 'var(--gd)', fontWeight:600, fontSize:13 }}>
+            <Filter size={14} strokeWidth={2} /> Filtres
+            {filter!=='all' && <span style={{ background:'var(--n)', color:'#fff', borderRadius:999, fontSize:10, padding:'1px 6px' }}>1</span>}
+          </button>
+          {showFilterMenu && (
+            <div onClick={() => setShowFilterMenu(false)} style={{ position:'fixed', inset:0, zIndex:998 }}>
+              <div onClick={e => e.stopPropagation()} style={{ position:'absolute', top:44, left:0, right:0, background:'#fff', borderRadius:14, boxShadow:'0 12px 32px rgba(0,0,0,.18)', padding:10, zIndex:999, display:'flex', flexDirection:'column', gap:4, maxHeight:'60vh', overflowY:'auto' }}>
+                {filterBtns.map(([f,l,c])=>(
+                  <div key={f} onClick={() => { setFilter(f); setShowFilterMenu(false) }} style={{ padding:'10px 12px', borderRadius:8, cursor:'pointer', fontSize:13, fontWeight:600, background:filter===f?'var(--n)':'transparent', color:filter===f?'#fff':'#374151', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    {l} <span style={{ background:filter===f?'rgba(255,255,255,.2)':'#F1F5F9', padding:'1px 8px', borderRadius:999, fontSize:11 }}>{c}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div style={{ display:'flex', gap:10 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, background:'#fff', border:'1px solid var(--br)', borderRadius:10, padding:'8px 14px' }}>
@@ -230,7 +248,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
           <div className="modal">
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
               <div style={{ fontSize:18, fontWeight:700 }}>Nouveau visiteur</div>
-              <button onClick={()=>setShowModal(false)} style={{ width:32, height:32, borderRadius:8, background:'#F1F5F9', border:'none', cursor:'pointer', fontSize:16, color:'var(--gd)' }}>x</button>
+              <button onClick={()=>setShowModal(false)} style={{ width:32, height:32, borderRadius:8, background:'#F1F5F9', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--gd)' }}><X size={16} strokeWidth={2} /></button>
             </div>
             <div className="g2">
               <div className="form-group"><label className="form-label">Prenom *</label><input className="form-input" value={form.firstName} onChange={e=>setForm({...form,firstName:e.target.value})} /></div>

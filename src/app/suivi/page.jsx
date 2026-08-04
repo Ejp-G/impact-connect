@@ -34,6 +34,21 @@ export default async function SuiviPage({ searchParams }) {
     ['equipe_suivi', 'responsable_suivi'].includes(p.role) || (p.secondary_roles || []).includes('equipe_suivi')
   )
 
+  // Portefeuille reel de targetId : on ne peut PAS se fier uniquement
+  // a contacts.assigned_to, qui ne reflete que l'integrateur position 1
+  // (principal). Un binome en position 2 dans contact_integrators doit
+  // aussi voir/recevoir ces visiteurs et taches — sinon des ames ne
+  // sont jamais rappelees par le second integrateur qui ignore meme
+  // qu'on lui a confie ce suivi.
+  let targetContactIds = []
+  if (!viewingAll) {
+    const { data: integratorLinks } = await supabase
+      .from('contact_integrators')
+      .select('contact_id')
+      .eq('integrator_id', targetId)
+    targetContactIds = (integratorLinks || []).map(l => l.contact_id)
+  }
+
   let contactsQuery = supabase.from('contacts')
     .select(`
       id, first_name, last_name, sex, phone, commune, first_visit_date, created_at, stage,
@@ -44,7 +59,12 @@ export default async function SuiviPage({ searchParams }) {
     `)
     .eq('status', 'active')
     .order('first_visit_date', { ascending: false })
-  if (!viewingAll) contactsQuery = contactsQuery.eq('assigned_to', targetId)
+  if (!viewingAll) {
+    const idsClause = targetContactIds.length
+      ? targetContactIds.join(',')
+      : '00000000-0000-0000-0000-000000000000'
+    contactsQuery = contactsQuery.or(`assigned_to.eq.${targetId},id.in.(${idsClause})`)
+  }
   const { data: contacts } = await contactsQuery
 
   const contactIds = (contacts || []).map(c => c.id)
@@ -62,11 +82,19 @@ export default async function SuiviPage({ searchParams }) {
         .in('contact_id', contactIds)
     : { data: [] }
 
+  // Meme logique pour les taches : un binome doit voir les taches liees
+  // aux contacts dont il est integrateur, meme si assigned_to pointe
+  // vers le principal.
   let tasksQuery = supabase.from('tasks')
     .select('*, contact:contacts(id,first_name,last_name,sex,commune), assignee:profiles!tasks_assigned_to_fkey(id,name)')
     .eq('status', 'pending')
     .order('due_date', { ascending: true })
-  if (!viewingAll) tasksQuery = tasksQuery.eq('assigned_to', targetId)
+  if (!viewingAll) {
+    const idsClause = targetContactIds.length
+      ? targetContactIds.join(',')
+      : '00000000-0000-0000-0000-000000000000'
+    tasksQuery = tasksQuery.or(`assigned_to.eq.${targetId},contact_id.in.(${idsClause})`)
+  }
   const { data: tasks } = await tasksQuery
 
   const { data: profiles } = await supabase.from('profiles').select('id,name').eq('active', true).order('name')

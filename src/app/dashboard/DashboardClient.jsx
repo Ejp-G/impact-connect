@@ -298,7 +298,7 @@ export default function DashboardClient({ stats, profile }) {
             </div>
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+          <div className="g4" style={{ gap:12 }}>
             {[
               ['Visiteurs ce mois', stats.newThisMonth || 0, '↑', '/visiteurs?filter=new'],
               ['Intégrations', stats.stageCounts?.integre || 0, '↑', '/pipeline?etape=integre'],
@@ -508,7 +508,7 @@ export default function DashboardClient({ stats, profile }) {
         <div style={{ fontSize:15, fontWeight:700, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}>
           <Home size={17} strokeWidth={2} color="var(--n)" /> Familles d'Impact — Capacité
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+        <div className="g3">
           {stats.fiData?.map(fi => {
             const mb = stats.fiMemberCounts?.[fi.id] || 0
             const pct = Math.round((mb / fi.capacity) * 100)

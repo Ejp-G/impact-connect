@@ -6,7 +6,7 @@ import TaskDetailModal from '@/components/tasks/TaskDetailModal'
 import NewcomerReportPanel from '@/components/suivi/NewcomerReportPanel'
 import NeedsDrilldownModal from '@/components/suivi/NeedsDrilldownModal'
 import ExportModal from '@/components/suivi/ExportModal'
-import { Users, CheckSquare, Compass, NEED_ICON_MAP, Download } from '@/lib/icons'
+import { Users, CheckSquare, Compass, NEED_ICON_MAP, Download, Filter } from '@/lib/icons'
 
 const FILTERS = [
   ['all', 'Tous'], ['today', 'À contacter aujourd\'hui'], ['late', 'En retard'],
@@ -37,6 +37,7 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
   const [taskGroupByVisitor, setTaskGroupByVisitor] = useState(false)
   const [openFolders, setOpenFolders] = useState({})
   const [showExport, setShowExport] = useState(false)
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
 
   const [tasks, setTasks] = useState(initialTasks)
 
@@ -197,14 +198,16 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
 
   return (
     <div style={{ maxWidth: 1200 }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
         {[['nouveaux', 'Suivi des nouveaux', Users], ['taches', 'Tâches', CheckSquare]].map(([id, label, Icon]) => (
           <div key={id} onClick={() => setTab(id)} style={{
-            padding: '10px 20px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700,
-            background: tab === id ? 'var(--n)' : '#F1F5F9', color: tab === id ? '#fff' : '#64748B',
-            display: 'flex', alignItems: 'center', gap: 8
+            padding: '13px 26px', borderRadius: 12, cursor: 'pointer', fontSize: 15, fontWeight: 800,
+            background: tab === id ? 'var(--n)' : '#fff', color: tab === id ? '#fff' : 'var(--gd)',
+            border: tab === id ? 'none' : '2px solid var(--br)',
+            boxShadow: tab === id ? '0 4px 14px rgba(11,61,145,.3)' : 'none',
+            display: 'flex', alignItems: 'center', gap: 9
           }}>
-            <Icon size={15} strokeWidth={2} /> {label}
+            <Icon size={18} strokeWidth={2.2} /> {label}
           </div>
         ))}
 
@@ -236,7 +239,7 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid var(--br)', borderRadius: 10, padding: '8px 14px' }}>
               <input value={search} onChange={e => changeSearch(e.target.value)} placeholder="Rechercher..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 13, width: 160 }} />
             </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <div className="filter-chips-desktop" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {FILTERS.map(([id, label]) => (
                 <div key={id} onClick={() => changeFilter(id)} style={{
                   padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
@@ -245,6 +248,23 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
                   {label}
                 </div>
               ))}
+            </div>
+            <div className="filter-btn-mobile" style={{ position: 'relative' }}>
+              <button onClick={() => setShowFilterMenu(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: '1px solid var(--br)', background: filter !== 'all' ? 'rgba(11,61,145,.08)' : '#fff', color: filter !== 'all' ? 'var(--n)' : 'var(--gd)', fontWeight: 600, fontSize: 13 }}>
+                <Filter size={14} strokeWidth={2} /> Filtres
+                {filter !== 'all' && <span style={{ background: 'var(--n)', color: '#fff', borderRadius: 999, fontSize: 10, padding: '1px 6px' }}>1</span>}
+              </button>
+              {showFilterMenu && (
+                <div onClick={() => setShowFilterMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }}>
+                  <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 44, left: 0, background: '#fff', borderRadius: 14, boxShadow: '0 12px 32px rgba(0,0,0,.18)', padding: 10, zIndex: 999, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220, maxHeight: '60vh', overflowY: 'auto' }}>
+                    {FILTERS.map(([id, label]) => (
+                      <div key={id} onClick={() => { changeFilter(id); setShowFilterMenu(false) }} style={{ padding: '10px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, background: filter === id ? 'var(--n)' : 'transparent', color: filter === id ? '#fff' : '#374151' }}>
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <select value={periodFilter} onChange={e => setPeriodFilter(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--br)', fontSize: 12, fontFamily: 'inherit', background: '#fff' }}>
               <option value="all">Toutes les périodes</option>

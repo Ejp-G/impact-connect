@@ -51,16 +51,12 @@ function formatDateTime(d) {
   return new Date(d).toLocaleString('fr-FR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
 }
 
-// Formatte une date seule (YYYY-MM-DD) sans conversion de fuseau horaire.
-// new Date('2014-05-21') est interprété comme minuit UTC, ce qui affiche
-// la veille en Guadeloupe (UTC-4). On découpe donc la chaîne directement.
 function formatDateOnly(d) {
   if (!d) return null
   const [y, m, day] = String(d).slice(0, 10).split('-')
   return `${day}/${m}/${y}`
 }
 
-// Âge exact calculé en local, sans décalage UTC.
 function computeAge(d) {
   if (!d) return null
   const [y, m, day] = String(d).slice(0, 10).split('-').map(Number)
@@ -71,13 +67,6 @@ function computeAge(d) {
   return age
 }
 
-/* ============================================================
-   MODAL DE SUPPRESSION DÉFINITIVE (admin uniquement)
-   - exige la saisie exacte du nom complet du visiteur
-   - exige un motif (5 caractères minimum)
-   - appelle la RPC sécurisée delete_visiteur (contrôle admin
-     refait côté serveur, trace dans deletion_log)
-   ============================================================ */
 function DeleteVisitorModal({ contact, onClose, onDeleted }) {
   const supabase = useMemo(() => createClient(), [])
   const [confirmName, setConfirmName] = useState('')
@@ -111,7 +100,7 @@ function DeleteVisitorModal({ contact, onClose, onDeleted }) {
       position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, .55)', zIndex: 1000,
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
     }}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, boxShadow: '0 20px 50px rgba(0,0,0,.25)' }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,.25)', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <XCircle size={18} strokeWidth={2} color="#DC2626" />
@@ -195,7 +184,7 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
   const [showDelete, setShowDelete] = useState(false)
 
   const isAdmin = profile?.role === 'admin'
-  const canEdit = isAdmin || profile?.role === 'responsable_suivi' || profile?.role === 'responsable_integration'
+  const canEdit = isAdmin || profile?.role === 'responsable_suivi'
 
   const age = computeAge(contact.date_of_birth)
 
@@ -275,7 +264,10 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
 
       <ProgressTimeline stage={contact.stage} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, alignItems: 'start' }}>
+      {/* Mise en page a deux colonnes : classe CSS g2r au lieu d'un
+          style en ligne, pour que ca s'empile correctement sur mobile
+          (le style en ligne ignorait completement le correctif mobile). */}
+      <div className="g2r" style={{ alignItems: 'start' }}>
 
         {/* Colonne info */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -470,9 +462,6 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
         </div>
       </div>
 
-      {/* ============================================================
-          ZONE DANGEREUSE — visible uniquement pour les admins
-          ============================================================ */}
       {isAdmin && (
         <div className="card" style={{ marginTop: 24, border: '1px solid #FECACA' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 10 }}>

@@ -56,6 +56,16 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   const [savingIntegrators, setSavingIntegrators] = useState(false)
   const [savingParental, setSavingParental] = useState(false)
 
+  // Fermeture par la touche Echap, ou l'utilisateur peut cliquer sur la
+  // croix, le bouton Annuler, ou l'arriere-plan sombre.
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
   async function setParentalStatus(status) {
     setSavingParental(true)
     const { error } = await supabase.from('contacts').update({
@@ -249,24 +259,37 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   if (!contactId) return null
 
   return (
-    <div onClick={onClose} className="modal-overlay">
-      <div onClick={e => e.stopPropagation()} className="modal" style={{ maxWidth: 680, padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    // Overlay entierement autonome (styles en ligne) : il ne depend plus
+    // des classes CSS .modal-overlay / .modal qui se comportaient
+    // differemment sur la page de profil visiteur (fiche decalee sur les
+    // cotes, boutons hors ecran). Ici la fenetre est toujours centree,
+    // limitee a 92% de la hauteur de l'ecran, avec defilement interne.
+    <div onClick={onClose} style={overlayStyle}>
+      <div onClick={e => e.stopPropagation()} style={modalStyle}>
+
+        {/* En-tete : toujours visible (ne defile pas), croix de fermeture
+            presente meme pendant le chargement. */}
+        <div style={modalHeaderStyle}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {loading || !contact ? 'Fiche visiteur' : `${contact.first_name} ${contact.last_name}`}
+            </div>
+            <div style={{ fontSize: 12, opacity: .85 }}>
+              {loading || !contact ? 'Chargement…' : `${contact.commune || '—'} ${contact.is_minor ? '· Mineur' : ''}`}
+            </div>
+          </div>
+          <button onClick={onClose} title="Fermer" style={closeBtnStyle}><X size={16} strokeWidth={2.5} /></button>
+        </div>
+
         {loading || !contact ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>Chargement…</div>
         ) : (
           <>
-            <div style={{ ...modalHeaderStyle, flexShrink: 0 }}>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>{contact.first_name} {contact.last_name}</div>
-                <div style={{ fontSize: 12, opacity: .85 }}>{contact.commune || '—'} {contact.is_minor && '· Mineur'}</div>
-              </div>
-              <button onClick={onClose} style={closeBtnStyle}><X size={15} strokeWidth={2} /></button>
-            </div>
-
-            <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
+            {/* Zone centrale : seule cette partie defile. */}
+            <div style={{ padding: 20, overflowY: 'auto', flex: 1, minHeight: 0 }}>
 
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: changingStage ? 10 : 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: changingStage ? 10 : 0, flexWrap: 'wrap', gap: 8 }}>
                   <div>
                     <div style={{ fontSize: 10, color: '#94A3B8', textTransform: 'uppercase' }}>Étape actuelle</div>
                     <span style={{ fontSize: 13, fontWeight: 700, color: STAGE_COLOR(contact.stage) }}>{STAGE_LABEL(contact.stage)}</span>
@@ -276,7 +299,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                       </span>
                     )}
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {nextStageId(contact.stage) && (
                       <button onClick={() => { setNewStage(nextStageId(contact.stage)); submitStageChange() }} style={smallBtnStyle}>Étape suivante →</button>
                     )}
@@ -310,7 +333,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
               </div>
 
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
                   <div style={{ fontSize: 10, color: '#94A3B8', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Users size={12} strokeWidth={2} /> Intégrateurs assignés
                     {contact.integrator_contacted && (
@@ -374,7 +397,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                 )}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ fontSize: 12, color: '#64748B' }}>
                   Dernier contact : <b>{contact.last_contact_at ? new Date(contact.last_contact_at).toLocaleString('fr-FR') : 'jamais'}</b>
                 </div>
@@ -395,11 +418,11 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <Field label="Prénom" style={{ flex: 1 }}><input value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} style={inputStyle} /></Field>
-                  <Field label="Nom" style={{ flex: 1 }}><input value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} style={inputStyle} /></Field>
+                  <Field label="Prénom" style={{ flex: 1, minWidth: 0 }}><input value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} style={inputStyle} /></Field>
+                  <Field label="Nom" style={{ flex: 1, minWidth: 0 }}><input value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} style={inputStyle} /></Field>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <Field label="Sexe" style={{ flex: 1 }}>
+                  <Field label="Sexe" style={{ flex: 1, minWidth: 0 }}>
                     <select value={form.sex} onChange={e => setForm({ ...form, sex: e.target.value })} style={{ ...inputStyle, borderColor: form.sex ? '#E2E8F0' : '#FDBA74' }}>
                       <option value="">— Non renseigné —</option>
                       <option value="M">Homme</option>
@@ -411,7 +434,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                       </div>
                     )}
                   </Field>
-                  <Field label="Date de naissance" style={{ flex: 1 }}>
+                  <Field label="Date de naissance" style={{ flex: 1, minWidth: 0 }}>
                     <input type="date" value={form.date_of_birth} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} style={inputStyle} />
                     <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
                       Sert au calcul de l'âge et du statut « Mineur ».
@@ -465,18 +488,18 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                     )}
 
                     <div style={{ display: 'flex', gap: 10 }}>
-                      <Field label="Prénom du représentant" style={{ flex: 1 }}>
+                      <Field label="Prénom du représentant" style={{ flex: 1, minWidth: 0 }}>
                         <input value={form.parent_first_name} onChange={e => setForm({ ...form, parent_first_name: e.target.value })} style={{ ...inputStyle, background: '#fff' }} />
                       </Field>
-                      <Field label="Nom du représentant" style={{ flex: 1 }}>
+                      <Field label="Nom du représentant" style={{ flex: 1, minWidth: 0 }}>
                         <input value={form.parent_last_name} onChange={e => setForm({ ...form, parent_last_name: e.target.value })} style={{ ...inputStyle, background: '#fff' }} />
                       </Field>
                     </div>
                     <div style={{ display: 'flex', gap: 10 }}>
-                      <Field label="Lien de parenté" style={{ flex: 1 }}>
+                      <Field label="Lien de parenté" style={{ flex: 1, minWidth: 0 }}>
                         <input value={form.parent_relation} onChange={e => setForm({ ...form, parent_relation: e.target.value })} placeholder="Père, Mère, Tuteur…" style={{ ...inputStyle, background: '#fff' }} />
                       </Field>
-                      <Field label="Téléphone du représentant" style={{ flex: 1 }}>
+                      <Field label="Téléphone du représentant" style={{ flex: 1, minWidth: 0 }}>
                         <input value={form.parent_phone} onChange={e => setForm({ ...form, parent_phone: e.target.value })} style={{ ...inputStyle, background: '#fff', borderColor: form.parent_phone.trim() ? '#E2E8F0' : '#FDBA74' }} />
                       </Field>
                     </div>
@@ -489,18 +512,18 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <Field label="Téléphone" style={{ flex: 1 }}><input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={inputStyle} /></Field>
-                  <Field label="WhatsApp" style={{ flex: 1 }}><input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} style={inputStyle} /></Field>
+                  <Field label="Téléphone" style={{ flex: 1, minWidth: 0 }}><input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={inputStyle} /></Field>
+                  <Field label="WhatsApp" style={{ flex: 1, minWidth: 0 }}><input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} style={inputStyle} /></Field>
                 </div>
                 <Field label="Email"><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} /></Field>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <Field label="Commune" style={{ flex: 1 }}>
+                  <Field label="Commune" style={{ flex: 1, minWidth: 0 }}>
                     <select value={form.commune_id} onChange={e => setForm({ ...form, commune_id: e.target.value })} style={inputStyle}>
                       <option value="">—</option>
                       {communesList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </Field>
-                  <Field label="Quartier" style={{ flex: 1 }}><input value={form.quartier} onChange={e => setForm({ ...form, quartier: e.target.value })} style={inputStyle} /></Field>
+                  <Field label="Quartier" style={{ flex: 1, minWidth: 0 }}><input value={form.quartier} onChange={e => setForm({ ...form, quartier: e.target.value })} style={inputStyle} /></Field>
                 </div>
                 <Field label="Date de première visite">
                   <input type="date" value={form.first_visit_date} onChange={e => setForm({ ...form, first_visit_date: e.target.value })} style={inputStyle} />
@@ -541,10 +564,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                 <Field label="Demande de prière"><textarea value={form.prayer_request} onChange={e => setForm({ ...form, prayer_request: e.target.value })} style={{ ...inputStyle, minHeight: 50 }} /></Field>
                 <Field label="Situation / notes"><textarea value={form.situation} onChange={e => setForm({ ...form, situation: e.target.value })} style={{ ...inputStyle, minHeight: 50 }} /></Field>
                 <Field label="Date de baptême"><input type="date" value={form.baptism_date} onChange={e => setForm({ ...form, baptism_date: e.target.value })} style={inputStyle} /></Field>
-
-                <button onClick={saveForm} disabled={saving} style={{ ...primaryBtnStyle, alignSelf: 'flex-start', flex: 'none', padding: '8px 20px' }}>
-                  {saving ? 'Enregistrement…' : 'Enregistrer les modifications'}
-                </button>
               </div>
 
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Historique</div>
@@ -562,6 +581,18 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                 </div>
               )}
             </div>
+
+            {/* Pied de fenetre fixe : toujours visible quel que soit le
+                defilement. « Annuler » ferme sans enregistrer,
+                « Enregistrer » sauvegarde le formulaire. */}
+            <div style={modalFooterStyle}>
+              <button onClick={onClose} style={{ ...secondaryBtnStyle, flex: 'none', padding: '10px 20px' }}>
+                Annuler
+              </button>
+              <button onClick={saveForm} disabled={saving} style={{ ...primaryBtnStyle, flex: 'none', padding: '10px 20px' }}>
+                {saving ? 'Enregistrement…' : 'Enregistrer les modifications'}
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -578,14 +609,29 @@ function Field({ label, children, style }) {
   )
 }
 
+const overlayStyle = {
+  position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, .55)', zIndex: 1000,
+  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+  boxSizing: 'border-box'
+}
+const modalStyle = {
+  background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680,
+  maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+  boxShadow: '0 20px 50px rgba(0,0,0,.25)', boxSizing: 'border-box'
+}
 const modalHeaderStyle = {
-  padding: '18px 20px', background: 'linear-gradient(135deg,var(--nd) 0%,var(--n) 100%)',
+  padding: '16px 20px', background: 'linear-gradient(135deg,var(--nd) 0%,var(--n) 100%)',
   color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  borderTopLeftRadius: 16, borderTopRightRadius: 16
+  gap: 12, flexShrink: 0
+}
+const modalFooterStyle = {
+  padding: '12px 20px', borderTop: '1px solid #E2E8F0', background: '#FAFBFC',
+  display: 'flex', justifyContent: 'flex-end', gap: 10, flexShrink: 0
 }
 const closeBtnStyle = {
-  background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', width: 28, height: 28,
-  borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+  background: 'rgba(255,255,255,.2)', border: 'none', color: '#fff', width: 32, height: 32,
+  borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center',
+  justifyContent: 'center', flexShrink: 0
 }
 const inputStyle = {
   width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0',

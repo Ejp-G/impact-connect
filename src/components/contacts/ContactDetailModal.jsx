@@ -250,12 +250,12 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
 
   return (
     <div onClick={onClose} className="modal-overlay">
-      <div onClick={e => e.stopPropagation()} className="modal" style={{ maxWidth: 680, padding: 0 }}>
+      <div onClick={e => e.stopPropagation()} className="modal" style={{ maxWidth: 680, padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {loading || !contact ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>Chargement…</div>
         ) : (
           <>
-            <div style={modalHeaderStyle}>
+            <div style={{ ...modalHeaderStyle, flexShrink: 0 }}>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 16 }}>{contact.first_name} {contact.last_name}</div>
                 <div style={{ fontSize: 12, opacity: .85 }}>{contact.commune || '—'} {contact.is_minor && '· Mineur'}</div>
@@ -263,7 +263,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
               <button onClick={onClose} style={closeBtnStyle}><X size={15} strokeWidth={2} /></button>
             </div>
 
-            <div style={{ padding: 20 }}>
+            <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
 
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: changingStage ? 10 : 0 }}>

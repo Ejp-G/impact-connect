@@ -17,8 +17,6 @@ const RESULTS = [
   ['pas_de_reponse', 'Pas de réponse'], ['numero_invalide', 'Numéro invalide']
 ]
 
-// Meme liste que sur la fiche visiteur complete (ContactProfileClient) :
-// une seule source de verite pour ce qui compte comme "info manquante".
 const COMPLETENESS_FIELDS = [
   { id: 'date_of_birth', label: 'Date de naissance', Icon: Calendar, type: 'date' },
   { id: 'email',         label: 'E-mail',            Icon: Mail,     type: 'email' },
@@ -40,7 +38,7 @@ function isEmptyValue(v) {
   return false
 }
 
-function MissingInfoPanel({ contact, missingFields, isAssignedIntegrator, onSaved }) {
+function MissingInfoPanel({ contact, missingFields, isAssignedIntegrator, onSaved, onDirtyChange }) {
   const supabase = useMemo(() => createClient(), [])
   const [values, setValues] = useState(() => {
     const initial = {}
@@ -51,6 +49,10 @@ function MissingInfoPanel({ contact, missingFields, isAssignedIntegrator, onSave
   const [error, setError] = useState(null)
 
   const hasAnyInput = Object.values(values).some(v => String(v).trim() !== '')
+
+  // Signale a la fenetre parente si cette section a des saisies non
+  // enregistrees, pour la confirmation de fermeture globale.
+  useEffect(() => { onDirtyChange?.(hasAnyInput) }, [hasAnyInput])
 
   async function handleSave() {
     setSaving(true)
@@ -74,6 +76,7 @@ function MissingInfoPanel({ contact, missingFields, isAssignedIntegrator, onSave
       setError(updateError.message)
       setSaving(false)
     } else {
+      onDirtyChange?.(false)
       onSaved()
     }
   }
@@ -140,6 +143,30 @@ function MissingInfoPanel({ contact, missingFields, isAssignedIntegrator, onSave
   )
 }
 
+// Petite confirmation de fermeture, affichee au-dessus de la fenetre
+// principale si une saisie non enregistree existe (compte-rendu ou
+// panneau de complétude).
+function UnsavedChangesConfirm({ onContinue, onDiscard }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 22, maxWidth: 380, width: '100%', boxShadow: '0 20px 50px rgba(0,0,0,.3)' }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#1E293B', marginBottom: 8 }}>
+          Modifications non enregistrées
+        </div>
+        <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, marginBottom: 18 }}>
+          Vous avez des modifications non enregistrées. Voulez-vous vraiment fermer cette fenêtre ?
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onContinue} className="btn btn-secondary">Continuer la saisie</button>
+          <button onClick={onDiscard} style={{ padding: '9px 16px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700, background: '#DC2626', color: '#fff', cursor: 'pointer' }}>
+            Fermer sans enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProfile, currentProfile }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -149,6 +176,8 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
   const [needsHistory, setNeedsHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [missingInfoDirty, setMissingInfoDirty] = useState(false)
 
   const [form, setForm] = useState({
     method: 'telephone', result: 'repondu', duration_minutes: '',
@@ -221,9 +250,6 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
     if (!error) {
       await supabase.from('contacts').update({ integrator_contacted: true }).eq('id', contactId)
 
-      // Pipeline automatique : le premier compte-rendu d'un intégrateur
-      // fait passer la personne de "Visiteur" a "Contacte", sans aucune
-      // action manuelle sur la page Pipeline.
       if (contact?.stage === 'visiteur') {
         fetch(`/api/contacts/${contactId}/stage`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -233,262 +259,4 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
 
       const needEntries = Object.entries(checkedNeeds)
       if (needEntries.length) {
-        const rows = needEntries.map(([categoryId, note]) => {
-          const cat = NEED_CATEGORIES.find(n => n.id === categoryId)
-          return {
-            contact_id: contactId,
-            category: categoryId,
-            domain: cat?.domain || 'personnel',
-            sensitive: NEED_IS_SENSITIVE(categoryId),
-            note: note?.trim() || null,
-            detected_by: session.user.id
-          }
-        })
-        await supabase.from('contact_needs').insert(rows)
-      }
-    }
-
-    setSaving(false)
-    if (error) { alert(error.message); return }
-
-    setForm({ method: 'telephone', result: 'repondu', duration_minutes: '', notes: '', next_action: '', next_contact_date: '' })
-    setCheckedNeeds({})
-    await load()
-    router.refresh()
-  }
-
-  if (!contactId) return null
-
-  const spiritualNeeds = NEED_CATEGORIES.filter(n => n.domain === 'spirituel')
-  const personalNeeds = NEED_CATEGORIES.filter(n => n.domain === 'personnel')
-
-  const missingFields = contact ? COMPLETENESS_FIELDS.filter(f => isEmptyValue(contact[f.id])) : []
-  const isAssignedIntegrator = integratorPair.some(p => p.integrator?.id === currentProfile?.id)
-
-  const primaryPhone = contact?.phone || contact?.whatsapp
-  const whatsappNumber = contact?.whatsapp || (contact?.phone ? contact.phone : null)
-
-  return (
-    <div onClick={onClose} style={overlayStyle}>
-      <div onClick={e => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 720 }}>
-        {loading || !contact ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>Chargement…</div>
-        ) : (
-          <>
-            <div style={modalHeaderStyle}>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>{contact.first_name} {contact.last_name}</div>
-                <div style={{ fontSize: 12, opacity: .85 }}>
-                  {contact.commune || '—'} · {STAGE_LABEL(contact.stage)}
-                </div>
-              </div>
-              <button onClick={onClose} style={closeBtnStyle}>✕</button>
-            </div>
-
-            {/* Numero de telephone mis en avant : c'est l'outil de travail
-                principal de l'integrateur, plus visible qu'une simple
-                mention dans le sous-titre. */}
-            <div style={{ padding: '14px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              {primaryPhone ? (
-                <>
-                  <a href={`tel:${primaryPhone}`} style={{
-                    display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none',
-                    background: '#EFF6FF', color: '#1D4ED8', padding: '9px 16px', borderRadius: 10,
-                    fontWeight: 800, fontSize: 16, letterSpacing: .3
-                  }}>
-                    <Phone size={16} strokeWidth={2.2} /> {primaryPhone}
-                  </a>
-                  {whatsappNumber && (
-                    <a href={`https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" style={{
-                      display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none',
-                      background: '#F0FDF4', color: '#166534', padding: '9px 14px', borderRadius: 10,
-                      fontWeight: 700, fontSize: 13
-                    }}>
-                      <MessageCircle size={15} strokeWidth={2.2} /> WhatsApp
-                    </a>
-                  )}
-                </>
-              ) : (
-                <div style={{ fontSize: 12, color: '#DC2626', fontWeight: 600 }}>Aucun numéro renseigné</div>
-              )}
-            </div>
-
-            <div style={{ padding: 20 }}>
-
-              <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                <InfoLine label="Intégrateurs" value={integratorPair.map(p => p.integrator?.name).filter(Boolean).join(' & ') || '—'} />
-                <InfoLine label="FIJ" value={contact.fi?.name || 'Non attribuée'} />
-                <InfoLine label="Accueilli par" value={contact.welcomed_by?.name || '—'} />
-                {onOpenFullProfile && (
-                  <button onClick={() => onOpenFullProfile(contactId)} style={{ ...smallBtnStyle, marginLeft: 'auto' }}>
-                    Voir la fiche complète
-                  </button>
-                )}
-              </div>
-
-              {/* Panneau de complétude : mêmes champs, mêmes règles que
-                  sur la fiche visiteur complète — se synchronise
-                  directement car il écrit dans contacts. */}
-              <MissingInfoPanel
-                contact={contact}
-                missingFields={missingFields}
-                isAssignedIntegrator={isAssignedIntegrator}
-                onSaved={() => { load(); router.refresh() }}
-              />
-
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Nouveau compte-rendu</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <select value={form.method} onChange={e => setForm({ ...form, method: e.target.value })} style={{ ...inputStyle, flex: 1 }}>
-                    {METHODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                  </select>
-                  <select value={form.result} onChange={e => setForm({ ...form, result: e.target.value })} style={{ ...inputStyle, flex: 1 }}>
-                    {RESULTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                  </select>
-                  <input type="number" min={0} placeholder="Durée (min)" value={form.duration_minutes}
-                    onChange={e => setForm({ ...form, duration_minutes: e.target.value })} style={{ ...inputStyle, width: 110 }} />
-                </div>
-                <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
-                  placeholder="Compte rendu (ex: allait bien, travaille de nuit, viendra dimanche...)"
-                  style={{ ...inputStyle, minHeight: 60 }} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input value={form.next_action} onChange={e => setForm({ ...form, next_action: e.target.value })}
-                    placeholder="Prochaine action prévue" style={{ ...inputStyle, flex: 1 }} />
-                  <input type="date" value={form.next_contact_date}
-                    onChange={e => setForm({ ...form, next_contact_date: e.target.value })} style={{ ...inputStyle, width: 160 }} />
-                </div>
-
-                <div style={{ marginTop: 6 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }}>
-                    Besoins constatés lors de cet échange (optionnel)
-                  </div>
-
-                  <NeedGroup title="Vie spirituelle" TitleIcon={Sparkles} items={spiritualNeeds} checked={checkedNeeds} onToggle={toggleNeed} onNote={setNeedNote} />
-                  <NeedGroup title="Vie personnelle" TitleIcon={Heart} items={personalNeeds} checked={checkedNeeds} onToggle={toggleNeed} onNote={setNeedNote} />
-                </div>
-
-                <button onClick={submitReport} disabled={saving} style={{ ...primaryBtnStyle, marginTop: 8 }}>
-                  {saving ? 'Enregistrement…' : 'Enregistrer le compte-rendu'}
-                </button>
-              </div>
-
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Historique des échanges</div>
-              {reports.length === 0 ? (
-                <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 20 }}>Aucun compte-rendu pour le moment.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
-                  {reports.map(r => (
-                    <div key={r.id} style={{ fontSize: 12, background: '#F8FAFC', borderRadius: 8, padding: '8px 12px' }}>
-                      <b>{r.integrator?.name || '—'}</b> · {METHODS.find(m => m[0] === r.method)?.[1] || r.method} · {RESULTS.find(m => m[0] === r.result)?.[1] || r.result}
-                      {r.duration_minutes ? ` · ${r.duration_minutes} min` : ''}
-                      <span style={{ color: '#94A3B8' }}> · {new Date(r.contacted_at).toLocaleString('fr-FR')}</span>
-                      {r.notes && <div style={{ color: '#475569', marginTop: 4 }}>{r.notes}</div>}
-                      {r.next_action && <div style={{ color: '#0B3D91', marginTop: 2, fontWeight: 600 }}>→ {r.next_action}{r.next_contact_date ? ` (${r.next_contact_date})` : ''}</div>}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Besoins détectés</div>
-              {needsHistory.length === 0 ? (
-                <div style={{ fontSize: 12, color: '#94A3B8' }}>Aucun besoin détecté pour le moment.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {needsHistory.map(n => {
-                    const cat = NEED_CATEGORIES.find(c => c.id === n.category)
-                    const Icon = NEED_ICON_MAP[n.category]
-                    return (
-                      <div key={n.id} style={{ fontSize: 12, background: '#F8FAFC', borderRadius: 8, padding: '8px 12px' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                          {Icon && <Icon size={13} strokeWidth={2} />} <b>{cat?.label || n.category}</b>
-                        </span>
-                        <span style={{ color: '#94A3B8' }}> · signalé par {n.detected_by?.name || '—'} le {new Date(n.detected_at).toLocaleDateString('fr-FR')}</span>
-                        {n.note && <div style={{ color: '#475569', marginTop: 4 }}>{n.note}</div>}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function NeedGroup({ title, TitleIcon, items, checked, onToggle, onNote }) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-        {TitleIcon && <TitleIcon size={13} strokeWidth={2} />} {title}
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {items.map(item => {
-          const isChecked = item.id in checked
-          const ItemIcon = NEED_ICON_MAP[item.id]
-          return (
-            <div key={item.id} style={{ width: isChecked ? '100%' : 'auto' }}>
-              <label style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12,
-                padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
-                background: isChecked ? (item.sensitive ? '#FEF2F2' : '#EFF6FF') : '#F8FAFC',
-                border: `1px solid ${isChecked ? (item.sensitive ? '#FCA5A5' : '#93C5FD') : '#E2E8F0'}`
-              }}>
-                <input type="checkbox" checked={isChecked} onChange={() => onToggle(item.id)} style={{ width: 14, height: 14 }} />
-                {ItemIcon && <ItemIcon size={13} strokeWidth={2} />} {item.label}
-              </label>
-              {isChecked && (
-                <input
-                  value={checked[item.id]}
-                  onChange={e => onNote(item.id, e.target.value)}
-                  placeholder="Note (optionnel)"
-                  style={{ ...inputStyle, marginTop: 4, fontSize: 12 }}
-                />
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function InfoLine({ label, value }) {
-  return (
-    <div>
-      <div style={{ fontSize: 10, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: .5 }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#1E293B' }}>{value}</div>
-    </div>
-  )
-}
-
-const overlayStyle = {
-  position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
-}
-const modalStyle = {
-  background: '#fff', borderRadius: 16, width: '100%', maxHeight: '90vh',
-  overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.3)'
-}
-const modalHeaderStyle = {
-  padding: '18px 20px', background: 'linear-gradient(135deg,var(--nd) 0%,var(--n) 100%)',
-  color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  borderTopLeftRadius: 16, borderTopRightRadius: 16, position: 'sticky', top: 0, zIndex: 1
-}
-const closeBtnStyle = {
-  background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', width: 28, height: 28,
-  borderRadius: 8, cursor: 'pointer', fontSize: 14
-}
-const inputStyle = {
-  width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0',
-  fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box'
-}
-const primaryBtnStyle = {
-  background: 'var(--n)', color: '#fff', border: 'none', padding: '10px 18px',
-  borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer'
-}
-const smallBtnStyle = {
-  background: '#fff', color: '#334155', border: '1px solid #E2E8F0', padding: '6px 12px',
-  borderRadius: 6, fontWeight: 600, fontSize: 11, cursor: 'pointer'
-}
+        const

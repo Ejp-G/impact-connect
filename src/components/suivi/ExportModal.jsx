@@ -52,7 +52,9 @@ export default function ExportModal({ onClose, fis = [], communes = [], suiviTea
   }
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    // Fermeture uniquement via la croix ou apres un export lance —
+    // plus de fermeture au clic sur l'arriere-plan.
+    <div className="modal-overlay">
       <div className="modal" style={{ maxWidth: 600 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div style={{ fontSize: 18, fontWeight: 700 }}>Exporter la liste de suivi</div>

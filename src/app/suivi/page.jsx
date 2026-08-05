@@ -12,17 +12,26 @@ export default async function SuiviPage({ searchParams }) {
   // Les statistiques globales (Dashboard, Pipeline, Rapports) restent
   // partagees par toute l'equipe. Cette page de travail quotidien
   // (Suivi & Taches) reste PERSONNELLE par defaut, y compris pour un
-  // administrateur. Seuls admin/responsable_suivi peuvent choisir de
+  // administrateur. Seuls responsable_suivi/superviseur peuvent choisir de
   // regarder le portefeuille d'un autre membre ou de toute l'equipe,
   // via ?viewAs=<userId|all> — jamais un membre normal (protection
   // cote serveur, pas seulement cote UI, meme si le parametre d'URL
   // est manipule directement).
   const myId = session.user.id
-  const canViewTeam = ['admin', 'responsable_suivi', 'superviseur'].includes(profile?.role)
-    || (profile?.secondary_roles || []).includes('responsable_suivi')
+  const secondaryRoles = profile?.secondary_roles || []
+  const canViewTeam = ['responsable_suivi', 'superviseur'].includes(profile?.role)
+    || secondaryRoles.includes('responsable_suivi')
   const viewAs = canViewTeam ? (searchParams?.viewAs || 'me') : 'me'
   const viewingAll = viewAs === 'all'
   const targetId = viewAs === 'me' || !canViewTeam ? myId : viewAs
+
+  // Tableau intelligent des besoins : outil collaboratif, distinct de
+  // la logique "mon portefeuille / portefeuille de X" ci-dessus.
+  // Visible pour equipe_suivi (principal ou secondaire), superviseur,
+  // responsable_suivi — jamais scope a un seul intégrateur, car le
+  // suivi des besoins est un travail d'equipe.
+  const canViewNeedsBoard = ['superviseur', 'responsable_suivi', 'equipe_suivi'].includes(profile?.role)
+    || secondaryRoles.includes('equipe_suivi')
 
   const { data: teamMembers } = canViewTeam
     ? await supabase.from('profiles')
@@ -82,6 +91,13 @@ export default async function SuiviPage({ searchParams }) {
         .in('contact_id', contactIds)
     : { data: [] }
 
+  // Besoins non filtres, toute l'equipe — uniquement pour les roles
+  // autorises a voir le tableau collaboratif. Independant du filtre
+  // "Mes taches / Toute l'equipe" utilise pour le reste de la page.
+  const { data: allNeeds } = canViewNeedsBoard
+    ? await supabase.from('contact_needs').select('id,contact_id,category,status,detected_at')
+    : { data: [] }
+
   // Meme logique pour les taches : un binome doit voir les taches liees
   // aux contacts dont il est integrateur, meme si assigned_to pointe
   // vers le principal.
@@ -107,6 +123,8 @@ export default async function SuiviPage({ searchParams }) {
         contacts={contacts || []}
         reports={reports || []}
         needs={needs || []}
+        allNeeds={allNeeds || []}
+        canViewNeedsBoard={canViewNeedsBoard}
         tasks={tasks || []}
         profiles={profiles || []}
         profile={profile}

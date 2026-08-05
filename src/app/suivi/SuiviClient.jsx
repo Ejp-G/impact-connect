@@ -20,7 +20,7 @@ function AlertDot({ level }) {
   return <span style={{ display:'inline-block', width:9, height:9, borderRadius:'50%', background:color }} />
 }
 
-export default function SuiviClient({ contacts, reports, needs, tasks: initialTasks, profiles = [], profile, canViewTeam = false, suiviTeam = [], viewAs = 'me', fis = [], communes = [] }) {
+export default function SuiviClient({ contacts, reports, needs, allNeeds = [], canViewNeedsBoard = false, tasks: initialTasks, profiles = [], profile, canViewTeam = false, suiviTeam = [], viewAs = 'me', fis = [], communes = [] }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [tab, setTab] = useState(searchParams.get('tab') || 'nouveaux')
@@ -147,9 +147,13 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
     setOpenMonths(prev => ({ ...prev, [key]: !isMonthOpen(key) }))
   }
 
+  // Tableau intelligent des besoins : donnees NON filtrees par
+  // portefeuille quand canViewNeedsBoard (equipe_suivi, superviseur,
+  // responsable_suivi) — c'est un outil collaboratif, pas personnel.
   const needsSummary = useMemo(() => {
+    const source = canViewNeedsBoard ? allNeeds : []
     const byCategory = {}
-    needs.forEach(n => {
+    source.forEach(n => {
       if (!byCategory[n.category]) byCategory[n.category] = []
       byCategory[n.category].push(n)
     })
@@ -164,7 +168,7 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
       else if (rows.length > 0) dot = '#22C55E'
       return { ...cat, count: uniqueContacts, actionsEnCours: enCours, dot, hasData: rows.length > 0 }
     }).filter(c => c.hasData)
-  }, [needs])
+  }, [allNeeds, canViewNeedsBoard])
 
   async function toggleLegacyTask(e, id) {
     e.stopPropagation()
@@ -344,34 +348,37 @@ export default function SuiviClient({ contacts, reports, needs, tasks: initialTa
 
       {tab === 'taches' && (
         <div>
-          <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Compass size={16} strokeWidth={2} /> Tableau intelligent des besoins
+          {canViewNeedsBoard && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Compass size={16} strokeWidth={2} /> Tableau intelligent des besoins
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gy)', marginLeft: 4 }}>· toute l'équipe</span>
+              </div>
+              <table>
+                <thead>
+                  <tr><th>Besoin</th><th>Personnes</th><th>Actions en cours</th><th>Statut</th></tr>
+                </thead>
+                <tbody>
+                  {needsSummary.map(cat => {
+                    const Icon = NEED_ICON_MAP[cat.id]
+                    return (
+                      <tr key={cat.id} onClick={() => setDrilldownCategory(cat.id)} style={{ cursor: 'pointer' }}>
+                        <td style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 7 }}>
+                          {Icon && <Icon size={14} strokeWidth={2} />} {cat.label}
+                        </td>
+                        <td style={{ fontSize: 13, color: 'var(--n)', textDecoration: 'underline' }}>{cat.count} — Voir la liste</td>
+                        <td style={{ fontSize: 13 }}>{cat.actionsEnCours}</td>
+                        <td><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: cat.dot }} /></td>
+                      </tr>
+                    )
+                  })}
+                  {needsSummary.length === 0 && (
+                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: 30, color: 'var(--gy)' }}>Aucun besoin détecté pour le moment</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-            <table>
-              <thead>
-                <tr><th>Besoin</th><th>Personnes</th><th>Actions en cours</th><th>Statut</th></tr>
-              </thead>
-              <tbody>
-                {needsSummary.map(cat => {
-                  const Icon = NEED_ICON_MAP[cat.id]
-                  return (
-                    <tr key={cat.id} onClick={() => setDrilldownCategory(cat.id)} style={{ cursor: 'pointer' }}>
-                      <td style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 7 }}>
-                        {Icon && <Icon size={14} strokeWidth={2} />} {cat.label}
-                      </td>
-                      <td style={{ fontSize: 13, color: 'var(--n)', textDecoration: 'underline' }}>{cat.count} — Voir la liste</td>
-                      <td style={{ fontSize: 13 }}>{cat.actionsEnCours}</td>
-                      <td><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: cat.dot }} /></td>
-                    </tr>
-                  )
-                })}
-                {needsSummary.length === 0 && (
-                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: 30, color: 'var(--gy)' }}>Aucun besoin détecté pour le moment</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>📥 Boîte de réception ({tasks.length})</div>

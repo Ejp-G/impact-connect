@@ -26,6 +26,27 @@ function parentalStatusInfo(status, authDate) {
   return { label: 'Aucune autorisation parentale enregistrée', color: '#B45309', bg: '#FFFBEB' }
 }
 
+function UnsavedChangesConfirm({ onContinue, onDiscard }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 22, maxWidth: 380, width: '100%', boxShadow: '0 20px 50px rgba(0,0,0,.3)' }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#1E293B', marginBottom: 8 }}>Modifications non enregistrées</div>
+        <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, marginBottom: 18 }}>
+          Vous avez des modifications non enregistrées. Voulez-vous vraiment fermer cette fenêtre ?
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onContinue} style={{ background: '#fff', color: '#374151', border: '1px solid #E2E8F0', padding: '9px 16px', borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+            Continuer la saisie
+          </button>
+          <button onClick={onDiscard} style={{ padding: '9px 16px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700, background: '#DC2626', color: '#fff', cursor: 'pointer' }}>
+            Fermer sans enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ContactDetailModal({ contactId, onClose, communes = [], fis = [] }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -33,7 +54,9 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(null)
+  const [initialFormSnapshot, setInitialFormSnapshot] = useState(null)
   const [currentProfile, setCurrentProfile] = useState(null)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
 
   const [confirmingContact, setConfirmingContact] = useState(false)
   const [contactChannel, setContactChannel] = useState('appel')
@@ -56,15 +79,26 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   const [savingIntegrators, setSavingIntegrators] = useState(false)
   const [savingParental, setSavingParental] = useState(false)
 
-  // Fermeture par la touche Echap, ou l'utilisateur peut cliquer sur la
-  // croix, le bouton Annuler, ou l'arriere-plan sombre.
+  const isDirty = form && initialFormSnapshot
+    ? JSON.stringify(form) !== JSON.stringify(initialFormSnapshot)
+    : false
+
+  function requestClose() {
+    if (isDirty) setShowCloseConfirm(true)
+    else onClose()
+  }
+
+  // Fermeture uniquement via la croix, le bouton Annuler, ou apres
+  // enregistrement — plus de fermeture au clic sur l'arriere-plan.
+  // Echap passe desormais par la meme verification (modifications
+  // non enregistrees) plutot que de fermer directement.
   useEffect(() => {
     function onKeyDown(e) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') requestClose()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  }, [isDirty])
 
   async function setParentalStatus(status) {
     setSavingParental(true)
@@ -88,7 +122,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
       .select('*, fi:familles_impact(id,name), agent:profiles!contacts_assigned_to_fkey(id,name)')
       .eq('id', contactId).single()
     setContact(data)
-    setForm(data ? {
+    const nextForm = data ? {
       first_name: data.first_name || '', last_name: data.last_name || '',
       sex: data.sex || '',
       date_of_birth: data.date_of_birth || '',
@@ -103,7 +137,9 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
       first_visit_date: data.first_visit_date || '',
       welcomed_by_name: data.welcomed_by_name || '',
       salvation_call: data.salvation_call || false
-    } : null)
+    } : null
+    setForm(nextForm)
+    setInitialFormSnapshot(nextForm)
     setNewStage(data?.stage || '')
     setLoading(false)
 
@@ -223,11 +259,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   const isAdmin = currentProfile?.role === 'admin'
   const canManageIntegrators = isAdmin || currentProfile?.role === 'responsable_suivi'
 
-  // Âge calculé en direct sur la date saisie dans le formulaire :
-  // la section « Représentant légal » apparaît dès que la date correspond
-  // à un mineur, sans attendre l'enregistrement ni le trigger update_is_minor.
-  // Calcul en heure locale (pas via new Date('YYYY-MM-DD') qui décale d'un
-  // jour en Guadeloupe, UTC-4).
   let formAge = null
   if (form?.date_of_birth) {
     const [by, bm, bd] = String(form.date_of_birth).slice(0, 10).split('-').map(Number)
@@ -259,23 +290,13 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   if (!contactId) return null
 
   return (
-    // Overlay entierement autonome (styles en ligne) : il ne depend plus
-    // des classes CSS .modal-overlay / .modal qui se comportaient
-    // differemment sur la page de profil visiteur (fiche decalee sur les
-    // cotes, boutons hors ecran). Ici la fenetre est toujours centree,
-    // limitee a 92% de la hauteur de l'ecran, avec defilement interne.
-    <div onClick={onClose} style={overlayStyle}>
-      <div onClick={e => e.stopPropagation()} style={modalStyle}>
+    <div style={overlayStyle}>
+      <div style={modalStyle}>
 
-        {/* Croix de fermeture : ancree en position absolue dans l'angle
-            superieur droit du MODAL (pas de l'en-tete). Elle reste visible
-            en permanence, quel que soit le defilement ou l'etat de
-            chargement, et passe au-dessus de tout le contenu (zIndex). */}
-        <button onClick={onClose} title="Fermer" aria-label="Fermer la fiche" style={closeBtnStyle}>
+        <button onClick={requestClose} title="Fermer" aria-label="Fermer la fiche" style={closeBtnStyle}>
           <X size={18} strokeWidth={2.5} />
         </button>
 
-        {/* En-tete : toujours visible (ne defile pas). */}
         <div style={modalHeaderStyle}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -291,12 +312,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
           <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>Chargement…</div>
         ) : (
           <>
-            {/* Zone centrale : seule cette partie defile, et UNIQUEMENT
-                verticalement. overflowX hidden + touchAction pan-y
-                empechent tout glissement horizontal du contenu (le
-                comportement observe sur mobile), et overscrollBehavior
-                contain evite que le defilement ne se propage a la page
-                derriere le modal. */}
             <div style={{
               padding: 20, flex: 1, minHeight: 0,
               overflowY: 'auto', overflowX: 'hidden',
@@ -598,11 +613,8 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
               )}
             </div>
 
-            {/* Pied de fenetre fixe : toujours visible quel que soit le
-                defilement. « Annuler » ferme sans enregistrer,
-                « Enregistrer » sauvegarde le formulaire. */}
             <div style={modalFooterStyle}>
-              <button onClick={onClose} style={{ ...secondaryBtnStyle, flex: 'none', padding: '10px 20px' }}>
+              <button onClick={requestClose} style={{ ...secondaryBtnStyle, flex: 'none', padding: '10px 20px' }}>
                 Annuler
               </button>
               <button onClick={saveForm} disabled={saving} style={{ ...primaryBtnStyle, flex: 'none', padding: '10px 20px' }}>
@@ -612,6 +624,13 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
           </>
         )}
       </div>
+
+      {showCloseConfirm && (
+        <UnsavedChangesConfirm
+          onContinue={() => setShowCloseConfirm(false)}
+          onDiscard={onClose}
+        />
+      )}
     </div>
   )
 }

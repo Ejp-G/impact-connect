@@ -3,7 +3,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { STAGE_LABEL, NEED_CATEGORIES, NEED_IS_SENSITIVE } from '@/lib/constants'
-import { NEED_ICON_MAP, Sparkles, Heart } from '@/lib/icons'
+import {
+  NEED_ICON_MAP, Sparkles, Heart, Phone, MessageCircle, Calendar, Mail,
+  MessageSquare, MapPin, Home, FileText, Tag, Clock, HelpCircle, Save, AlertTriangle
+} from '@/lib/icons'
 
 const METHODS = [
   ['telephone', 'Téléphone'], ['whatsapp', 'WhatsApp'], ['sms', 'SMS'],
@@ -13,6 +16,129 @@ const RESULTS = [
   ['repondu', 'A répondu'], ['messagerie', 'Messagerie'],
   ['pas_de_reponse', 'Pas de réponse'], ['numero_invalide', 'Numéro invalide']
 ]
+
+// Meme liste que sur la fiche visiteur complete (ContactProfileClient) :
+// une seule source de verite pour ce qui compte comme "info manquante".
+const COMPLETENESS_FIELDS = [
+  { id: 'date_of_birth', label: 'Date de naissance', Icon: Calendar, type: 'date' },
+  { id: 'email',         label: 'E-mail',            Icon: Mail,     type: 'email' },
+  { id: 'whatsapp',      label: 'WhatsApp',          Icon: MessageSquare, type: 'text' },
+  { id: 'address',       label: 'Adresse',           Icon: MapPin,   type: 'text' },
+  { id: 'commune',       label: 'Commune',           Icon: Home,     type: 'text' },
+  { id: 'quartier',      label: 'Quartier',          Icon: MapPin,   type: 'text' },
+  { id: 'situation',     label: 'Situation / notes', Icon: FileText, type: 'textarea' },
+  { id: 'interests',     label: "Centres d'intérêt", Icon: Tag,      type: 'array' },
+  { id: 'availability',  label: 'Disponibilités',    Icon: Clock,    type: 'array' },
+  { id: 'how_found',     label: 'Comment il/elle a connu l\u2019église', Icon: HelpCircle, type: 'text' },
+  { id: 'prayer_request',label: 'Sujet de prière',   Icon: Heart,    type: 'textarea' },
+]
+
+function isEmptyValue(v) {
+  if (v === null || v === undefined) return true
+  if (Array.isArray(v)) return v.length === 0
+  if (typeof v === 'string') return v.trim() === ''
+  return false
+}
+
+function MissingInfoPanel({ contact, missingFields, isAssignedIntegrator, onSaved }) {
+  const supabase = useMemo(() => createClient(), [])
+  const [values, setValues] = useState(() => {
+    const initial = {}
+    missingFields.forEach(f => { initial[f.id] = '' })
+    return initial
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  const hasAnyInput = Object.values(values).some(v => String(v).trim() !== '')
+
+  async function handleSave() {
+    setSaving(true)
+    setError(null)
+    const payload = {}
+    missingFields.forEach(f => {
+      const raw = values[f.id]
+      if (raw === undefined || String(raw).trim() === '') return
+      if (f.type === 'array') {
+        payload[f.id] = raw.split(',').map(s => s.trim()).filter(Boolean)
+      } else {
+        payload[f.id] = raw
+      }
+    })
+    if (Object.keys(payload).length === 0) {
+      setSaving(false)
+      return
+    }
+    const { error: updateError } = await supabase.from('contacts').update(payload).eq('id', contact.id)
+    if (updateError) {
+      setError(updateError.message)
+      setSaving(false)
+    } else {
+      onSaved()
+    }
+  }
+
+  if (missingFields.length === 0) return null
+
+  return (
+    <div style={{ background: '#FFFBF5', border: '1px solid #FED7AA', borderRadius: 12, padding: 16, marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <AlertTriangle size={16} strokeWidth={2} color="#C2410C" />
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#9A3412' }}>Informations à compléter</div>
+      </div>
+      <div style={{ fontSize: 12, color: '#9A3412', marginBottom: 14 }}>
+        {isAssignedIntegrator
+          ? "C'est vous qui suivez ce visiteur — complétez sa fiche pendant cet échange."
+          : 'Il manque encore certaines informations pour ce visiteur.'}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {missingFields.map(f => (
+          <div key={f.id}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              <f.Icon size={13} strokeWidth={2} color="#94A3B8" /> {f.label}
+            </label>
+            {f.type === 'textarea' ? (
+              <textarea
+                rows={2}
+                value={values[f.id]}
+                onChange={e => setValues(v => ({ ...v, [f.id]: e.target.value }))}
+                style={{ ...inputStyle, resize: 'vertical' }}
+              />
+            ) : (
+              <input
+                type={f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : 'text'}
+                value={values[f.id]}
+                onChange={e => setValues(v => ({ ...v, [f.id]: e.target.value }))}
+                placeholder={f.type === 'array' ? 'séparés par des virgules' : ''}
+                style={inputStyle}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {error && (
+        <div style={{ fontSize: 12, color: '#DC2626', background: '#FEF2F2', borderRadius: 8, padding: '8px 10px', marginTop: 10 }}>
+          {error}
+        </div>
+      )}
+
+      <button
+        onClick={handleSave}
+        disabled={!hasAnyInput || saving}
+        style={{
+          marginTop: 14, display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8,
+          border: 'none', fontSize: 13, fontWeight: 700, color: '#fff',
+          background: hasAnyInput && !saving ? '#EA580C' : '#FDBA74',
+          cursor: hasAnyInput && !saving ? 'pointer' : 'not-allowed'
+        }}
+      >
+        <Save size={14} strokeWidth={2} /> {saving ? 'Enregistrement…' : 'Enregistrer les informations'}
+      </button>
+    </div>
+  )
+}
 
 export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProfile, currentProfile }) {
   const router = useRouter()
@@ -35,7 +161,11 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
   async function load() {
     setLoading(true)
     const { data: c } = await supabase.from('contacts')
-      .select('id,first_name,last_name,sex,phone,whatsapp,commune,stage,fi:familles_impact(name),welcomed_by:profiles!contacts_welcomed_by_fkey(name)')
+      .select(`
+        id,first_name,last_name,sex,phone,whatsapp,commune,quartier,address,stage,
+        date_of_birth,email,situation,interests,availability,how_found,prayer_request,
+        fi:familles_impact(name),welcomed_by:profiles!contacts_welcomed_by_fkey(name)
+      `)
       .eq('id', contactId).single()
     setContact(c)
 
@@ -131,7 +261,12 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
 
   const spiritualNeeds = NEED_CATEGORIES.filter(n => n.domain === 'spirituel')
   const personalNeeds = NEED_CATEGORIES.filter(n => n.domain === 'personnel')
-  const isAdmin = currentProfile?.role === 'admin'
+
+  const missingFields = contact ? COMPLETENESS_FIELDS.filter(f => isEmptyValue(contact[f.id])) : []
+  const isAssignedIntegrator = integratorPair.some(p => p.integrator?.id === currentProfile?.id)
+
+  const primaryPhone = contact?.phone || contact?.whatsapp
+  const whatsappNumber = contact?.whatsapp || (contact?.phone ? contact.phone : null)
 
   return (
     <div onClick={onClose} style={overlayStyle}>
@@ -144,10 +279,38 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
               <div>
                 <div style={{ fontWeight: 800, fontSize: 16 }}>{contact.first_name} {contact.last_name}</div>
                 <div style={{ fontSize: 12, opacity: .85 }}>
-                  {contact.commune || '—'} · {contact.phone || contact.whatsapp || '—'} · {STAGE_LABEL(contact.stage)}
+                  {contact.commune || '—'} · {STAGE_LABEL(contact.stage)}
                 </div>
               </div>
               <button onClick={onClose} style={closeBtnStyle}>✕</button>
+            </div>
+
+            {/* Numero de telephone mis en avant : c'est l'outil de travail
+                principal de l'integrateur, plus visible qu'une simple
+                mention dans le sous-titre. */}
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {primaryPhone ? (
+                <>
+                  <a href={`tel:${primaryPhone}`} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none',
+                    background: '#EFF6FF', color: '#1D4ED8', padding: '9px 16px', borderRadius: 10,
+                    fontWeight: 800, fontSize: 16, letterSpacing: .3
+                  }}>
+                    <Phone size={16} strokeWidth={2.2} /> {primaryPhone}
+                  </a>
+                  {whatsappNumber && (
+                    <a href={`https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" style={{
+                      display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none',
+                      background: '#F0FDF4', color: '#166534', padding: '9px 14px', borderRadius: 10,
+                      fontWeight: 700, fontSize: 13
+                    }}>
+                      <MessageCircle size={15} strokeWidth={2.2} /> WhatsApp
+                    </a>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 12, color: '#DC2626', fontWeight: 600 }}>Aucun numéro renseigné</div>
+              )}
             </div>
 
             <div style={{ padding: 20 }}>
@@ -156,12 +319,22 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
                 <InfoLine label="Intégrateurs" value={integratorPair.map(p => p.integrator?.name).filter(Boolean).join(' & ') || '—'} />
                 <InfoLine label="FIJ" value={contact.fi?.name || 'Non attribuée'} />
                 <InfoLine label="Accueilli par" value={contact.welcomed_by?.name || '—'} />
-                {isAdmin && onOpenFullProfile && (
+                {onOpenFullProfile && (
                   <button onClick={() => onOpenFullProfile(contactId)} style={{ ...smallBtnStyle, marginLeft: 'auto' }}>
-                    Voir la fiche complète (admin)
+                    Voir la fiche complète
                   </button>
                 )}
               </div>
+
+              {/* Panneau de complétude : mêmes champs, mêmes règles que
+                  sur la fiche visiteur complète — se synchronise
+                  directement car il écrit dans contacts. */}
+              <MissingInfoPanel
+                contact={contact}
+                missingFields={missingFields}
+                isAssignedIntegrator={isAssignedIntegrator}
+                onSaved={() => { load(); router.refresh() }}
+              />
 
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Nouveau compte-rendu</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>

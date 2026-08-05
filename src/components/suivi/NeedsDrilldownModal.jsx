@@ -15,6 +15,27 @@ function StatusDot({ color }) {
   return <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:color, marginRight:6 }} />
 }
 
+function UnsavedChangesConfirm({ onContinue, onDiscard }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 22, maxWidth: 380, width: '100%', boxShadow: '0 20px 50px rgba(0,0,0,.3)' }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#1E293B', marginBottom: 8 }}>Modifications non enregistrées</div>
+        <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, marginBottom: 18 }}>
+          Vous avez des modifications non enregistrées. Voulez-vous vraiment fermer cette fenêtre ?
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onContinue} style={{ background: '#fff', color: '#374151', border: '1px solid #E2E8F0', padding: '9px 16px', borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+            Continuer la saisie
+          </button>
+          <button onClick={onDiscard} style={{ padding: '9px 16px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700, background: '#DC2626', color: '#fff', cursor: 'pointer' }}>
+            Fermer sans enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function NeedsDrilldownModal({ categoryId, onClose, profiles = [] }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -22,9 +43,15 @@ export default function NeedsDrilldownModal({ categoryId, onClose, profiles = []
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState(null)
   const [localEdits, setLocalEdits] = useState({})
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
 
   const category = NEED_CATEGORIES.find(c => c.id === categoryId)
   const CategoryIcon = NEED_ICON_MAP[categoryId]
+
+  function requestClose() {
+    if (Object.keys(localEdits).length > 0) setShowCloseConfirm(true)
+    else onClose()
+  }
 
   useEffect(() => { if (categoryId) load() }, [categoryId])
 
@@ -57,6 +84,11 @@ export default function NeedsDrilldownModal({ categoryId, onClose, profiles = []
     const { error } = await supabase.from('contact_needs').update(patch).eq('id', row.id)
     setSavingId(null)
     if (error) { alert(error.message); return }
+    setLocalEdits(prev => {
+      const next = { ...prev }
+      delete next[row.id]
+      return next
+    })
     await load()
     router.refresh()
   }
@@ -64,13 +96,13 @@ export default function NeedsDrilldownModal({ categoryId, onClose, profiles = []
   if (!categoryId) return null
 
   return (
-    <div onClick={onClose} style={overlayStyle}>
-      <div onClick={e => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 720 }}>
+    <div style={overlayStyle}>
+      <div style={{ ...modalStyle, maxWidth: 720 }}>
         <div style={modalHeaderStyle}>
           <div style={{ fontWeight: 800, fontSize: 16, display:'flex', alignItems:'center', gap:8 }}>
             {CategoryIcon && <CategoryIcon size={17} strokeWidth={2} />} {category?.label || categoryId}
           </div>
-          <button onClick={onClose} style={closeBtnStyle}>✕</button>
+          <button onClick={requestClose} style={closeBtnStyle}>✕</button>
         </div>
 
         <div style={{ padding: 20 }}>
@@ -121,6 +153,13 @@ export default function NeedsDrilldownModal({ categoryId, onClose, profiles = []
           )}
         </div>
       </div>
+
+      {showCloseConfirm && (
+        <UnsavedChangesConfirm
+          onContinue={() => setShowCloseConfirm(false)}
+          onDiscard={onClose}
+        />
+      )}
     </div>
   )
 }

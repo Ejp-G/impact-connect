@@ -38,6 +38,29 @@ function isEmptyValue(v) {
   return false
 }
 
+// ============================================================
+// Formatage du numéro pour un lien wa.me valide.
+// wa.me exige un format international pur : indicatif pays +
+// numéro local SANS le 0 initial, sans espaces/tirets/parenthèses.
+// Les visiteurs sont en Guadeloupe (590) ou Martinique (596) ; on
+// détecte l'indicatif déjà présent, sinon on applique 590 par défaut.
+// ============================================================
+function formatWhatsappNumber(rawPhone) {
+  if (!rawPhone) return null
+  const digitsOnly = String(rawPhone).replace(/\D/g, '')
+  if (!digitsOnly) return null
+
+  // Déjà au format international (ex: 590690390557 ou 596696123456)
+  if (digitsOnly.startsWith('590') || digitsOnly.startsWith('596')) {
+    return digitsOnly
+  }
+
+  // Format local avec 0 initial (ex: 0690390557) -> on retire le 0
+  // et on préfixe par l'indicatif Guadeloupe (590) par défaut.
+  const withoutLeadingZero = digitsOnly.startsWith('0') ? digitsOnly.slice(1) : digitsOnly
+  return `590${withoutLeadingZero}`
+}
+
 function MissingInfoPanel({ contact, missingFields, isAssignedIntegrator, onSaved, onDirtyChange }) {
   const supabase = useMemo(() => createClient(), [])
   const [values, setValues] = useState(() => {
@@ -292,7 +315,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
   const isAssignedIntegrator = integratorPair.some(p => p.integrator?.id === currentProfile?.id)
 
   const primaryPhone = contact?.phone || contact?.whatsapp
-  const whatsappNumber = contact?.whatsapp || (contact?.phone ? contact.phone : null)
+  const whatsappNumber = formatWhatsappNumber(contact?.whatsapp || contact?.phone)
 
   // Saisie en cours = compte-rendu commence OU panneau de complétude
   // rempli. Determine si on doit confirmer avant de fermer.
@@ -340,7 +363,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
                     <Phone size={16} strokeWidth={2.2} /> {primaryPhone}
                   </a>
                   {whatsappNumber && (
-                    <a href={`https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" style={{
+                    <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noopener noreferrer" style={{
                       display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none',
                       background: '#F0FDF4', color: '#166534', padding: '9px 14px', borderRadius: 10,
                       fontWeight: 700, fontSize: 13

@@ -80,6 +80,15 @@ export default function FichesACompleterClient({ rows: initialRows }) {
 
   return (
     <div style={{ maxWidth: 1000 }}>
+      <style jsx>{`
+        .desktop-table { display: block; }
+        .mobile-cards { display: none; }
+        @media (max-width: 768px) {
+          .desktop-table { display: none; }
+          .mobile-cards { display: block; }
+        }
+      `}</style>
+
       <div style={{ fontSize: 14, color: 'var(--gy)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
         <AlertTriangle size={15} strokeWidth={2} color="#DC2626" />
         {rows.length} fiche(s) à corriger avant import, réparties sur {byBatch.length} lot(s)
@@ -97,56 +106,110 @@ export default function FichesACompleterClient({ rows: initialRows }) {
                 {committing === batchId ? 'Import…' : `Importer les lignes corrigées (${readyCount})`}
               </button>
             </div>
-            <table>
-              <thead><tr><th>Statut</th><th>Nom / Prénom</th><th>Contact</th><th>Commune</th><th>Motif</th><th></th></tr></thead>
-              <tbody>
-                {batchRows.map(row => {
-                  const s = STATUS_LABELS[row.status] || STATUS_LABELS.incomplete
-                  const isEditing = editingId === row.id
-                  const d = isEditing ? editValues : row.mapped_data
-                  return (
-                    <tr key={row.id}>
-                      <td><span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, color: s.color, background: s.bg }}>{row.status === 'valid' ? 'Corrigé ✓' : s.label}</span></td>
-                      <td>
-                        {isEditing ? (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <input style={editInputStyle} value={d.prenom || ''} placeholder="Prénom" onChange={e => setEditValues({ ...editValues, prenom: e.target.value })} />
-                            <input style={editInputStyle} value={d.nom || ''} placeholder="Nom" onChange={e => setEditValues({ ...editValues, nom: e.target.value })} />
-                          </div>
-                        ) : <>{d.prenom} {d.nom}</>}
-                      </td>
-                      <td>
-                        {isEditing ? (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <input style={editInputStyle} value={d.telephone || ''} placeholder="Téléphone" onChange={e => setEditValues({ ...editValues, telephone: e.target.value })} />
-                            <input style={editInputStyle} value={d.email || ''} placeholder="Email" onChange={e => setEditValues({ ...editValues, email: e.target.value })} />
-                          </div>
-                        ) : <>{d.telephone}<br />{d.email}</>}
-                      </td>
-                      <td style={{ fontSize: 12 }}>
-                        {isEditing ? <input style={editInputStyle} value={d.commune || ''} onChange={e => setEditValues({ ...editValues, commune: e.target.value })} /> : d.commune}
-                      </td>
-                      <td style={{ fontSize: 11, color: 'var(--gy)' }}>{row.status_reason}</td>
-                      <td>
-                        {isEditing ? (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <button onClick={() => saveEdit(row)} style={smallBtnStyle}>Enregistrer</button>
-                            <button onClick={() => setEditingId(null)} style={smallBtnStyle}>Annuler</button>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            {row.status !== 'valid' && <button onClick={() => startEdit(row)} style={smallBtnStyle}>Corriger</button>}
-                            <button onClick={() => setConfirmingDeleteId(row.id)} style={{ ...smallBtnStyle, color: '#DC2626' }}>
-                              <Trash2 size={11} strokeWidth={2} />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+
+            {/* Vue tableau — desktop / tablette */}
+            <div className="desktop-table" style={{ overflowX: 'auto' }}>
+              <table>
+                <thead><tr><th>Statut</th><th>Nom / Prénom</th><th>Contact</th><th>Commune</th><th>Motif</th><th></th></tr></thead>
+                <tbody>
+                  {batchRows.map(row => {
+                    const s = STATUS_LABELS[row.status] || STATUS_LABELS.incomplete
+                    const isEditing = editingId === row.id
+                    const d = isEditing ? editValues : row.mapped_data
+                    return (
+                      <tr key={row.id}>
+                        <td><span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, color: s.color, background: s.bg }}>{row.status === 'valid' ? 'Corrigé ✓' : s.label}</span></td>
+                        <td>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <input style={editInputStyle} value={d.prenom || ''} placeholder="Prénom" onChange={e => setEditValues({ ...editValues, prenom: e.target.value })} />
+                              <input style={editInputStyle} value={d.nom || ''} placeholder="Nom" onChange={e => setEditValues({ ...editValues, nom: e.target.value })} />
+                            </div>
+                          ) : <>{d.prenom} {d.nom}</>}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <input style={editInputStyle} value={d.telephone || ''} placeholder="Téléphone" onChange={e => setEditValues({ ...editValues, telephone: e.target.value })} />
+                              <input style={editInputStyle} value={d.email || ''} placeholder="Email" onChange={e => setEditValues({ ...editValues, email: e.target.value })} />
+                            </div>
+                          ) : <>{d.telephone}<br />{d.email}</>}
+                        </td>
+                        <td style={{ fontSize: 12 }}>
+                          {isEditing ? <input style={editInputStyle} value={d.commune || ''} onChange={e => setEditValues({ ...editValues, commune: e.target.value })} /> : d.commune}
+                        </td>
+                        <td style={{ fontSize: 11, color: 'var(--gy)' }}>{row.status_reason}</td>
+                        <td>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button onClick={() => saveEdit(row)} style={smallBtnStyle}>Enregistrer</button>
+                              <button onClick={() => setEditingId(null)} style={smallBtnStyle}>Annuler</button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              {row.status !== 'valid' && <button onClick={() => startEdit(row)} style={smallBtnStyle}>Corriger</button>}
+                              <button onClick={() => setConfirmingDeleteId(row.id)} style={{ ...smallBtnStyle, color: '#DC2626' }}>
+                                <Trash2 size={11} strokeWidth={2} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Vue cartes — mobile */}
+            <div className="mobile-cards">
+              {batchRows.map(row => {
+                const s = STATUS_LABELS[row.status] || STATUS_LABELS.incomplete
+                const isEditing = editingId === row.id
+                const d = isEditing ? editValues : row.mapped_data
+                return (
+                  <div key={row.id} style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                    <div style={{ marginBottom: 8 }}>
+                      <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, color: s.color, background: s.bg }}>
+                        {row.status === 'valid' ? 'Corrigé ✓' : s.label}
+                      </span>
+                    </div>
+
+                    {isEditing ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <input style={editInputStyleMobile} value={d.prenom || ''} placeholder="Prénom" onChange={e => setEditValues({ ...editValues, prenom: e.target.value })} />
+                          <input style={editInputStyleMobile} value={d.nom || ''} placeholder="Nom" onChange={e => setEditValues({ ...editValues, nom: e.target.value })} />
+                        </div>
+                        <input style={editInputStyleMobile} value={d.telephone || ''} placeholder="Téléphone" onChange={e => setEditValues({ ...editValues, telephone: e.target.value })} />
+                        <input style={editInputStyleMobile} value={d.email || ''} placeholder="Email" onChange={e => setEditValues({ ...editValues, email: e.target.value })} />
+                        <input style={editInputStyleMobile} value={d.commune || ''} placeholder="Commune" onChange={e => setEditValues({ ...editValues, commune: e.target.value })} />
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                          <button onClick={() => saveEdit(row)} style={{ ...smallBtnStyle, flex: 1, padding: '8px 0', fontSize: 13 }}>Enregistrer</button>
+                          <button onClick={() => setEditingId(null)} style={{ ...smallBtnStyle, flex: 1, padding: '8px 0', fontSize: 13 }}>Annuler</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{d.prenom} {d.nom}</div>
+                        <div style={{ fontSize: 13, color: 'var(--gd)', lineHeight: 1.7 }}>
+                          {d.telephone && <div>📞 {d.telephone}</div>}
+                          {d.email && <div>✉️ {d.email}</div>}
+                          {d.commune && <div>📍 {d.commune}</div>}
+                        </div>
+                        {row.status_reason && <div style={{ fontSize: 12, color: 'var(--gy)', marginTop: 6 }}>{row.status_reason}</div>}
+                        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                          {row.status !== 'valid' && <button onClick={() => startEdit(row)} style={{ ...smallBtnStyle, flex: 1, padding: '8px 0', fontSize: 13 }}>Corriger</button>}
+                          <button onClick={() => setConfirmingDeleteId(row.id)} style={{ ...smallBtnStyle, color: '#DC2626', padding: '8px 12px' }}>
+                            <Trash2 size={13} strokeWidth={2} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )
       })}
@@ -173,4 +236,5 @@ export default function FichesACompleterClient({ rows: initialRows }) {
 }
 
 const editInputStyle = { width: '100%', padding: '4px 6px', fontSize: 12, border: '1px solid #d0d5dd', borderRadius: 4 }
+const editInputStyleMobile = { width: '100%', padding: '9px 10px', fontSize: 14, border: '1px solid #d0d5dd', borderRadius: 6 }
 const smallBtnStyle = { fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid #d0d5dd', background: '#fff', cursor: 'pointer' }

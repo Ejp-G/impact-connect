@@ -73,8 +73,20 @@ export default function JeunesseClient({ mineurs, count, communes }) {
     router.refresh()
   }
 
+  const statusColors = { pending: '#F97316', authorized: '#22C55E', expired: '#EF4444', not_required: '#94A3B8' }
+  const statusLabels = { pending: '⏳ En attente', authorized: '✅ Autorisé', expired: '❌ Expiré', not_required: '—' }
+
   return (
     <div style={{ maxWidth: 1000 }}>
+      <style jsx>{`
+        .desktop-table { display: block; }
+        .mobile-cards { display: none; }
+        @media (max-width: 768px) {
+          .desktop-table { display: none; }
+          .mobile-cards { display: block; }
+        }
+      `}</style>
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <button onClick={openAdd} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Plus size={14} strokeWidth={2} /> Ajouter un jeune
@@ -94,28 +106,59 @@ export default function JeunesseClient({ mineurs, count, communes }) {
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9', fontWeight: 700, fontSize: 15 }}>Dossiers mineurs</div>
-        <table>
-          <thead><tr><th>Mineur</th><th>Âge</th><th>Sexe</th><th>Parent</th><th>Contact parent</th><th>Statut autorisation</th><th>Étape</th></tr></thead>
-          <tbody>
-            {mineurs.map(m => {
-              const age = m.date_of_birth ? Math.floor((Date.now() - new Date(m.date_of_birth)) / (365.25 * 86400000)) : '?'
-              const statusColors = { pending: '#F97316', authorized: '#22C55E', expired: '#EF4444', not_required: '#94A3B8' }
-              const statusLabels = { pending: '⏳ En attente', authorized: '✅ Autorisé', expired: '❌ Expiré', not_required: '—' }
-              return (
-                <tr key={m.id}>
-                  <td><div style={{ fontWeight: 600, fontSize: 13 }}>{m.first_name} {m.last_name || ''}</div><div style={{ fontSize: 11, color: 'var(--gy)' }}>{m.commune || '—'}</div></td>
-                  <td style={{ fontWeight: 700, color: 'var(--n)' }}>{age} ans</td>
-                  <td style={{ fontSize: 12 }}>{m.sex === 'F' ? 'Fille' : 'Garçon'}</td>
-                  <td style={{ fontSize: 12 }}>{m.parent_first_name} {m.parent_last_name}{m.parent_relation ? ` (${m.parent_relation})` : ''}</td>
-                  <td style={{ fontSize: 12, color: 'var(--gd)' }}>{m.parent_phone || '—'}</td>
-                  <td><span className="badge" style={{ background: `${statusColors[m.parental_status] || '#94A3B8'}20`, color: statusColors[m.parental_status] || '#94A3B8' }}>{statusLabels[m.parental_status] || m.parental_status}</span></td>
-                  <td style={{ fontSize: 12, color: 'var(--gd)' }}>{m.stage || 'visiteur'}</td>
-                </tr>
-              )
-            })}
-            {mineurs.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--gy)' }}>Aucun mineur enregistré</td></tr>}
-          </tbody>
-        </table>
+
+        {/* Vue tableau — desktop / tablette */}
+        <div className="desktop-table" style={{ overflowX: 'auto' }}>
+          <table>
+            <thead><tr><th>Mineur</th><th>Âge</th><th>Sexe</th><th>Parent</th><th>Contact parent</th><th>Statut autorisation</th><th>Étape</th></tr></thead>
+            <tbody>
+              {mineurs.map(m => {
+                const age = m.date_of_birth ? Math.floor((Date.now() - new Date(m.date_of_birth)) / (365.25 * 86400000)) : '?'
+                return (
+                  <tr key={m.id}>
+                    <td><div style={{ fontWeight: 600, fontSize: 13 }}>{m.first_name} {m.last_name || ''}</div><div style={{ fontSize: 11, color: 'var(--gy)' }}>{m.commune || '—'}</div></td>
+                    <td style={{ fontWeight: 700, color: 'var(--n)' }}>{age} ans</td>
+                    <td style={{ fontSize: 12 }}>{m.sex === 'F' ? 'Fille' : 'Garçon'}</td>
+                    <td style={{ fontSize: 12 }}>{m.parent_first_name} {m.parent_last_name}{m.parent_relation ? ` (${m.parent_relation})` : ''}</td>
+                    <td style={{ fontSize: 12, color: 'var(--gd)' }}>{m.parent_phone || '—'}</td>
+                    <td><span className="badge" style={{ background: `${statusColors[m.parental_status] || '#94A3B8'}20`, color: statusColors[m.parental_status] || '#94A3B8' }}>{statusLabels[m.parental_status] || m.parental_status}</span></td>
+                    <td style={{ fontSize: 12, color: 'var(--gd)' }}>{m.stage || 'visiteur'}</td>
+                  </tr>
+                )
+              })}
+              {mineurs.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--gy)' }}>Aucun mineur enregistré</td></tr>}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Vue cartes — mobile */}
+        <div className="mobile-cards">
+          {mineurs.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 32, color: 'var(--gy)', fontSize: 13 }}>Aucun mineur enregistré</div>
+          )}
+          {mineurs.map(m => {
+            const age = m.date_of_birth ? Math.floor((Date.now() - new Date(m.date_of_birth)) / (365.25 * 86400000)) : '?'
+            return (
+              <div key={m.id} style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{m.first_name} {m.last_name || ''}</div>
+                    <div style={{ fontSize: 12, color: 'var(--gy)' }}>{m.commune || '—'}</div>
+                  </div>
+                  <span className="badge" style={{ background: `${statusColors[m.parental_status] || '#94A3B8'}20`, color: statusColors[m.parental_status] || '#94A3B8', whiteSpace: 'nowrap' }}>
+                    {statusLabels[m.parental_status] || m.parental_status}
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--gd)', lineHeight: 1.8 }}>
+                  <div>🎂 {age} ans · {m.sex === 'F' ? 'Fille' : 'Garçon'}</div>
+                  <div>👤 {m.parent_first_name} {m.parent_last_name}{m.parent_relation ? ` (${m.parent_relation})` : ''}</div>
+                  {m.parent_phone && <div>📞 {m.parent_phone}</div>}
+                  <div>📍 Étape : {m.stage || 'visiteur'}</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {showForm && (

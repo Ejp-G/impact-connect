@@ -115,7 +115,7 @@ export default function JeunesseClient({ mineurs, count, communes }) {
               {mineurs.map(m => {
                 const age = m.date_of_birth ? Math.floor((Date.now() - new Date(m.date_of_birth)) / (365.25 * 86400000)) : '?'
                 return (
-                  <tr key={m.id}>
+                  <tr key={m.id} onClick={() => router.push(`/visiteurs/${m.id}`)} style={{ cursor: 'pointer' }}>
                     <td><div style={{ fontWeight: 600, fontSize: 13 }}>{m.first_name} {m.last_name || ''}</div><div style={{ fontSize: 11, color: 'var(--gy)' }}>{m.commune || '—'}</div></td>
                     <td style={{ fontWeight: 700, color: 'var(--n)' }}>{age} ans</td>
                     <td style={{ fontSize: 12 }}>{m.sex === 'F' ? 'Fille' : 'Garçon'}</td>
@@ -139,7 +139,7 @@ export default function JeunesseClient({ mineurs, count, communes }) {
           {mineurs.map(m => {
             const age = m.date_of_birth ? Math.floor((Date.now() - new Date(m.date_of_birth)) / (365.25 * 86400000)) : '?'
             return (
-              <div key={m.id} style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+              <div key={m.id} onClick={() => router.push(`/visiteurs/${m.id}`)} style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 700 }}>{m.first_name} {m.last_name || ''}</div>

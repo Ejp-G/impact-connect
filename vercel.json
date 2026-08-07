@@ -1,24 +1,40 @@
 {
   "crons": [
     {
-      "path": "/api/cron/fi-reminder",
-      "schedule": "0 8 * * 4"
+      "path": "/api/cron/daily",
+      "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/birthday",
-      "schedule": "0 12 * * *"
+      "path": "/api/cron/monthly-archive",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/task-overdue-alerts",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/relance-nouvelles",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/fi-reminder",
+      "schedule": "0 8 * * 4"
     },
     {
       "path": "/api/cron/fi-pilot-alerts",
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/cron/tuesday-reminder",
+      "schedule": "0 9 * * 2"
+    },
+    {
       "path": "/api/cron/integrator-alerts",
       "schedule": "0 10 * * *"
     },
     {
-      "path": "/api/cron/relance-nouvelles",
-      "schedule": "0 8 * * *"
+      "path": "/api/cron/birthday",
+      "schedule": "0 12 * * *"
     },
     {
       "path": "/api/cron/daily-backup",

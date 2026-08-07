@@ -15,6 +15,15 @@ const FILTERS = [
   ['fi_yes', 'FI attribuée'], ['fi_no', 'FI non attribuée'],
 ]
 
+// Libelles doux pour les taches auto-generees par les relances
+// bienveillantes (voir app/api/cron/relance-nouvelles) — remplace le
+// nom technique du type par un texte chaleureux, sans rouge ni ton
+// alarmant, conformement au principe "gentil" demande.
+const TASK_TYPE_LABELS = {
+  relance_nouvelles: '💌 Prendre des nouvelles',
+  fiche_incomplete: '📋 Fiches à compléter',
+}
+
 function AlertDot({ level }) {
   const color = level === 'red' ? '#EF4444' : level === 'orange' ? '#F97316' : '#22C55E'
   return <span style={{ display:'inline-block', width:9, height:9, borderRadius:'50%', background:color }} />
@@ -195,7 +204,10 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
   // Boite de reception intelligente : regroupe les taches en dossiers
   // (Urgentes en premier, quel que soit le type, puis un dossier par
   // type distinct). Une tache urgente n'apparait que dans "Urgentes"
-  // pour eviter un doublon visuel entre deux dossiers.
+  // pour eviter un doublon visuel entre deux dossiers. Le libelle du
+  // dossier passe par TASK_TYPE_LABELS quand il existe, pour afficher
+  // un texte doux plutot que le type technique brut (relance_nouvelles,
+  // fiche_incomplete...).
   const taskFolders = useMemo(() => {
     const q = taskSearch.toLowerCase()
     const qDigits = digitsOnly(taskSearch)
@@ -215,7 +227,7 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
     })
     const folders = []
     if (urgentes.length) folders.push({ key: 'urgentes', label: '🚨 Urgentes', items: urgentes })
-    Object.entries(byType).forEach(([type, items]) => folders.push({ key: type, label: type, items }))
+    Object.entries(byType).forEach(([type, items]) => folders.push({ key: type, label: TASK_TYPE_LABELS[type] || type, items }))
     return folders
   }, [tasks, taskSearch])
 

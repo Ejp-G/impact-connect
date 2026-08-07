@@ -101,8 +101,10 @@ export default async function SuiviPage({ searchParams }) {
   // Meme logique pour les taches : un binome doit voir les taches liees
   // aux contacts dont il est integrateur, meme si assigned_to pointe
   // vers le principal.
+  // NOTE : ajout de `phone` dans le select du contact lie, pour permettre
+  // la recherche par numero de telephone dans l'onglet Taches.
   let tasksQuery = supabase.from('tasks')
-    .select('*, contact:contacts(id,first_name,last_name,sex,commune), assignee:profiles!tasks_assigned_to_fkey(id,name)')
+    .select('*, contact:contacts(id,first_name,last_name,phone,sex,commune), assignee:profiles!tasks_assigned_to_fkey(id,name)')
     .eq('status', 'pending')
     .order('due_date', { ascending: true })
   if (!viewingAll) {

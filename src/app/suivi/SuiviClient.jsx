@@ -235,3 +235,281 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
     <div style={{ maxWidth: 1200 }}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
         {[['nouveaux', 'Suivi des nouveaux', Users], ['taches', 'Tâches', CheckSquare]].map(([id, label, Icon]) => (
+          <div key={id} onClick={() => setTab(id)} style={{
+            padding: '13px 26px', borderRadius: 12, cursor: 'pointer', fontSize: 15, fontWeight: 800,
+            background: tab === id ? 'var(--n)' : '#fff', color: tab === id ? '#fff' : 'var(--gd)',
+            border: tab === id ? 'none' : '2px solid var(--br)',
+            boxShadow: tab === id ? '0 4px 14px rgba(11,61,145,.3)' : 'none',
+            display: 'flex', alignItems: 'center', gap: 9
+          }}>
+            <Icon size={18} strokeWidth={2.2} /> {label}
+          </div>
+        ))}
+
+        {canViewTeam && (
+          <select value={viewAs} onChange={e => changeViewAs(e.target.value)} style={{ marginLeft: 'auto', padding: '9px 14px', borderRadius: 10, border: '1px solid var(--br)', fontSize: 12, fontFamily: 'inherit', background: '#fff', color: 'var(--gd)', fontWeight: 600 }}>
+            <option value="me">👤 Mes tâches</option>
+            {canViewIndividuals && suiviTeam.filter(m => m.id !== profile?.id).map(m => (
+              <option key={m.id} value={m.id}>Tâches de {m.name}</option>
+            ))}
+            <option value="all">🌐 Toute l'équipe</option>
+          </select>
+        )}
+      </div>
+
+      {canViewTeam && viewAs !== 'me' && (
+        <div style={{ background: '#EFF6FF', color: '#1D4ED8', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, marginBottom: 16 }}>
+          {viewAs === 'all' ? "Vous consultez les visiteurs et tâches de toute l'équipe." : `Vous consultez le portefeuille de ${suiviTeam.find(m => m.id === viewAs)?.name || 'ce membre'}.`}
+        </div>
+      )}
+
+      {tab === 'nouveaux' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <button onClick={() => setShowExport(true)} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Download size={14} strokeWidth={2} /> Exporter
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid var(--br)', borderRadius: 10, padding: '8px 14px' }}>
+              <input value={search} onChange={e => changeSearch(e.target.value)} placeholder="Rechercher (nom ou téléphone)..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 13, width: 190 }} />
+            </div>
+            <div className="filter-chips-desktop" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {FILTERS.map(([id, label]) => (
+                <div key={id} onClick={() => changeFilter(id)} style={{
+                  padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                  background: filter === id ? 'var(--n)' : '#F1F5F9', color: filter === id ? '#fff' : '#64748B'
+                }}>
+                  {label}
+                </div>
+              ))}
+            </div>
+            <div className="filter-btn-mobile" style={{ position: 'relative' }}>
+              <button onClick={() => setShowFilterMenu(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: '1px solid var(--br)', background: filter !== 'all' ? 'rgba(11,61,145,.08)' : '#fff', color: filter !== 'all' ? 'var(--n)' : 'var(--gd)', fontWeight: 600, fontSize: 13 }}>
+                <Filter size={14} strokeWidth={2} /> Filtres
+                {filter !== 'all' && <span style={{ background: 'var(--n)', color: '#fff', borderRadius: 999, fontSize: 10, padding: '1px 6px' }}>1</span>}
+              </button>
+              {showFilterMenu && (
+                <div onClick={() => setShowFilterMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }}>
+                  <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 44, left: 0, background: '#fff', borderRadius: 14, boxShadow: '0 12px 32px rgba(0,0,0,.18)', padding: 10, zIndex: 999, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220, maxHeight: '60vh', overflowY: 'auto' }}>
+                    {FILTERS.map(([id, label]) => (
+                      <div key={id} onClick={() => { changeFilter(id); setShowFilterMenu(false) }} style={{ padding: '10px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, background: filter === id ? 'var(--n)' : 'transparent', color: filter === id ? '#fff' : '#374151' }}>
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <select value={periodFilter} onChange={e => setPeriodFilter(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--br)', fontSize: 12, fontFamily: 'inherit', background: '#fff' }}>
+              <option value="all">Toutes les périodes</option>
+              <option value="today">Aujourd'hui</option>
+              <option value="week">Cette semaine</option>
+              <option value="month">Ce mois</option>
+              <option value="year">Cette année</option>
+              <option value="sunday">Dimanche de culte précis</option>
+            </select>
+            {periodFilter === 'sunday' && (
+              <input type="date" value={sundayDate} onChange={e => setSundayDate(e.target.value)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--br)', fontSize: 12, fontFamily: 'inherit' }} />
+            )}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {monthGroups.map(g => {
+              const open = isMonthOpen(g.key)
+              return (
+                <div key={g.key} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                  <div onClick={() => toggleMonth(g.key)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', cursor: 'pointer', background: '#F8FAFC' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{open ? '▾' : '▸'} {g.label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gy)', background: '#EFF6FF', padding: '2px 10px', borderRadius: 999 }}>{g.items.length} visiteur(s)</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--gy)' }}>
+                      <span><b style={{ color: '#16A34A' }}>{g.integres}</b> intégrés</span>
+                      <span><b style={{ color: '#3B82F6' }}>{g.suivis}</b> suivis</span>
+                      <span><b style={{ color: '#F97316' }}>{g.parcoursTermines}</b> parcours</span>
+                    </div>
+                  </div>
+                  {open && (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>1ère visite</th><th>Nom</th><th>Sexe</th><th>Commune</th>
+                            <th>Intégrateurs</th><th>Étape</th><th>Dernier contact</th>
+                            <th>Prochain contact</th><th>Urgence</th><th>Score</th><th>FIJ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {g.items.map(c => {
+                            const lastReport = latestReportByContact[c.id]
+                            const integratorNames = (c.integrators || []).map(i => i.integrator?.name).filter(Boolean)
+                            const isMatch = search.trim() && `${c.first_name} ${c.last_name}`.toLowerCase().includes(search.toLowerCase())
+                            return (
+                              <tr key={c.id} onClick={() => setReportPanelId(c.id)} style={{ cursor: 'pointer', background: isMatch ? '#FEF9C3' : undefined }}>
+                                <td style={{ fontSize: 12 }}>{c.first_visit_date || '—'}</td>
+                                <td style={{ fontSize: 13, fontWeight: 600 }}>{c.first_name} {c.last_name}</td>
+                                <td style={{ fontSize: 12 }}>{c.sex}</td>
+                                <td style={{ fontSize: 12 }}>{c.commune || '—'}</td>
+                                <td style={{ fontSize: 11, color: integratorNames.length ? 'var(--gd)' : '#DC2626' }}>
+                                  {integratorNames.length ? integratorNames.join(' & ') : 'Non assigné'}
+                                </td>
+                                <td><span className="badge" style={{ background: STAGE_COLOR(c.stage) + '20', color: STAGE_COLOR(c.stage) }}>{STAGE_LABEL(c.stage)}</span></td>
+                                <td style={{ fontSize: 11 }}>{lastReport ? new Date(lastReport.contacted_at).toLocaleDateString('fr-FR') : (c.integrator_contacted ? '—' : 'Jamais')}</td>
+                                <td style={{ fontSize: 11 }}>{lastReport?.next_contact_date || '—'}</td>
+                                <td><AlertDot level={c.alert_level} /></td>
+                                <td style={{ fontSize: 12, fontWeight: 700 }}>{c.integration_score ?? '—'}</td>
+                                <td style={{ fontSize: 11 }}>{c.fi?.name || '—'}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {monthGroups.length === 0 && (
+              <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--gy)' }}>Aucun résultat</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'taches' && (
+        <div>
+          {canViewNeedsBoard && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Compass size={16} strokeWidth={2} /> Tableau intelligent des besoins
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gy)', marginLeft: 4 }}>· toute l'équipe</span>
+              </div>
+              <table>
+                <thead>
+                  <tr><th>Besoin</th><th>Personnes</th><th>Actions en cours</th><th>Statut</th></tr>
+                </thead>
+                <tbody>
+                  {needsSummary.map(cat => {
+                    const Icon = NEED_ICON_MAP[cat.id]
+                    return (
+                      <tr key={cat.id} onClick={() => setDrilldownCategory(cat.id)} style={{ cursor: 'pointer' }}>
+                        <td style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 7 }}>
+                          {Icon && <Icon size={14} strokeWidth={2} />} {cat.label}
+                        </td>
+                        <td style={{ fontSize: 13, color: 'var(--n)', textDecoration: 'underline' }}>{cat.count} — Voir la liste</td>
+                        <td style={{ fontSize: 13 }}>{cat.actionsEnCours}</td>
+                        <td><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: cat.dot }} /></td>
+                      </tr>
+                    )
+                  })}
+                  {needsSummary.length === 0 && (
+                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: 30, color: 'var(--gy)' }}>Aucun besoin détecté pour le moment</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>📥 Boîte de réception ({tasks.length})</div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid var(--br)', borderRadius: 8, padding: '5px 10px' }}>
+                <input value={taskSearch} onChange={e => setTaskSearch(e.target.value)} placeholder="Rechercher (nom ou téléphone)..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 12, width: 170 }} />
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--gd)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={taskGroupByVisitor} onChange={e => setTaskGroupByVisitor(e.target.checked)} />
+                Regrouper par visiteur
+              </label>
+            </div>
+          </div>
+
+          {taskFolders.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--gy)', textAlign: 'center', padding: '30px 0' }}>Aucune tâche en attente.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {taskFolders.map(folder => {
+                const isOpen = openFolders[folder.key] ?? (folder.key === 'urgentes')
+                const grouped = {}
+                if (taskGroupByVisitor) {
+                  folder.items.forEach(t => {
+                    const name = `${t.contact?.first_name || ''} ${t.contact?.last_name || ''}`.trim() || 'Sans visiteur'
+                    ;(grouped[name] = grouped[name] || []).push(t)
+                  })
+                }
+                return (
+                  <div key={folder.key} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                    <div onClick={() => setOpenFolders(prev => ({ ...prev, [folder.key]: !isOpen }))} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', cursor: 'pointer', background: '#F8FAFC' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{isOpen ? '▾' : '▸'} {folder.label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gy)', background: '#EFF6FF', padding: '2px 10px', borderRadius: 999 }}>{folder.items.length}</span>
+                    </div>
+                    {isOpen && (
+                      <div style={{ padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {taskGroupByVisitor ? (
+                          Object.entries(grouped).map(([name, items]) => (
+                            <div key={name}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gd)', marginBottom: 6 }}>{name}</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
+                                {items.map(t => <TaskRow key={t.id} t={t} onOpen={setSelectedTaskId} onToggle={toggleLegacyTask} showAssignee={viewAs !== 'me'} />)}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          folder.items.map(t => <TaskRow key={t.id} t={t} onOpen={setSelectedTaskId} onToggle={toggleLegacyTask} showAssignee={viewAs !== 'me'} />)
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {reportPanelId && (
+        <NewcomerReportPanel
+          contactId={reportPanelId}
+          onClose={() => { setReportPanelId(null); router.refresh() }}
+          onOpenFullProfile={(id) => { setReportPanelId(null); router.push(`/visiteurs/${id}`) }}
+          currentProfile={profile}
+        />
+      )}
+      {drilldownCategory && (
+        <NeedsDrilldownModal
+          categoryId={drilldownCategory}
+          onClose={() => { setDrilldownCategory(null); router.refresh() }}
+          profiles={profiles}
+        />
+      )}
+      {selectedTaskId && (
+        <TaskDetailModal
+          taskId={selectedTaskId}
+          onClose={() => { setSelectedTaskId(null); router.refresh() }}
+          profiles={profiles}
+        />
+      )}
+      {showExport && (
+        <ExportModal
+          onClose={() => setShowExport(false)}
+          fis={fis}
+          communes={communes}
+          suiviTeam={suiviTeam}
+          canViewTeam={canViewTeam}
+        />
+      )}
+    </div>
+  )
+}
+
+function TaskRow({ t, onOpen, onToggle, showAssignee }) {
+  return (
+    <div onClick={() => onOpen(t.id)} style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', borderLeft: `4px solid ${PRIORITY_COLORS[t.priority] || '#94A3B8'}`, boxShadow: '0 1px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+      <div onClick={e => onToggle(e, t.id)} style={{ width: 16, height: 16, borderRadius: 5, border: `2px solid ${PRIORITY_COLORS[t.priority] || '#94A3B8'}`, cursor: 'pointer', flexShrink: 0 }} />
+      <div style={{ flex: 1, fontSize: 12 }}>
+        <span style={{ fontWeight: 600 }}>{t.title || t.type}</span> — {t.contact?.first_name} {t.contact?.last_name} · Échéance : {t.due_date}
+        {showAssignee && t.assignee?.name && <span style={{ color: 'var(--gy)' }}> · {t.assignee.name}</span>}
+      </div>
+    </div>
+  )
+}

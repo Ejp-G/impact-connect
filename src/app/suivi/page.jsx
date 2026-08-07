@@ -9,19 +9,24 @@ export default async function SuiviPage({ searchParams }) {
   if (!session) redirect('/login')
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
 
-  // Les statistiques globales (Dashboard, Pipeline, Rapports) restent
-  // partagees par toute l'equipe. Cette page de travail quotidien
-  // (Suivi & Taches) reste PERSONNELLE par defaut, y compris pour un
-  // administrateur. Seuls responsable_suivi/superviseur peuvent choisir de
-  // regarder le portefeuille d'un autre membre ou de toute l'equipe,
-  // via ?viewAs=<userId|all> — jamais un membre normal (protection
-  // cote serveur, pas seulement cote UI, meme si le parametre d'URL
-  // est manipule directement).
   const myId = session.user.id
   const secondaryRoles = profile?.secondary_roles || []
-  const canViewTeam = ['responsable_suivi', 'superviseur'].includes(profile?.role)
+  const primaryRole = profile?.role
+
+  // canViewTeam (large) : accorde le choix "Mes taches / Toute l'equipe" a
+  // toute l'equipe operationnelle (suivi, integration, accueil), en plus
+  // des roles de supervision qui l'avaient deja.
+  // canViewIndividuals (restreint) : seul un role de supervision peut en
+  // plus choisir un membre precis par son nom dans le menu — protection
+  // cote serveur, pas seulement cote UI, meme si le parametre d'URL est
+  // manipule directement.
+  const canViewTeam = ['admin', 'superviseur', 'responsable_suivi', 'equipe_suivi', 'integrateur', 'equipe_accueil'].includes(primaryRole)
+    || secondaryRoles.some(r => ['responsable_suivi', 'equipe_suivi', 'integrateur', 'equipe_accueil'].includes(r))
+  const canViewIndividuals = ['admin', 'superviseur', 'responsable_suivi'].includes(primaryRole)
     || secondaryRoles.includes('responsable_suivi')
-  const viewAs = canViewTeam ? (searchParams?.viewAs || 'me') : 'me'
+
+  let viewAs = canViewTeam ? (searchParams?.viewAs || 'me') : 'me'
+  if (viewAs !== 'me' && viewAs !== 'all' && !canViewIndividuals) viewAs = 'me'
   const viewingAll = viewAs === 'all'
   const targetId = viewAs === 'me' || !canViewTeam ? myId : viewAs
 
@@ -33,7 +38,11 @@ export default async function SuiviPage({ searchParams }) {
   const canViewNeedsBoard = ['superviseur', 'responsable_suivi', 'equipe_suivi'].includes(profile?.role)
     || secondaryRoles.includes('equipe_suivi')
 
-  const { data: teamMembers } = canViewTeam
+  // La liste nominative (menu "Tâches de X") reste volontairement
+  // limitee a equipe_suivi/responsable_suivi, comme avant — accueil et
+  // integrateur ne sont pas ajoutes a cette liste, meme s'ils peuvent
+  // desormais basculer sur "Toute l'équipe".
+  const { data: teamMembers } = canViewIndividuals
     ? await supabase.from('profiles')
         .select('id,name,role,secondary_roles')
         .eq('active', true)
@@ -101,8 +110,6 @@ export default async function SuiviPage({ searchParams }) {
   // Meme logique pour les taches : un binome doit voir les taches liees
   // aux contacts dont il est integrateur, meme si assigned_to pointe
   // vers le principal.
-  // NOTE : ajout de `phone` dans le select du contact lie, pour permettre
-  // la recherche par numero de telephone dans l'onglet Taches.
   let tasksQuery = supabase.from('tasks')
     .select('*, contact:contacts(id,first_name,last_name,phone,sex,commune), assignee:profiles!tasks_assigned_to_fkey(id,name)')
     .eq('status', 'pending')
@@ -131,6 +138,7 @@ export default async function SuiviPage({ searchParams }) {
         profiles={profiles || []}
         profile={profile}
         canViewTeam={canViewTeam}
+        canViewIndividuals={canViewIndividuals}
         suiviTeam={suiviTeam}
         viewAs={canViewTeam ? viewAs : 'me'}
         fis={fis || []}

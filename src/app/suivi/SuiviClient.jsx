@@ -20,6 +20,13 @@ function AlertDot({ level }) {
   return <span style={{ display:'inline-block', width:9, height:9, borderRadius:'50%', background:color }} />
 }
 
+// Compare uniquement les chiffres, pour que "06 90 13 70", "0690-13-70"
+// ou "06901370" tapes dans la recherche retrouvent le meme contact,
+// quel que soit le format exact enregistre dans phone.
+function digitsOnly(str) {
+  return (str || '').replace(/\D/g, '')
+}
+
 export default function SuiviClient({ contacts, reports, needs, allNeeds = [], canViewNeedsBoard = false, tasks: initialTasks, profiles = [], profile, canViewTeam = false, suiviTeam = [], viewAs = 'me', fis = [], communes = [] }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -66,9 +73,18 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
     const monthStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
     const yearStr = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)
 
+    const q = search.trim().toLowerCase()
+    const qDigits = digitsOnly(search)
+
     return contacts.filter(c => {
-      const q = search.toLowerCase()
-      if (q && !`${c.first_name} ${c.last_name} ${c.commune || ''}`.toLowerCase().includes(q)) return false
+      if (q) {
+        const nameMatch = `${c.first_name} ${c.last_name} ${c.commune || ''}`.toLowerCase().includes(q)
+        // On exige au moins 3 chiffres dans la recherche avant de tenter
+        // un match telephone, pour eviter les faux positifs sur une
+        // recherche courte type "12".
+        const phoneMatch = qDigits.length >= 3 && digitsOnly(c.phone).includes(qDigits)
+        if (!nameMatch && !phoneMatch) return false
+      }
 
       const lastReport = latestReportByContact[c.id]
       const contactNeeds = needsByContact[c.id] || []
@@ -182,10 +198,13 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
   // pour eviter un doublon visuel entre deux dossiers.
   const taskFolders = useMemo(() => {
     const q = taskSearch.toLowerCase()
+    const qDigits = digitsOnly(taskSearch)
     const filtered = tasks.filter(t => {
       if (!q) return true
       const name = `${t.contact?.first_name || ''} ${t.contact?.last_name || ''}`.toLowerCase()
-      return name.includes(q) || (t.title || '').toLowerCase().includes(q) || (t.type || '').toLowerCase().includes(q)
+      const textMatch = name.includes(q) || (t.title || '').toLowerCase().includes(q) || (t.type || '').toLowerCase().includes(q)
+      const phoneMatch = qDigits.length >= 3 && digitsOnly(t.contact?.phone).includes(qDigits)
+      return textMatch || phoneMatch
     })
     const urgentes = filtered.filter(t => t.priority === 'urgent')
     const byType = {}
@@ -241,7 +260,7 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
           </div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid var(--br)', borderRadius: 10, padding: '8px 14px' }}>
-              <input value={search} onChange={e => changeSearch(e.target.value)} placeholder="Rechercher..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 13, width: 160 }} />
+              <input value={search} onChange={e => changeSearch(e.target.value)} placeholder="Rechercher (nom ou téléphone)..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 13, width: 190 }} />
             </div>
             <div className="filter-chips-desktop" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {FILTERS.map(([id, label]) => (
@@ -384,7 +403,7 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
             <div style={{ fontSize: 14, fontWeight: 700 }}>📥 Boîte de réception ({tasks.length})</div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid var(--br)', borderRadius: 8, padding: '5px 10px' }}>
-                <input value={taskSearch} onChange={e => setTaskSearch(e.target.value)} placeholder="Rechercher..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 12, width: 140 }} />
+                <input value={taskSearch} onChange={e => setTaskSearch(e.target.value)} placeholder="Rechercher (nom ou téléphone)..." style={{ border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 12, width: 170 }} />
               </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--gd)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={taskGroupByVisitor} onChange={e => setTaskGroupByVisitor(e.target.checked)} />

@@ -98,6 +98,10 @@ export async function POST(request) {
     return NextResponse.json({ error: "L'adresse email est obligatoire et doit être valide." }, { status: 400 })
   }
 
+  if (!phone?.trim()) {
+    return NextResponse.json({ error: 'Le numéro de téléphone est obligatoire.' }, { status: 400 })
+  }
+
   if (!address?.trim()) {
     return NextResponse.json({ error: "L'adresse est obligatoire." }, { status: 400 })
   }

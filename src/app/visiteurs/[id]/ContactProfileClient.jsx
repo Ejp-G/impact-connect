@@ -323,11 +323,15 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
   const [showEdit, setShowEdit] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
 
-  // --- Rôles réels de l'app : il n'existe pas de rôle 'admin' ---
+  // --- Rôles réels de l'app ---
   const secondaryRoles = profile?.secondary_roles || []
   const hasEquipeSuivi = profile?.role === 'equipe_suivi' || secondaryRoles.includes('equipe_suivi')
-  const canEdit = ['superviseur', 'responsable_suivi', 'integrateur'].includes(profile?.role) || hasEquipeSuivi
-  const isAdmin = ['superviseur', 'responsable_suivi'].includes(profile?.role)
+  const hasResponsableSuivi = profile?.role === 'responsable_suivi' || secondaryRoles.includes('responsable_suivi')
+  const canEdit = ['admin', 'superviseur', 'integrateur'].includes(profile?.role) || hasEquipeSuivi || hasResponsableSuivi
+  // Suppression réservée à admin, superviseur, responsable_suivi (rôle
+  // principal ou secondaire) — un ancien bug excluait 'admin' du test
+  // et ignorait les rôles secondaires, malgré le nom de la variable.
+  const isAdmin = ['admin', 'superviseur'].includes(profile?.role) || hasResponsableSuivi
 
   const isAssignedIntegrator = integratorPair.some(p => p.integrator?.id === profile?.id)
 

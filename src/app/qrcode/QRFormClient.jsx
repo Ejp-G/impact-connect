@@ -118,7 +118,8 @@ export default function QRFormClient({ welcomeTeam = [] }) {
     if (!form.dateOfBirth) e.dateOfBirth = 'La date de naissance est obligatoire.'
     if (!form.email.trim()) e.email = "L'adresse email est obligatoire."
     else if (!isValidEmail(form.email)) e.email = 'Cette adresse email ne semble pas valide.'
-    if (!isValidPhone(form.phone)) e.phone = 'Ce numéro ne semble pas valide.'
+    if (!form.phone.trim()) e.phone = 'Le numéro de téléphone est obligatoire.'
+    else if (!isValidPhone(form.phone)) e.phone = 'Ce numéro ne semble pas valide.'
     if (isMinor && !form.parentLastName.trim()) e.parentLastName = 'Le nom du parent est requis pour un mineur.'
     if (isMinor && !isValidPhone(form.parentPhone)) e.parentPhone = 'Le téléphone du parent est requis et doit être valide.'
     setErrors(e)
@@ -274,7 +275,7 @@ export default function QRFormClient({ welcomeTeam = [] }) {
                 </div>
               )}
               <div className="form-group">
-                <label className="form-label">Telephone</label>
+                <label className="form-label">Telephone *</label>
                 <input type="tel" className="form-input" autoComplete="tel" name="tel" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} style={errors.phone ? { borderColor:'var(--re)' } : undefined} />
                 {errors.phone && <div style={errStyle}>{errors.phone}</div>}
               </div>

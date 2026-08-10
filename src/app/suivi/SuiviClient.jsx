@@ -6,6 +6,7 @@ import TaskDetailModal from '@/components/tasks/TaskDetailModal'
 import NewcomerReportPanel from '@/components/suivi/NewcomerReportPanel'
 import NeedsDrilldownModal from '@/components/suivi/NeedsDrilldownModal'
 import ExportModal from '@/components/suivi/ExportModal'
+import ParcoursEnCoursTab from '@/components/suivi/ParcoursEnCoursTab'
 import { Users, CheckSquare, Compass, NEED_ICON_MAP, Download, Filter } from '@/lib/icons'
 
 const FILTERS = [
@@ -36,7 +37,7 @@ function digitsOnly(str) {
   return (str || '').replace(/\D/g, '')
 }
 
-export default function SuiviClient({ contacts, reports, needs, allNeeds = [], canViewNeedsBoard = false, tasks: initialTasks, profiles = [], profile, canViewTeam = false, canViewIndividuals = false, suiviTeam = [], viewAs = 'me', fis = [], communes = [] }) {
+export default function SuiviClient({ contacts, reports, needs, allNeeds = [], canViewNeedsBoard = false, tasks: initialTasks, profiles = [], profile, canViewTeam = false, canViewIndividuals = false, suiviTeam = [], viewAs = 'me', fis = [], communes = [], canViewParcours = false, parcoursList = [] }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [tab, setTab] = useState(searchParams.get('tab') || 'nouveaux')
@@ -234,7 +235,7 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
   return (
     <div style={{ maxWidth: 1200 }}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-        {[['nouveaux', 'Suivi des nouveaux', Users], ['taches', 'Tâches', CheckSquare]].map(([id, label, Icon]) => (
+        {[['nouveaux', 'Suivi des nouveaux', Users], ['taches', 'Tâches', CheckSquare], ...(canViewParcours ? [['parcours', 'Parcours en cours', Compass]] : [])].map(([id, label, Icon]) => (
           <div key={id} onClick={() => setTab(id)} style={{
             padding: '13px 26px', borderRadius: 12, cursor: 'pointer', fontSize: 15, fontWeight: 800,
             background: tab === id ? 'var(--n)' : '#fff', color: tab === id ? '#fff' : 'var(--gd)',
@@ -465,6 +466,10 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
             </div>
           )}
         </div>
+      )}
+
+      {tab === 'parcours' && canViewParcours && (
+        <ParcoursEnCoursTab parcoursList={parcoursList} />
       )}
 
       {reportPanelId && (

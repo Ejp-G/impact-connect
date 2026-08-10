@@ -40,6 +40,33 @@ async function sendWelcomeEmail(firstName, email) {
   }
 }
 
+// Rattache la fiche finalisée au parcours dont elle est issue (s'il y en
+// a un). Le contact continue d'être créé exactement comme avant ; cette
+// étape n'ajoute qu'un lien de traçabilité, elle ne modifie rien au flux
+// existant (Visiteurs, Suivi & Tâches, attribution automatique...).
+async function finalizeParcours(supabase, parcoursToken, contactId) {
+  if (!parcoursToken) return
+  const { data: parcours } = await supabase
+    .from('parcours_integration')
+    .select('id, contact_id')
+    .eq('token', parcoursToken)
+    .single()
+  if (!parcours || parcours.contact_id) return
+
+  await supabase.from('parcours_integration').update({
+    status: 'finalise',
+    contact_id: contactId,
+    finalized_at: new Date().toISOString(),
+  }).eq('id', parcours.id)
+
+  await supabase.from('audit_log').insert({
+    action: 'Fiche finalisée depuis le parcours',
+    entity_type: 'parcours',
+    entity_id: parcours.id,
+    details: { contact_id: contactId }
+  })
+}
+
 // Route publique dediee au formulaire QR (accessible sans connexion,
 // contrairement a /api/visitors reservee au formulaire interne
 // "+Nouveau visiteur" qui exige une session). Utilise createAdminClient
@@ -52,7 +79,8 @@ export async function POST(request) {
           commune, communeId, quartier, address, firstVisit, salvationCall,
           wantsFI, prayerRequest, howFound,
           parentLastName, parentFirstName, parentPhone, parentEmail, parentAddress,
-          contactPreference, availability, invitedBy, welcomedByName, prayerCategories } = body
+          contactPreference, availability, invitedBy, welcomedBy, welcomedByName,
+          prayerCategories, parcoursToken } = body
 
   const isMinor = dateOfBirth
     ? new Date(dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear() - 18))
@@ -62,13 +90,24 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Prénom et sexe sont obligatoires (nom obligatoire pour un majeur)' }, { status: 400 })
   }
 
-  if (!welcomedByName?.trim()) {
-    return NextResponse.json({ error: 'Merci d\'indiquer qui vous a accueilli aujourd\'hui.' }, { status: 400 })
+  if (!dateOfBirth) {
+    return NextResponse.json({ error: 'La date de naissance est obligatoire.' }, { status: 400 })
   }
 
-  const emailValid = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  if (!emailValid) {
-    return NextResponse.json({ error: 'Adresse email invalide' }, { status: 400 })
+  if (!email?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: "L'adresse email est obligatoire et doit être valide." }, { status: 400 })
+  }
+
+  if (!address?.trim()) {
+    return NextResponse.json({ error: "L'adresse est obligatoire." }, { status: 400 })
+  }
+
+  if (!commune?.trim()) {
+    return NextResponse.json({ error: 'La commune est obligatoire.' }, { status: 400 })
+  }
+
+  if (!welcomedByName?.trim()) {
+    return NextResponse.json({ error: 'Merci d\'indiquer qui vous a accueilli aujourd\'hui.' }, { status: 400 })
   }
 
   if (isMinor && (!parentLastName?.trim() || !parentPhone?.trim())) {
@@ -94,12 +133,15 @@ export async function POST(request) {
     contact_preference: contactPreference || null,
     availability: availability?.length ? availability : null,
     invited_by: invitedBy?.trim() || "Je suis venu(e) seul(e).",
+    welcomed_by: welcomedBy || null,
     welcomed_by_name: welcomedByName.trim(),
     prayer_categories: prayerCategories?.length ? prayerCategories : null,
   }
 
   const { data: contact, error } = await supabase.from('contacts').insert(contactData).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await finalizeParcours(supabase, parcoursToken, contact.id)
 
   if (email) {
     sendWelcomeEmail(firstName, email).catch(console.error)
@@ -118,7 +160,7 @@ export async function POST(request) {
   }
 
   const { data: admins } = await supabase.from('profiles')
-    .select('id').in('role', ['admin', 'responsable_integration'])
+    .select('id').in('role', ['admin', 'responsable_suivi'])
   if (admins?.length) {
     await supabase.from('notifications').insert(
       admins.map(a => ({

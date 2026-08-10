@@ -7,7 +7,7 @@ export default async function QRFormPage() {
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, name')
-    .in('role', ['integrateur', 'equipe_accueil'])
+    .in('role', ['integrateur', 'equipe_accueil', 'equipe_suivi'])
     .order('name')
 
   return <QRFormClient welcomeTeam={profiles || []} />

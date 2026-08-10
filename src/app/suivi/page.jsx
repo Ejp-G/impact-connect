@@ -25,6 +25,13 @@ export default async function SuiviPage({ searchParams }) {
   const canViewIndividuals = ['admin', 'superviseur', 'responsable_suivi'].includes(primaryRole)
     || secondaryRoles.includes('responsable_suivi')
 
+  // Onglet "Parcours en cours" : reserve au Responsable Suivi &
+  // Intégration (et admin). RLS sur parcours_integration applique de
+  // toute facon la meme restriction cote base — cette variable ne fait
+  // que masquer l'onglet cote UI pour ne pas polluer les autres roles.
+  const canViewParcours = primaryRole === 'admin' || primaryRole === 'responsable_suivi'
+    || secondaryRoles.includes('responsable_suivi')
+
   let viewAs = canViewTeam ? (searchParams?.viewAs || 'me') : 'me'
   if (viewAs !== 'me' && viewAs !== 'all' && !canViewIndividuals) viewAs = 'me'
   const viewingAll = viewAs === 'all'
@@ -126,6 +133,17 @@ export default async function SuiviPage({ searchParams }) {
   const { data: fis } = await supabase.from('familles_impact').select('id,name').eq('status', 'active').order('name')
   const { data: communes } = await supabase.from('communes').select('id,name').eq('active', true).order('name')
 
+  // Parcours d'integration non lies a un contact deja affiche ailleurs :
+  // la RLS de parcours_integration limite deja cette lecture a
+  // admin/responsable_suivi cote base, canViewParcours ne fait que
+  // masquer l'onglet pour les autres roles.
+  const { data: parcoursList } = canViewParcours
+    ? await supabase.from('parcours_integration')
+        .select('id, token, status, current_step, form_data, contact_id, started_at, last_activity_at, finalized_at, to_relaunch')
+        .is('contact_id', null)
+        .order('last_activity_at', { ascending: false })
+    : { data: [] }
+
   return (
     <AppLayout profile={profile} pageId="suivi" title="Suivi & Tâches">
       <SuiviClient
@@ -143,6 +161,8 @@ export default async function SuiviPage({ searchParams }) {
         viewAs={canViewTeam ? viewAs : 'me'}
         fis={fis || []}
         communes={communes || []}
+        canViewParcours={canViewParcours}
+        parcoursList={parcoursList || []}
       />
     </AppLayout>
   )

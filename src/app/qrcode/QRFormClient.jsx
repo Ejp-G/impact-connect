@@ -48,16 +48,20 @@ export default function QRFormClient({ welcomeTeam = [] }) {
   const isMinor = form.dateOfBirth && new Date(form.dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear()-18))
 
   // Création du parcours dès l'entrée dans le formulaire, ou reprise
-  // d'un parcours existant si un token est retrouvé localement (même
-  // appareil, onglet rechargé/refermé par erreur). Le stockage local
-  // n'est qu'un mécanisme complémentaire : le serveur reste la source
-  // principale du parcours.
+  // d'un parcours existant. Priorité : lien de reprise envoyé par le
+  // Responsable Suivi (?resume=TOKEN, fonctionne sur n'importe quel
+  // appareil) > token retrouvé localement (même appareil, onglet
+  // rechargé/refermé par erreur). Le stockage local n'est qu'un
+  // mécanisme complémentaire : le serveur reste la source principale
+  // du parcours.
   useEffect(() => {
     if (initRef.current) return
     initRef.current = true
 
     async function init() {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem(PARCOURS_TOKEN_KEY) : null
+      const params = new URLSearchParams(window.location.search)
+      const resumeToken = params.get('resume')
+      const saved = resumeToken || (typeof window !== 'undefined' ? localStorage.getItem(PARCOURS_TOKEN_KEY) : null)
       if (saved) {
         try {
           const res = await fetch(`/api/public/parcours?token=${saved}`)
@@ -66,10 +70,11 @@ export default function QRFormClient({ welcomeTeam = [] }) {
             setToken(data.token)
             setForm(prev => ({ ...prev, ...data.form_data }))
             setStep(data.current_step || 0)
+            if (typeof window !== 'undefined') localStorage.setItem(PARCOURS_TOKEN_KEY, data.token)
             return
           }
         } catch {}
-        localStorage.removeItem(PARCOURS_TOKEN_KEY)
+        if (typeof window !== 'undefined') localStorage.removeItem(PARCOURS_TOKEN_KEY)
       }
       try {
         const res = await fetch('/api/public/parcours', {

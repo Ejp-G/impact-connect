@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import PublicPageShell from '@/components/ui/PublicPageShell'
 
 const STEPS = ['Bienvenue', 'Vos informations', 'Finalisation']
@@ -24,22 +24,80 @@ const PRAYER_CATEGORY_OPTIONS = [
 
 const howFoundOptions = ['Bouche a oreille','Reseaux sociaux','Affiche / Publicite',"Invitation d'un ami",'Internet / Google','Radio','Autre']
 
-function isValidEmail(v) { return !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) }
+const PARCOURS_TOKEN_KEY = 'ic_parcours_token'
+
+function isValidEmail(v) { return !!v && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) }
 function isValidPhone(v) { return !v || /^[\d\s+().-]{6,}$/.test(v) }
 
-export default function QRFormClient() {
+export default function QRFormClient({ welcomeTeam = [] }) {
   const [step, setStep] = useState(0)
   const [sent, setSent] = useState(false)
   const [saving, setSaving] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [errors, setErrors] = useState({})
+  const [token, setToken] = useState(null)
+  const initRef = useRef(false)
+
   const [form, setForm] = useState({
     firstName:'', lastName:'', sex:'F', dateOfBirth:'', phone:'', whatsapp:'', email:'',
     commune:'', quartier:'', address:'', firstVisit:true, salvationCall:false, wantsFI:true,
     howFound:'', prayerRequest:'', parentLastName:'', parentFirstName:'', parentPhone:'', parentEmail:'', parentRelation:'',
-    availability:[], contactPreference:'whatsapp', invitedBy:'', cameAlone:false, welcomedByName:'', prayerCategories:[]
+    availability:[], contactPreference:'whatsapp', invitedBy:'', cameAlone:false,
+    integratorWelcome:'', welcomedByOther:'', prayerCategories:[]
   })
   const isMinor = form.dateOfBirth && new Date(form.dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear()-18))
+
+  // Création du parcours dès l'entrée dans le formulaire, ou reprise
+  // d'un parcours existant si un token est retrouvé localement (même
+  // appareil, onglet rechargé/refermé par erreur). Le stockage local
+  // n'est qu'un mécanisme complémentaire : le serveur reste la source
+  // principale du parcours.
+  useEffect(() => {
+    if (initRef.current) return
+    initRef.current = true
+
+    async function init() {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem(PARCOURS_TOKEN_KEY) : null
+      if (saved) {
+        try {
+          const res = await fetch(`/api/public/parcours?token=${saved}`)
+          if (res.ok) {
+            const { data } = await res.json()
+            setToken(data.token)
+            setForm(prev => ({ ...prev, ...data.form_data }))
+            setStep(data.current_step || 0)
+            return
+          }
+        } catch {}
+        localStorage.removeItem(PARCOURS_TOKEN_KEY)
+      }
+      try {
+        const res = await fetch('/api/public/parcours', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ formData: {}, currentStep: 0 })
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setToken(data.token)
+          localStorage.setItem(PARCOURS_TOKEN_KEY, data.token)
+        }
+      } catch {}
+    }
+    init()
+  }, [])
+
+  // Sauvegarde progressive côté serveur, avec debounce pour ne pas
+  // spammer l'API à chaque frappe.
+  useEffect(() => {
+    if (!token || sent) return
+    const t = setTimeout(() => {
+      fetch('/api/public/parcours', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, formData: form, currentStep: step })
+      }).catch(() => {})
+    }, 1200)
+    return () => clearTimeout(t)
+  }, [form, step, token, sent])
 
   function toggleArrayField(field, value) {
     setForm(prev => {
@@ -52,7 +110,9 @@ export default function QRFormClient() {
     const e = {}
     if (!form.firstName.trim()) e.firstName = 'Le prénom est obligatoire.'
     if (!isMinor && !form.lastName.trim()) e.lastName = 'Le nom est obligatoire.'
-    if (!isValidEmail(form.email)) e.email = 'Cette adresse email ne semble pas valide.'
+    if (!form.dateOfBirth) e.dateOfBirth = 'La date de naissance est obligatoire.'
+    if (!form.email.trim()) e.email = "L'adresse email est obligatoire."
+    else if (!isValidEmail(form.email)) e.email = 'Cette adresse email ne semble pas valide.'
     if (!isValidPhone(form.phone)) e.phone = 'Ce numéro ne semble pas valide.'
     if (isMinor && !form.parentLastName.trim()) e.parentLastName = 'Le nom du parent est requis pour un mineur.'
     if (isMinor && !isValidPhone(form.parentPhone)) e.parentPhone = 'Le téléphone du parent est requis et doit être valide.'
@@ -62,7 +122,10 @@ export default function QRFormClient() {
 
   function validateStep3() {
     const e = {}
-    if (!form.welcomedByName.trim()) e.welcomedByName = 'Merci d\'indiquer qui vous a accueilli aujourd\'hui.'
+    if (!form.address.trim()) e.address = "L'adresse est obligatoire."
+    if (!form.commune.trim()) e.commune = 'La commune est obligatoire.'
+    if (!form.integratorWelcome) e.integratorWelcome = "Merci de sélectionner qui vous a accueilli."
+    else if (form.integratorWelcome === 'autre' && !form.welcomedByOther.trim()) e.welcomedByOther = 'Merci de préciser le nom de la personne.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -71,10 +134,19 @@ export default function QRFormClient() {
     if (!validateStep3()) return
     setSaving(true)
     setSubmitError('')
+
+    const selectedMember = welcomeTeam.find(p => p.id === form.integratorWelcome)
+    const resolvedWelcomedByName = form.integratorWelcome === 'autre'
+      ? form.welcomedByOther.trim()
+      : (selectedMember?.name || '')
+
     const payload = {
       ...form,
       invitedBy: form.cameAlone ? 'Je suis venu(e) seul(e).' : form.invitedBy,
       wantsContact: form.contactPreference !== 'none',
+      welcomedBy: form.integratorWelcome !== 'autre' ? form.integratorWelcome : null,
+      welcomedByName: resolvedWelcomedByName,
+      parcoursToken: token,
     }
     try {
       const res = await fetch('/api/public/visitors', {
@@ -86,6 +158,7 @@ export default function QRFormClient() {
         setSaving(false)
         return
       }
+      if (typeof window !== 'undefined') localStorage.removeItem(PARCOURS_TOKEN_KEY)
       setSent(true)
     } catch (err) {
       setSubmitError("Impossible d'envoyer votre fiche. Vérifiez votre connexion et réessayez.")
@@ -159,16 +232,20 @@ export default function QRFormClient() {
               <div className="g2">
                 <div className="form-group">
                   <label className="form-label">Prenom *</label>
-                  <input className="form-input" value={form.firstName} onChange={e=>setForm({...form,firstName:e.target.value})} style={errors.firstName ? { borderColor:'var(--re)' } : undefined} />
+                  <input className="form-input" autoComplete="given-name" name="given-name" value={form.firstName} onChange={e=>setForm({...form,firstName:e.target.value})} style={errors.firstName ? { borderColor:'var(--re)' } : undefined} />
                   {errors.firstName && <div style={errStyle}>{errors.firstName}</div>}
                 </div>
                 <div className="form-group">
                   <label className="form-label">Nom *</label>
-                  <input className="form-input" value={form.lastName} onChange={e=>setForm({...form,lastName:e.target.value})} style={errors.lastName ? { borderColor:'var(--re)' } : undefined} />
+                  <input className="form-input" autoComplete="family-name" name="family-name" value={form.lastName} onChange={e=>setForm({...form,lastName:e.target.value})} style={errors.lastName ? { borderColor:'var(--re)' } : undefined} />
                   {errors.lastName && <div style={errStyle}>{errors.lastName}</div>}
                 </div>
               </div>
-              <div className="form-group"><label className="form-label">Date de naissance</label><input type="date" className="form-input" value={form.dateOfBirth} onChange={e=>setForm({...form,dateOfBirth:e.target.value})} /></div>
+              <div className="form-group">
+                <label className="form-label">Date de naissance *</label>
+                <input type="date" className="form-input" autoComplete="bday" name="bday" value={form.dateOfBirth} onChange={e=>setForm({...form,dateOfBirth:e.target.value})} style={errors.dateOfBirth ? { borderColor:'var(--re)' } : undefined} />
+                {errors.dateOfBirth && <div style={errStyle}>{errors.dateOfBirth}</div>}
+              </div>
               <div className="form-group"><label className="form-label">Sexe</label>
                 <div style={{display:'flex',gap:8}}>
                   {[['F','Femme'],['M','Homme']].map(([v,l])=>(
@@ -193,13 +270,13 @@ export default function QRFormClient() {
               )}
               <div className="form-group">
                 <label className="form-label">Telephone</label>
-                <input type="tel" className="form-input" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} style={errors.phone ? { borderColor:'var(--re)' } : undefined} />
+                <input type="tel" className="form-input" autoComplete="tel" name="tel" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} style={errors.phone ? { borderColor:'var(--re)' } : undefined} />
                 {errors.phone && <div style={errStyle}>{errors.phone}</div>}
               </div>
               <div className="form-group"><label className="form-label">WhatsApp (si different)</label><input type="tel" className="form-input" value={form.whatsapp} onChange={e=>setForm({...form,whatsapp:e.target.value})} /></div>
               <div className="form-group">
-                <label className="form-label">Email</label>
-                <input type="email" className="form-input" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} style={errors.email ? { borderColor:'var(--re)' } : undefined} />
+                <label className="form-label">Email *</label>
+                <input type="email" className="form-input" autoComplete="email" name="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} style={errors.email ? { borderColor:'var(--re)' } : undefined} />
                 {errors.email && <div style={errStyle}>{errors.email}</div>}
               </div>
               <div className="form-group">
@@ -221,11 +298,15 @@ export default function QRFormClient() {
 
           {step === 2 && (
             <div className="qr-step">
-              <div className="form-group"><label className="form-label">Adresse</label>
-                <input className="form-input" value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="Numéro et nom de rue" />
+              <div className="form-group">
+                <label className="form-label">Adresse *</label>
+                <input className="form-input" autoComplete="street-address" name="street-address" value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="Numéro et nom de rue" style={errors.address ? { borderColor:'var(--re)' } : undefined} />
+                {errors.address && <div style={errStyle}>{errors.address}</div>}
               </div>
-              <div className="form-group"><label className="form-label">Commune</label>
-                <input className="form-input" value={form.commune} onChange={e=>setForm({...form,commune:e.target.value})} placeholder="ex: Pointe-a-Pitre, Abymes..." />
+              <div className="form-group">
+                <label className="form-label">Commune *</label>
+                <input className="form-input" autoComplete="address-level2" name="address-level2" value={form.commune} onChange={e=>setForm({...form,commune:e.target.value})} placeholder="ex: Pointe-a-Pitre, Abymes..." style={errors.commune ? { borderColor:'var(--re)' } : undefined} />
+                {errors.commune && <div style={errStyle}>{errors.commune}</div>}
               </div>
               <div className="form-group"><label className="form-label">Quartier</label>
                 <input className="form-input" value={form.quartier} onChange={e=>setForm({...form,quartier:e.target.value})} />
@@ -252,17 +333,6 @@ export default function QRFormClient() {
                 </label>
               </div>
               <div className="form-group">
-                <label className="form-label">Qui vous a accueilli aujourd&apos;hui ? *</label>
-                <input
-                  className="form-input"
-                  value={form.welcomedByName}
-                  onChange={e=>setForm({...form,welcomedByName:e.target.value})}
-                  style={errors.welcomedByName ? { borderColor:'var(--re)' } : undefined}
-                  placeholder="Prénom et nom"
-                />
-                {errors.welcomedByName && <div style={errStyle}>{errors.welcomedByName}</div>}
-              </div>
-              <div className="form-group">
                 <label className="form-label">Comment préférez-vous être contacté ?</label>
                 <div style={{fontSize:12,color:'var(--gy)',marginBottom:8,lineHeight:1.5}}>
                   Un membre de notre équipe pourra vous souhaiter la bienvenue et vous accompagner si vous le souhaitez. Nous respectons votre tranquillité et ne faisons pas de démarchage.
@@ -287,6 +357,32 @@ export default function QRFormClient() {
                 </div>
                 <textarea className="form-input" value={form.prayerRequest} onChange={e=>setForm({...form,prayerRequest:e.target.value})} rows={3} placeholder="Si vous souhaitez préciser..." style={{resize:'vertical'}} />
               </div>
+
+              <div style={{background:'#F0F9FF',border:'1px solid #BAE6FD',borderRadius:12,padding:14,marginTop:6,marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#0369A1',marginBottom:10,textTransform:'uppercase',letterSpacing:.4}}>Zone réservée à l&apos;équipe d&apos;intégration</div>
+                <div className="form-group">
+                  <label className="form-label">Qui vous a accueilli aujourd&apos;hui ? *</label>
+                  <select
+                    className="form-input"
+                    value={form.integratorWelcome}
+                    onChange={e=>setForm({...form,integratorWelcome:e.target.value, welcomedByOther: e.target.value==='autre' ? form.welcomedByOther : ''})}
+                    style={errors.integratorWelcome ? { borderColor:'var(--re)' } : undefined}
+                  >
+                    <option value="">Selectionner...</option>
+                    {welcomeTeam.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    <option value="autre">Autre</option>
+                  </select>
+                  {errors.integratorWelcome && <div style={errStyle}>{errors.integratorWelcome}</div>}
+                </div>
+                {form.integratorWelcome === 'autre' && (
+                  <div className="form-group">
+                    <label className="form-label">Nom de la personne ayant accueilli le visiteur *</label>
+                    <input className="form-input" value={form.welcomedByOther} onChange={e=>setForm({...form,welcomedByOther:e.target.value})} style={errors.welcomedByOther ? { borderColor:'var(--re)' } : undefined} placeholder="Prénom et nom" />
+                    {errors.welcomedByOther && <div style={errStyle}>{errors.welcomedByOther}</div>}
+                  </div>
+                )}
+              </div>
+
               {submitError && (
                 <div style={{background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:13,color:'#DC2626',fontWeight:500}}>
                   {submitError}

@@ -1,34 +1,35 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-
 export async function GET(request) {
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-
-  const { data: profile } = await supabase.from('profiles').select('role,id').eq('id', session.user.id).single()
+  const { data: profile } = await supabase.from('profiles').select('role,secondary_roles,id').eq('id', session.user.id).single()
   const { searchParams } = new URL(request.url)
   const today = new Date().toISOString().split('T')[0]
+
+  // Voit toutes les taches : admin, superviseur, responsable_suivi
+  // (role principal OU secondaire) — memes roles que canViewIndividuals
+  // dans app/suivi/page.jsx. responsable_integration n'existe plus.
+  const secondaryRoles = profile?.secondary_roles || []
+  const canSeeAll = ['admin', 'superviseur', 'responsable_suivi'].includes(profile?.role)
+    || secondaryRoles.includes('responsable_suivi')
 
   let query = supabase.from('tasks')
     .select(`*, contact:contacts(id,first_name,last_name,sex,commune), assignee:profiles!tasks_assigned_to_fkey(id,name)`)
     .eq('status', 'pending')
     .order('due_date', { ascending: true })
-
-  if (!['admin','responsable_suivi','responsable_integration'].includes(profile?.role)) {
+  if (!canSeeAll) {
     query = query.eq('assigned_to', session.user.id)
   }
-
   const status = searchParams.get('status')
   const priority = searchParams.get('priority')
   if (status) query = query.eq('status', status)
   if (priority) query = query.eq('priority', priority)
-
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data })
 }
-
 export async function POST(request) {
   const supabase = createClient()
   const body = await request.json()
@@ -36,7 +37,6 @@ export async function POST(request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data }, { status: 201 })
 }
-
 export async function PATCH(request) {
   const supabase = createClient()
   const { id, ...updates } = await request.json()

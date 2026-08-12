@@ -13,11 +13,17 @@ export default function MissionTab({ contacts, tasks, needs, profile, onOpenRepo
 
   const queue = useMemo(() => buildPriorityQueue(contacts, tasks, needs), [contacts, tasks, needs])
 
+  // Objectif adaptable (section 15-16) : 5 par défaut, jamais plus que
+  // ce qu'il y a réellement à faire.
   const actionableCount = queue.filter(i => ACTIONABLE_REASONS.includes(i.reason)).length
   const missionSize = Math.max(1, Math.min(5, actionableCount || 1))
   const missionItems = useMemo(() => getDailyMission(queue, missionSize), [queue, missionSize])
   const missionIds = missionItems.map(i => i.contact.id)
 
+  // Une personne de la journée est "faite" dès que sa raison n'est plus
+  // actionnable dans la file recalculée — donc dès qu'un compte-rendu
+  // est enregistré (via router.refresh() côté parent), sans état
+  // séparé à synchroniser manuellement.
   const doneCount = missionIds.filter(id => {
     const item = queue.find(q => q.contact.id === id)
     return !item || !ACTIONABLE_REASONS.includes(item.reason)
@@ -34,6 +40,7 @@ export default function MissionTab({ contacts, tasks, needs, profile, onOpenRepo
   const grouped = useMemo(() => {
     const by = { prioritaire: [], normal: [], a_relancer: [], accompagnement: [], a_reprendre: [] }
     queue.forEach(item => {
+      // Un "jamais contacté" est visuellement rattaché aux prioritaires.
       if (item.reason === 'never_contacted') by.prioritaire.push(item)
       else by[item.reason]?.push(item)
     })
@@ -48,7 +55,7 @@ export default function MissionTab({ contacts, tasks, needs, profile, onOpenRepo
       </div>
 
       <div className="card" style={{ padding: 20, marginBottom: 20, background: 'linear-gradient(135deg,var(--nd) 0%,var(--n) 100%)', color: '#fff' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, opacity: .9, marginBottom: 6 }}>🎯 Ta mission aujourd'hui</div>
+        <div style={{ fontSize: 13, fontWeight: 700, opacity: .9, marginBottom: 6 }}>🎯 Ta journée aujourd'hui</div>
         <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 10 }}>
           {missionIds.length === 0 ? 'Aucune action urgente 🎉' : `${missionIds.length} personne${missionIds.length > 1 ? 's' : ''} à contacter`}
         </div>
@@ -79,7 +86,7 @@ export default function MissionTab({ contacts, tasks, needs, profile, onOpenRepo
       {started && missionIds.length > 0 && (missionComplete || !currentItem) && (
         <div className="card" style={{ padding: 24, textAlign: 'center', marginBottom: 20 }}>
           <div style={{ fontSize: 30, marginBottom: 8 }}>🎉</div>
-          <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>Mission terminée !</div>
+          <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>Journée terminée !</div>
           <div style={{ fontSize: 13, color: 'var(--gy)', marginBottom: 14 }}>Tu as effectué tes suivis prioritaires du jour.</div>
           <button onClick={() => setShowAllCategories(true)} style={{ background: '#F1F5F9', color: 'var(--gd)', border: 'none', padding: '9px 16px', borderRadius: 10, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
             Voir d'autres contacts

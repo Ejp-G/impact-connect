@@ -1,16 +1,23 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { PRIORITY_COLORS, STAGE_LABEL, STAGE_COLOR, NEED_CATEGORIES } from '@/lib/constants'
+import { STAGE_LABEL, STAGE_COLOR, NEED_CATEGORIES } from '@/lib/constants'
+import { getTaskState, TASK_STATE_LABEL } from '@/lib/suivi-priority'
 import TaskDetailModal from '@/components/tasks/TaskDetailModal'
 import NewcomerReportPanel from '@/components/suivi/NewcomerReportPanel'
 import NeedsDrilldownModal from '@/components/suivi/NeedsDrilldownModal'
 import ExportModal from '@/components/suivi/ExportModal'
 import ParcoursEnCoursTab from '@/components/suivi/ParcoursEnCoursTab'
+import MissionTab from '@/components/suivi/MissionTab'
+import WorkloadPanel from '@/components/suivi/WorkloadPanel'
 import { Users, CheckSquare, Compass, NEED_ICON_MAP, Download, Filter } from '@/lib/icons'
 
+function MissionIcon({ size = 18 }) {
+  return <span style={{ fontSize: size, lineHeight: 1 }}>🎯</span>
+}
+
 const FILTERS = [
-  ['all', 'Tous'], ['today', 'À contacter aujourd\'hui'], ['late', 'En retard'],
+  ['all', 'Tous'], ['today', 'À contacter aujourd\'hui'], ['late', 'À relancer'],
   ['new', 'Nouveaux'], ['salvation', 'Prière du salut'], ['reconciliation', 'Réconciliation'],
   ['no_integrator', 'Sans intégrateur'], ['male', 'Homme'], ['female', 'Femme'],
   ['fi_yes', 'FI attribuée'], ['fi_no', 'FI non attribuée'],
@@ -40,7 +47,7 @@ function digitsOnly(str) {
 export default function SuiviClient({ contacts, reports, needs, allNeeds = [], canViewNeedsBoard = false, tasks: initialTasks, profiles = [], profile, canViewTeam = false, canViewIndividuals = false, suiviTeam = [], viewAs = 'me', fis = [], communes = [], canViewParcours = false, parcoursList = [] }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState(searchParams.get('tab') || 'nouveaux')
+  const [tab, setTab] = useState(searchParams.get('tab') || 'mission')
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [periodFilter, setPeriodFilter] = useState('all') // all|today|week|month|year|sunday
@@ -57,6 +64,12 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
   const [showFilterMenu, setShowFilterMenu] = useState(false)
 
   const [tasks, setTasks] = useState(initialTasks)
+
+  // Vue charge (sections 18-19) : uniquement en mode "toute l'équipe",
+  // réservée aux rôles de supervision — jamais un simple intégrateur.
+  const secondaryRoles = profile?.secondary_roles || []
+  const canViewWorkload = canViewTeam && viewAs === 'all'
+    && (['admin', 'superviseur', 'responsable_suivi'].includes(profile?.role) || secondaryRoles.includes('responsable_suivi'))
 
   const latestReportByContact = useMemo(() => {
     const map = {}
@@ -235,7 +248,7 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
   return (
     <div style={{ maxWidth: 1200 }}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-        {[['nouveaux', 'Suivi des nouveaux', Users], ['taches', 'Tâches', CheckSquare], ...(canViewParcours ? [['parcours', 'Parcours en cours', Compass]] : [])].map(([id, label, Icon]) => (
+        {[['mission', 'Ma mission', MissionIcon], ['nouveaux', 'Suivi des nouveaux', Users], ['taches', 'Tâches', CheckSquare], ...(canViewParcours ? [['parcours', 'Parcours en cours', Compass]] : [])].map(([id, label, Icon]) => (
           <div key={id} onClick={() => setTab(id)} style={{
             padding: '13px 26px', borderRadius: 12, cursor: 'pointer', fontSize: 15, fontWeight: 800,
             background: tab === id ? 'var(--n)' : '#fff', color: tab === id ? '#fff' : 'var(--gd)',
@@ -261,6 +274,20 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
       {canViewTeam && viewAs !== 'me' && (
         <div style={{ background: '#EFF6FF', color: '#1D4ED8', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, marginBottom: 16 }}>
           {viewAs === 'all' ? "Vous consultez les visiteurs et tâches de toute l'équipe." : `Vous consultez le portefeuille de ${suiviTeam.find(m => m.id === viewAs)?.name || 'ce membre'}.`}
+        </div>
+      )}
+
+      {tab === 'mission' && (
+        <div>
+          {canViewWorkload && <WorkloadPanel contacts={contacts} tasks={tasks} needs={needs} />}
+          <MissionTab
+            contacts={contacts}
+            tasks={tasks}
+            needs={needs}
+            profile={profile}
+            onOpenReport={(id) => setReportPanelId(id)}
+            onOpenProfile={(id) => router.push(`/visiteurs/${id}`)}
+          />
         </div>
       )}
 
@@ -508,13 +535,22 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
 }
 
 function TaskRow({ t, onOpen, onToggle, showAssignee }) {
+  // Etat recalcule dynamiquement depuis due_date + status (section 11) —
+  // ne se fie plus jamais a t.priority, qui n'est pose qu'une seule
+  // fois a la creation et n'est jamais remis a jour ensuite.
+  const state = getTaskState(t)
+  const color = state === 'a_relancer' ? '#F97316' : state === 'termine' ? '#94A3B8' : '#22C55E'
+  const stateLabel = TASK_STATE_LABEL[state]
   return (
-    <div onClick={() => onOpen(t.id)} style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', borderLeft: `4px solid ${PRIORITY_COLORS[t.priority] || '#94A3B8'}`, boxShadow: '0 1px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-      <div onClick={e => onToggle(e, t.id)} style={{ width: 16, height: 16, borderRadius: 5, border: `2px solid ${PRIORITY_COLORS[t.priority] || '#94A3B8'}`, cursor: 'pointer', flexShrink: 0 }} />
+    <div onClick={() => onOpen(t.id)} style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', borderLeft: `4px solid ${color}`, boxShadow: '0 1px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+      <div onClick={e => onToggle(e, t.id)} style={{ width: 16, height: 16, borderRadius: 5, border: `2px solid ${color}`, cursor: 'pointer', flexShrink: 0 }} />
       <div style={{ flex: 1, fontSize: 12 }}>
         <span style={{ fontWeight: 600 }}>{t.title || t.type}</span> — {t.contact?.first_name} {t.contact?.last_name} · Échéance : {t.due_date}
         {showAssignee && t.assignee?.name && <span style={{ color: 'var(--gy)' }}> · {t.assignee.name}</span>}
       </div>
+      <span style={{ fontSize: 10, fontWeight: 700, color, background: color + '1A', padding: '3px 8px', borderRadius: 999, flexShrink: 0, whiteSpace: 'nowrap' }}>
+        {stateLabel.emoji} {stateLabel.label}
+      </span>
     </div>
   )
 }

@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { STAGE_LABEL, STAGE_COLOR, NEED_CATEGORIES } from '@/lib/constants'
-import { getTaskState, TASK_STATE_LABEL } from '@/lib/suivi-priority'
+import { getTaskState, TASK_STATE_LABEL, getContactStatus } from '@/lib/suivi-priority'
 import TaskDetailModal from '@/components/tasks/TaskDetailModal'
 import NewcomerReportPanel from '@/components/suivi/NewcomerReportPanel'
 import NeedsDrilldownModal from '@/components/suivi/NeedsDrilldownModal'
@@ -28,9 +28,21 @@ const TASK_TYPE_LABELS = {
   fiche_incomplete: '📋 Fiches à compléter',
 }
 
-function AlertDot({ level }) {
-  const color = level === 'red' ? '#EF4444' : level === 'orange' ? '#F97316' : '#22C55E'
-  return <span style={{ display:'inline-block', width:9, height:9, borderRadius:'50%', background:color }} />
+// REMPLACÉ (point 3 du cahier des charges) : ce badge affichait
+// contacts.alert_level, un champ recalculé une seule fois par nuit par
+// le cron update_alerts_and_scores. Résultat observé : une personne
+// contactée aujourd'hui restait "rouge" jusqu'au lendemain matin, ce
+// qui donnait l'impression que rien ne se mettait à jour. Remplacé par
+// getContactStatus() (lib/suivi-priority.js), recalculé à chaque rendu
+// à partir de integrator_contacted + next_contact_date + stage.
+function StatusBadge({ status }) {
+  const bg = status.key === 'a_contacter' ? '#FEF2F2' : status.key === 'en_cours' ? '#FFF7ED' : status.key === 'engage' ? '#F0FDF4' : '#F8FAFC'
+  const color = status.key === 'a_contacter' ? '#DC2626' : status.key === 'en_cours' ? '#C2410C' : status.key === 'engage' ? '#16A34A' : '#64748B'
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color, background: bg, padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+      {status.emoji} {status.label}
+    </span>
+  )
 }
 
 // Compare uniquement les chiffres, pour que "06 90 13 70", "0690-13-70"
@@ -275,10 +287,6 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
 
       {tab === 'mission' && (
         <div>
-          {/* CORRIGÉ : reports transmis à WorkloadPanel et MissionTab —
-              nécessaire pour wasHandledToday() dans lib/suivi-priority.js,
-              qui détermine si une personne a déjà été traitée aujourd'hui
-              et donc si la barre de progression doit avancer. */}
           {canViewWorkload && <WorkloadPanel contacts={contacts} tasks={tasks} needs={needs} reports={reports} />}
           <MissionTab
             contacts={contacts}
@@ -366,7 +374,7 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
                           <tr>
                             <th>1ère visite</th><th>Nom</th><th>Sexe</th><th>Commune</th>
                             <th>Intégrateurs</th><th>Étape</th><th>Dernier contact</th>
-                            <th>Prochain contact</th><th>Urgence</th><th>Score</th><th>FIJ</th>
+                            <th>Prochain contact</th><th>Statut</th><th>Score</th><th>FIJ</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -374,6 +382,7 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
                             const lastReport = latestReportByContact[c.id]
                             const integratorNames = (c.integrators || []).map(i => i.integrator?.name).filter(Boolean)
                             const isMatch = search.trim() && `${c.first_name} ${c.last_name}`.toLowerCase().includes(search.toLowerCase())
+                            const status = getContactStatus(c, lastReport)
                             return (
                               <tr key={c.id} onClick={() => setReportPanelId(c.id)} style={{ cursor: 'pointer', background: isMatch ? '#FEF9C3' : undefined }}>
                                 <td style={{ fontSize: 12 }}>{c.first_visit_date || '—'}</td>
@@ -386,7 +395,7 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
                                 <td><span className="badge" style={{ background: STAGE_COLOR(c.stage) + '20', color: STAGE_COLOR(c.stage) }}>{STAGE_LABEL(c.stage)}</span></td>
                                 <td style={{ fontSize: 11 }}>{lastReport ? new Date(lastReport.contacted_at).toLocaleDateString('fr-FR') : (c.integrator_contacted ? '—' : 'Jamais')}</td>
                                 <td style={{ fontSize: 11 }}>{lastReport?.next_contact_date || '—'}</td>
-                                <td><AlertDot level={c.alert_level} /></td>
+                                <td><StatusBadge status={status} /></td>
                                 <td style={{ fontSize: 12, fontWeight: 700 }}>{c.integration_score ?? '—'}</td>
                                 <td style={{ fontSize: 11 }}>{c.fi?.name || '—'}</td>
                               </tr>

@@ -6,7 +6,7 @@ import { STAGE_LABEL, NEED_CATEGORIES, NEED_IS_SENSITIVE } from '@/lib/constants
 import { formatWhatsappNumber, getPhoneCountryDisplay } from '@/lib/phone'
 import {
   NEED_ICON_MAP, Sparkles, Heart, Phone, MessageCircle, Calendar, Mail,
-  MessageSquare, MapPin, Home, FileText, Tag, Clock, HelpCircle, Save, AlertTriangle
+  MessageSquare, MapPin, Home, FileText, Tag, Clock, HelpCircle, Save, AlertTriangle, CheckCircle2
 } from '@/lib/icons'
 
 const METHODS = [
@@ -51,8 +51,6 @@ function MissingInfoPanel({ contact, missingFields, isAssignedIntegrator, onSave
 
   const hasAnyInput = Object.values(values).some(v => String(v).trim() !== '')
 
-  // Signale a la fenetre parente si cette section a des saisies non
-  // enregistrees, pour la confirmation de fermeture globale.
   useEffect(() => { onDirtyChange?.(hasAnyInput) }, [hasAnyInput])
 
   async function handleSave() {
@@ -144,9 +142,6 @@ function MissingInfoPanel({ contact, missingFields, isAssignedIntegrator, onSave
   )
 }
 
-// Petite confirmation de fermeture, affichee au-dessus de la fenetre
-// principale si une saisie non enregistree existe (compte-rendu ou
-// panneau de complétude).
 function UnsavedChangesConfirm({ onContinue, onDiscard }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -179,6 +174,17 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
   const [saving, setSaving] = useState(false)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [missingInfoDirty, setMissingInfoDirty] = useState(false)
+
+  // Confirmation visuelle après "Enregistrer le compte-rendu" (point 1
+  // du cahier des charges) : disparaît d'elle-même après 4 secondes,
+  // sans fermer la fenêtre — l'intégrateur voit que c'est bien
+  // enregistré et peut enchaîner sur un autre visiteur ou fermer lui-même.
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  useEffect(() => {
+    if (!saveSuccess) return
+    const t = setTimeout(() => setSaveSuccess(false), 4000)
+    return () => clearTimeout(t)
+  }, [saveSuccess])
 
   const [form, setForm] = useState({
     method: 'telephone', result: 'repondu', duration_minutes: '',
@@ -236,6 +242,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
     setSaving(true)
+    setSaveSuccess(false)
 
     const { error } = await supabase.from('integrator_reports').insert({
       contact_id: contactId,
@@ -280,6 +287,13 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
 
     setForm({ method: 'telephone', result: 'repondu', duration_minutes: '', notes: '', next_action: '', next_contact_date: '' })
     setCheckedNeeds({})
+    setSaveSuccess(true)
+    // load() recharge l'historique local (donc le nouveau compte-rendu
+    // apparaît immédiatement dans "Historique des échanges" ci-dessous),
+    // et router.refresh() force Next.js à relire les données côté
+    // serveur pour SuiviPage — c'est ce second appel qui fait que "Ma
+    // journée" et son badge de progression se remettent à jour sans
+    // recharger la page.
     await load()
     router.refresh()
   }
@@ -296,8 +310,6 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
   const whatsappNumber = formatWhatsappNumber(contact?.whatsapp || contact?.phone)
   const countryDisplay = getPhoneCountryDisplay(primaryPhone)
 
-  // Saisie en cours = compte-rendu commence OU panneau de complétude
-  // rempli. Determine si on doit confirmer avant de fermer.
   const reportDirty = form.notes.trim() !== '' || form.next_action.trim() !== ''
     || form.next_contact_date !== '' || form.duration_minutes !== ''
     || Object.keys(checkedNeeds).length > 0
@@ -312,9 +324,6 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
   }
 
   return (
-    // Plus de fermeture au clic sur l'arriere-plan : seule la croix,
-    // le bouton Annuler (via requestClose) ou une action de
-    // validation peuvent fermer cette fenetre.
     <div style={overlayStyle}>
       <div style={{ ...modalStyle, maxWidth: 720 }}>
         {loading || !contact ? (
@@ -360,6 +369,16 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
             </div>
 
             <div style={{ padding: 20 }}>
+
+              {saveSuccess && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, background: '#F0FDF4', color: '#166534',
+                  border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 14px', marginBottom: 16,
+                  fontSize: 13, fontWeight: 700
+                }}>
+                  <CheckCircle2 size={16} strokeWidth={2} /> Suivi enregistré avec succès ✓
+                </div>
+              )}
 
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                 <InfoLine label="Intégrateurs" value={integratorPair.map(p => p.integrator?.name).filter(Boolean).join(' & ') || '—'} />
@@ -514,10 +533,6 @@ function InfoLine({ label, value }) {
   )
 }
 
-// Descendu de ~40px par rapport au haut de l'ecran (au lieu d'un
-// centrage vertical strict) pour que l'en-tete (nom complet du
-// visiteur) reste toujours visible sans defilement sur mobile, quelle
-// que soit la taille de l'ecran.
 const overlayStyle = {
   position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)',
   display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000,

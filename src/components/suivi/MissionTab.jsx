@@ -3,36 +3,36 @@ import { useState, useMemo } from 'react'
 import { buildPriorityQueue, getDailyMission, REASON_LABEL } from '@/lib/suivi-priority'
 import { formatWhatsappNumber } from '@/lib/phone'
 
-const ACTIONABLE_REASONS = ['never_contacted', 'prioritaire', 'accompagnement', 'a_relancer']
-
-export default function MissionTab({ contacts, tasks, needs, profile, onOpenReport, onOpenProfile }) {
+export default function MissionTab({ contacts, tasks, needs, reports, profile, onOpenReport, onOpenProfile }) {
   const [started, setStarted] = useState(false)
   const [skippedIds, setSkippedIds] = useState([])
   const [showAllCategories, setShowAllCategories] = useState(false)
   const [openCategory, setOpenCategory] = useState(null)
 
-  const queue = useMemo(() => buildPriorityQueue(contacts, tasks, needs), [contacts, tasks, needs])
+  const queue = useMemo(() => buildPriorityQueue(contacts, tasks, needs, reports), [contacts, tasks, needs, reports])
 
   // Objectif adaptable (section 15-16) : 5 par défaut, jamais plus que
   // ce qu'il y a réellement à faire.
-  const actionableCount = queue.filter(i => ACTIONABLE_REASONS.includes(i.reason)).length
+  const actionableCount = queue.filter(i => i.needsAction).length
   const missionSize = Math.max(1, Math.min(5, actionableCount || 1))
   const missionItems = useMemo(() => getDailyMission(queue, missionSize), [queue, missionSize])
   const missionIds = missionItems.map(i => i.contact.id)
 
-  // Une personne de la journée est "faite" dès que sa raison n'est plus
-  // actionnable dans la file recalculée — donc dès qu'un compte-rendu
-  // est enregistré (via router.refresh() côté parent), sans état
-  // séparé à synchroniser manuellement.
+  // Une personne de la journée est "faite" dès que needsAction devient
+  // false dans la file recalculée — donc dès qu'un compte-rendu est
+  // enregistré aujourd'hui (voir wasHandledToday dans suivi-priority.js).
+  // Contrairement à avant, ça ne dépend plus de la catégorie
+  // (prioritaire/normal/à reprendre), qui elle ne bouge jamais dans la
+  // journée — c'était la cause du bug de progression figée à 0/5.
   const doneCount = missionIds.filter(id => {
     const item = queue.find(q => q.contact.id === id)
-    return !item || !ACTIONABLE_REASONS.includes(item.reason)
+    return !item || !item.needsAction
   }).length
   const missionComplete = missionIds.length > 0 && doneCount >= missionIds.length
 
   const currentItem = missionItems.find(i => {
     const fresh = queue.find(q => q.contact.id === i.contact.id)
-    return fresh && ACTIONABLE_REASONS.includes(fresh.reason) && !skippedIds.includes(i.contact.id)
+    return fresh && fresh.needsAction && !skippedIds.includes(i.contact.id)
   })
 
   const firstName = profile?.name?.split(' ')[0] || ''
@@ -169,6 +169,7 @@ function CategorySection({ title, items, onOpenReport, onOpenProfile, open, onTo
               <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: '#fff', borderRadius: 10, padding: '10px 12px', boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
                 <div onClick={() => onOpenProfile(c.id)} style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                   {c.first_name} {c.last_name}
+                  {item.handledToday && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: '#16A34A' }}>✓ fait aujourd'hui</span>}
                 </div>
                 <button onClick={() => onOpenReport(c.id)} style={{ background: '#F1F5F9', border: 'none', padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                   ✅ Suivi

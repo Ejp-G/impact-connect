@@ -275,11 +275,16 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
 
       {tab === 'mission' && (
         <div>
-          {canViewWorkload && <WorkloadPanel contacts={contacts} tasks={tasks} needs={needs} />}
+          {/* CORRIGÉ : reports transmis à WorkloadPanel et MissionTab —
+              nécessaire pour wasHandledToday() dans lib/suivi-priority.js,
+              qui détermine si une personne a déjà été traitée aujourd'hui
+              et donc si la barre de progression doit avancer. */}
+          {canViewWorkload && <WorkloadPanel contacts={contacts} tasks={tasks} needs={needs} reports={reports} />}
           <MissionTab
             contacts={contacts}
             tasks={tasks}
             needs={needs}
+            reports={reports}
             profile={profile}
             onOpenReport={(id) => setReportPanelId(id)}
             onOpenProfile={(id) => router.push(`/visiteurs/${id}`)}

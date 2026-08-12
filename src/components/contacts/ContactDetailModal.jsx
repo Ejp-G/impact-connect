@@ -222,19 +222,56 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     router.refresh()
   }
 
+  // ============================================================
+  // CORRIGÉ : ce bouton écrivait uniquement dans contacts.last_contact_at
+  // et communication_logs — deux tables jamais lues par le module
+  // Suivi & Tâches (lib/suivi-priority.js) ni par le badge "Contact
+  // confirmé" (contacts.integrator_contacted) ni par l'historique
+  // "Nouveau compte-rendu" (integrator_reports). Résultat : confirmer un
+  // contact depuis la fiche visiteur ne faisait avancer ni la barre de
+  // progression de "Ma journée" ni le badge de la fiche elle-même — deux
+  // systèmes de confirmation qui divergeaient silencieusement.
+  //
+  // Le correctif ajoute deux écritures, sans rien retirer de l'existant :
+  // 1) contacts.integrator_contacted = true (même champ que
+  //    NewcomerReportPanel.jsx pose après un compte-rendu)
+  // 2) un insert dans integrator_reports (même table lue par
+  //    wasHandledToday() dans lib/suivi-priority.js et par la timeline
+  //    de la fiche visiteur)
+  // ============================================================
   async function submitContactConfirmation() {
     const { data: { session } } = await supabase.auth.getSession()
     const now = new Date().toISOString()
-    const { error } = await supabase.from('contacts').update({ last_contact_at: now }).eq('id', contactId)
+
+    const { error } = await supabase.from('contacts').update({ last_contact_at: now, integrator_contacted: true }).eq('id', contactId)
     if (error) { alert(error.message); return }
+
     await supabase.from('communication_logs').insert({
       contact_id: contactId, channel: contactChannel, direction: 'outbound',
       content: contactNote || `Contact effectué (${contactChannel})`,
       sent_by: session?.user?.id, sent_at: now, status: 'sent'
     })
+
+    // integrator_reports.method n'accepte que les valeurs déjà utilisées
+    // par NewcomerReportPanel.jsx (telephone/whatsapp/sms/visite/
+    // rencontre_culte) — "email" n'en fait pas partie, on le rattache à
+    // "sms" par défaut plutôt que d'introduire une valeur inconnue.
+    if (session?.user?.id) {
+      const methodMap = { appel: 'telephone', whatsapp: 'whatsapp', sms: 'sms', email: 'sms' }
+      await supabase.from('integrator_reports').insert({
+        contact_id: contactId,
+        integrator_id: session.user.id,
+        method: methodMap[contactChannel] || 'telephone',
+        result: 'repondu',
+        notes: contactNote || null,
+        contacted_at: now,
+      })
+    }
+
     setConfirmingContact(false)
     setContactNote('')
     await load()
+    router.refresh()
   }
 
   async function submitStageChange() {

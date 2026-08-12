@@ -1,22 +1,19 @@
 // lib/suivi-priority.js
 //
 // Source UNIQUE de vérité pour la priorisation du module Suivi & Tâches
-// (refonte "Ma mission"). Tout est recalculé à la volée à partir des
-// données déjà chargées par SuiviPage (contacts, tasks, contact_needs) —
-// aucune colonne stockée, aucune migration.
+// (refonte "Ma journée"). Tout est recalculé à la volée à partir des
+// données déjà chargées par SuiviPage (contacts, tasks, contact_needs,
+// integrator_reports) — aucune colonne stockée, aucune migration.
 //
 // Ce fichier ne touche PAS à :
 // - contacts.alert_level (toujours mis à jour par le cron quotidien
 //   update_alerts_and_scores, utilisé ailleurs dans l'app, ex. dashboard)
 // - tasks.priority (toujours posé tel quel par relance-nouvelles /
 //   fiche_incomplete, jamais modifié ici)
-// Il ajoute une lecture parallèle, dédiée à l'expérience "Ma mission".
 
 const STOP_STAGES = ['parcours', 'bapteme', 'service', 'leader_pot', 'leader']
 
 // --- Semaine -----------------------------------------------------------
-// La semaine de suivi commence le dimanche (section 27), pas le lundi —
-// pour coller au rythme de l'église (culte du dimanche).
 export function getWeekStart(date = new Date()) {
   const d = new Date(date)
   d.setHours(0, 0, 0, 0)
@@ -32,10 +29,12 @@ function toDateOnly(str) {
   return d
 }
 
+function sameDate(a, b) {
+  if (!a || !b) return false
+  return a.getTime() === b.getTime()
+}
+
 // --- Catégorie de suivi (sections 6-8, 27-28) ---------------------------
-// Basée uniquement sur l'ancienneté (first_visit_date, sinon created_at
-// en repli si la date de première visite n'est pas renseignée — donnée
-// manquante = ne jamais planter, voir section 40).
 export function getContactCategory(contact, today = new Date()) {
   const refDate = toDateOnly(contact.first_visit_date) || toDateOnly(contact.created_at)
   if (!refDate) return 'normal'
@@ -43,25 +42,18 @@ export function getContactCategory(contact, today = new Date()) {
   const now = new Date(today)
   now.setHours(0, 0, 0, 0)
 
-  // Prioritaire : dimanche de la semaine en cours -> aujourd'hui,
-  // OU dimanche de la semaine précédente -> samedi précédent.
   const startOfThisWeek = getWeekStart(now)
   const startOfLastWeek = new Date(startOfThisWeek)
   startOfLastWeek.setDate(startOfLastWeek.getDate() - 7)
   if (refDate >= startOfLastWeek) return 'prioritaire'
 
-  // Normal : mois en cours + mois précédent (hors fenêtre prioritaire
-  // déjà traitée au-dessus).
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   if (refDate >= startOfLastMonth) return 'normal'
 
-  // À reprendre : plus de deux mois.
   return 'a_reprendre'
 }
 
 // --- État d'une tâche (section 11) --------------------------------------
-// Recalculé depuis due_date + status à chaque appel — jamais depuis
-// tasks.priority (champ stocké non fiable, voir diagnostic de la refonte).
 export function getTaskState(task, today = new Date()) {
   if (task.status === 'done') return 'termine'
   const due = toDateOnly(task.due_date)
@@ -70,8 +62,6 @@ export function getTaskState(task, today = new Date()) {
   return 'dans_les_delais'
 }
 
-// Regroupe les tâches EN ATTENTE par contact, avec le pire état
-// rencontré ("a_relancer" prime toujours sur "dans_les_delais").
 export function groupPendingTasksByContact(tasks, today = new Date()) {
   const map = {}
   tasks.forEach(t => {
@@ -100,20 +90,40 @@ export function isNeverContacted(contact) {
   return !contact.integrator_contacted
 }
 
+// --- NOUVEAU : action du jour --------------------------------------------
+// Regroupe les comptes-rendus (integrator_reports) par contact, pour
+// savoir si une action a déjà été enregistrée AUJOURD'HUI — c'est ce
+// signal, et non la catégorie (qui ne change jamais dans la journée),
+// qui doit faire avancer la progression de "Ma journée".
+export function groupReportsByContact(reports) {
+  const map = {}
+  reports.forEach(r => {
+    const list = (map[r.contact_id] = map[r.contact_id] || [])
+    list.push(r)
+  })
+  return map
+}
+
+export function wasHandledToday(contactId, reportsByContact, today = new Date()) {
+  const list = reportsByContact[contactId]
+  if (!list || !list.length) return false
+  const now = new Date(today); now.setHours(0, 0, 0, 0)
+  return list.some(r => sameDate(toDateOnly(r.contacted_at), now))
+}
+
 // --- File de priorité (section 14) ----------------------------------------
-// Ordre : 1) jamais contacté  2) prioritaire  3) à accompagner
-// 4) à relancer  5) normal  6) à reprendre.
-// Les contacts à un stade avancé (STOP_STAGES) sortent de la file
-// active — même logique que les crons relance-nouvelles/fiche_incomplete :
-// au-delà, le suivi rapproché n'a plus lieu d'être.
+// reports est optionnel pour ne pas casser d'anciens appels — sans lui,
+// wasHandledToday retombe toujours à false (comportement d'avant ce
+// correctif).
 const RANK = {
   never_contacted: 0, prioritaire: 1, accompagnement: 2,
   a_relancer: 3, normal: 4, a_reprendre: 5,
 }
 
-export function buildPriorityQueue(contacts, tasks, needs, today = new Date()) {
+export function buildPriorityQueue(contacts, tasks, needs, reports = [], today = new Date()) {
   const pendingByContact = groupPendingTasksByContact(tasks, today)
   const needsByContact = groupNeedsByContact(needs)
+  const reportsByContact = groupReportsByContact(reports)
 
   return contacts
     .filter(c => !STOP_STAGES.includes(c.stage))
@@ -123,6 +133,7 @@ export function buildPriorityQueue(contacts, tasks, needs, today = new Date()) {
       const accompagnement = getAccompagnementFlag(c.id, needsByContact)
       const pending = pendingByContact[c.id]
       const hasOverdueTask = pending?.worstState === 'a_relancer'
+      const handledToday = wasHandledToday(c.id, reportsByContact, today)
 
       let reason = 'normal'
       if (neverContacted) reason = 'never_contacted'
@@ -132,39 +143,42 @@ export function buildPriorityQueue(contacts, tasks, needs, today = new Date()) {
       else if (category === 'normal') reason = 'normal'
       else reason = 'a_reprendre'
 
+      // needsAction : ce qui détermine réellement si la personne compte
+      // encore dans "Ma journée". Contrairement à `reason` (qui sert au
+      // classement par catégorie dans "Mon suivi"), needsAction devient
+      // false dès qu'un compte-rendu a été enregistré aujourd'hui, même
+      // si la catégorie sous-jacente (ex: "prioritaire") reste la même
+      // jusqu'au lendemain.
+      const actionableReasons = ['never_contacted', 'prioritaire', 'accompagnement', 'a_relancer']
+      const needsAction = actionableReasons.includes(reason) && !handledToday
+
       return {
         contact: c,
         category,
         neverContacted,
         accompagnement,
         hasOverdueTask,
+        handledToday,
         pendingTasks: pending?.tasks || [],
         reason,
+        needsAction,
         rank: RANK[reason],
       }
     })
     .sort((a, b) => {
       if (a.rank !== b.rank) return a.rank - b.rank
-      // À rang égal : le plus ancien first_visit_date passe en premier
-      // (celui qui attend depuis le plus longtemps).
       const da = toDateOnly(a.contact.first_visit_date) || toDateOnly(a.contact.created_at) || new Date(0)
       const db = toDateOnly(b.contact.first_visit_date) || toDateOnly(b.contact.created_at) || new Date(0)
       return da - db
     })
 }
 
-// --- Objectif quotidien (section 15-16) ------------------------------------
-// Simple sous-ensemble de la file, jamais un filtre bloquant : le reste
-// de la file reste accessible via "Voir d'autres contacts".
 export function getDailyMission(queue, size = 5) {
   return queue.slice(0, size)
 }
 
-// --- Charge par intégrateur (section 18-19) ---------------------------------
-// À utiliser uniquement dans la vue "toute l'équipe" (viewAs === 'all'),
-// réservée aux rôles de supervision côté page serveur.
-export function buildWorkload(contacts, tasks, needs, today = new Date()) {
-  const queue = buildPriorityQueue(contacts, tasks, needs, today)
+export function buildWorkload(contacts, tasks, needs, reports = [], today = new Date()) {
+  const queue = buildPriorityQueue(contacts, tasks, needs, reports, today)
   const byIntegrator = {}
 
   queue.forEach(item => {
@@ -190,10 +204,6 @@ export function buildWorkload(contacts, tasks, needs, today = new Date()) {
     .sort((a, b) => b.total - a.total)
 }
 
-// --- Libellés UI (sections 9-10) ---------------------------------------
-// Vocabulaire "gentil" côté intégrateur : jamais "en retard" dans cette
-// expérience. Les emails de task-overdue-alerts (destinés aux
-// responsables) ne passent pas par ce fichier et restent inchangés.
 export const CATEGORY_LABEL = {
   prioritaire: { emoji: '🔥', label: 'Prioritaire' },
   normal: { emoji: '🟢', label: 'Normal' },

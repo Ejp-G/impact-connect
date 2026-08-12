@@ -1,7 +1,11 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { buildPriorityQueue, getDailyMission, REASON_LABEL } from '@/lib/suivi-priority'
 import { formatWhatsappNumber } from '@/lib/phone'
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10)
+}
 
 export default function MissionTab({ contacts, tasks, needs, reports, profile, onOpenReport, onOpenProfile }) {
   const [started, setStarted] = useState(false)
@@ -9,38 +13,65 @@ export default function MissionTab({ contacts, tasks, needs, reports, profile, o
   const [showAllCategories, setShowAllCategories] = useState(false)
   const [openCategory, setOpenCategory] = useState(null)
 
+  // La file complète, elle, se recalcule bien en temps réel — c'est
+  // volontaire pour "Mon suivi" (catégories) et pour repérer qui est
+  // encore actionnable.
   const queue = useMemo(() => buildPriorityQueue(contacts, tasks, needs, reports), [contacts, tasks, needs, reports])
 
-  // Objectif adaptable (section 15-16) : 5 par défaut, jamais plus que
-  // ce qu'il y a réellement à faire.
-  const actionableCount = queue.filter(i => i.needsAction).length
-  const missionSize = Math.max(1, Math.min(5, actionableCount || 1))
-  const missionItems = useMemo(() => getDailyMission(queue, missionSize), [queue, missionSize])
-  const missionIds = missionItems.map(i => i.contact.id)
+  // -----------------------------------------------------------------
+  // FIGER la liste des 5 personnes du jour (correctif du bug de
+  // progression). Sans ça, dès qu'une personne est contactée, elle sort
+  // du top 5 et une nouvelle la remplace — la liste entière change et
+  // "fait / total" retombe à 0 avec un groupe différent. On choisit donc
+  // la liste UNE SEULE FOIS par jour, on la garde en localStorage (clé
+  // par profil + date), et on ne fait plus que suivre l'état de CES
+  // personnes précises au fil de la journée.
+  // -----------------------------------------------------------------
+  const storageKey = profile?.id ? `mission_ids:${profile.id}:${todayKey()}` : null
+  const [frozenIds, setFrozenIds] = useState(null)
 
-  // Une personne de la journée est "faite" dès que needsAction devient
-  // false dans la file recalculée — donc dès qu'un compte-rendu est
-  // enregistré aujourd'hui (voir wasHandledToday dans suivi-priority.js).
-  // Contrairement à avant, ça ne dépend plus de la catégorie
-  // (prioritaire/normal/à reprendre), qui elle ne bouge jamais dans la
-  // journée — c'était la cause du bug de progression figée à 0/5.
-  const doneCount = missionIds.filter(id => {
-    const item = queue.find(q => q.contact.id === id)
-    return !item || !item.needsAction
-  }).length
+  useEffect(() => {
+    if (!storageKey || queue.length === 0) return
+    let stored = null
+    try {
+      const raw = window.localStorage.getItem(storageKey)
+      stored = raw ? JSON.parse(raw) : null
+    } catch { stored = null }
+
+    if (stored && Array.isArray(stored) && stored.length > 0) {
+      setFrozenIds(stored)
+    } else {
+      const actionable = queue.filter(i => i.needsAction)
+      const size = Math.max(1, Math.min(5, actionable.length || 1))
+      const initial = getDailyMission(queue, size).map(i => i.contact.id)
+      setFrozenIds(initial)
+      try { window.localStorage.setItem(storageKey, JSON.stringify(initial)) } catch {}
+    }
+    // On ne veut initialiser qu'une fois par jour/profil — pas à chaque
+    // changement de queue, sinon on retombe dans le même problème.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey, queue.length > 0])
+
+  // missionItems = les personnes figées, avec leur état LE PLUS RÉCENT
+  // (needsAction/handledToday) lu dans la queue fraîche à chaque rendu.
+  const missionItems = useMemo(() => {
+    if (!frozenIds) return []
+    return frozenIds
+      .map(id => queue.find(q => q.contact.id === id))
+      .filter(Boolean)
+  }, [frozenIds, queue])
+
+  const missionIds = missionItems.map(i => i.contact.id)
+  const doneCount = missionItems.filter(i => !i.needsAction).length
   const missionComplete = missionIds.length > 0 && doneCount >= missionIds.length
 
-  const currentItem = missionItems.find(i => {
-    const fresh = queue.find(q => q.contact.id === i.contact.id)
-    return fresh && fresh.needsAction && !skippedIds.includes(i.contact.id)
-  })
+  const currentItem = missionItems.find(i => i.needsAction && !skippedIds.includes(i.contact.id))
 
   const firstName = profile?.name?.split(' ')[0] || ''
 
   const grouped = useMemo(() => {
     const by = { prioritaire: [], normal: [], a_relancer: [], accompagnement: [], a_reprendre: [] }
     queue.forEach(item => {
-      // Un "jamais contacté" est visuellement rattaché aux prioritaires.
       if (item.reason === 'never_contacted') by.prioritaire.push(item)
       else by[item.reason]?.push(item)
     })

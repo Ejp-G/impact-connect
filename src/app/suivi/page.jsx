@@ -76,7 +76,7 @@ export default async function SuiviPage({ searchParams }) {
 
   let contactsQuery = supabase.from('contacts')
     .select(`
-      id, first_name, last_name, sex, phone, commune, first_visit_date, created_at, stage,
+      id, first_name, last_name, sex, phone, whatsapp, email, commune, first_visit_date, created_at, stage,
       alert_level, integration_score, salvation_call, status, integrator_contacted,
       welcomed_by_name,
       fi:familles_impact(name),

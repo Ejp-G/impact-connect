@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { STAGE_LABEL, NEED_CATEGORIES, NEED_IS_SENSITIVE } from '@/lib/constants'
+import { formatWhatsappNumber, getPhoneCountryDisplay } from '@/lib/phone'
 import {
   NEED_ICON_MAP, Sparkles, Heart, Phone, MessageCircle, Calendar, Mail,
   MessageSquare, MapPin, Home, FileText, Tag, Clock, HelpCircle, Save, AlertTriangle
@@ -36,29 +37,6 @@ function isEmptyValue(v) {
   if (Array.isArray(v)) return v.length === 0
   if (typeof v === 'string') return v.trim() === ''
   return false
-}
-
-// ============================================================
-// Formatage du numéro pour un lien wa.me valide.
-// wa.me exige un format international pur : indicatif pays +
-// numéro local SANS le 0 initial, sans espaces/tirets/parenthèses.
-// Les visiteurs sont en Guadeloupe (590) ou Martinique (596) ; on
-// détecte l'indicatif déjà présent, sinon on applique 590 par défaut.
-// ============================================================
-function formatWhatsappNumber(rawPhone) {
-  if (!rawPhone) return null
-  const digitsOnly = String(rawPhone).replace(/\D/g, '')
-  if (!digitsOnly) return null
-
-  // Déjà au format international (ex: 590690390557 ou 596696123456)
-  if (digitsOnly.startsWith('590') || digitsOnly.startsWith('596')) {
-    return digitsOnly
-  }
-
-  // Format local avec 0 initial (ex: 0690390557) -> on retire le 0
-  // et on préfixe par l'indicatif Guadeloupe (590) par défaut.
-  const withoutLeadingZero = digitsOnly.startsWith('0') ? digitsOnly.slice(1) : digitsOnly
-  return `590${withoutLeadingZero}`
 }
 
 function MissingInfoPanel({ contact, missingFields, isAssignedIntegrator, onSaved, onDirtyChange }) {
@@ -316,6 +294,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
 
   const primaryPhone = contact?.phone || contact?.whatsapp
   const whatsappNumber = formatWhatsappNumber(contact?.whatsapp || contact?.phone)
+  const countryDisplay = getPhoneCountryDisplay(primaryPhone)
 
   // Saisie en cours = compte-rendu commence OU panneau de complétude
   // rempli. Determine si on doit confirmer avant de fermer.
@@ -362,6 +341,9 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
                   }}>
                     <Phone size={16} strokeWidth={2.2} /> {primaryPhone}
                   </a>
+                  {countryDisplay && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>{countryDisplay}</span>
+                  )}
                   {whatsappNumber && (
                     <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noopener noreferrer" style={{
                       display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none',

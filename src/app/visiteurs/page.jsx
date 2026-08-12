@@ -15,14 +15,11 @@ export default async function VisiteursPage({ searchParams }) {
   const stage = searchParams?.stage || null
   const alert = searchParams?.alert || null
 
-  // CORRECTIF : l'ancienne limite de 100 fiches cachait les visiteurs
-  // les plus anciens (liste, recherche ET compteurs faux). On charge
-  // désormais l'ensemble des fiches actives (plafond de sécurité 1000).
-  // Ajouts au select : salvation_call (le filtre "Appel au salut" le
-  // lisait sans qu'il soit chargé) et les intégrateurs (pour le filtre
-  // "Sans intégrateur").
+  // Ajouts au select : integrator_contacted (indispensable pour
+  // getContactStatus — sans lui, "À contacter"/"À relancer" ne peuvent
+  // pas être distingués côté client, exactement comme dans SuiviPage).
   let query = supabase.from('contacts')
-    .select(`id,first_name,last_name,sex,phone,email,commune,quartier,stage,integration_score,alert_level,is_minor,created_at,first_visit_date,contact_preference,salvation_call,
+    .select(`id,first_name,last_name,sex,phone,email,commune,quartier,stage,integration_score,alert_level,is_minor,created_at,first_visit_date,contact_preference,salvation_call,integrator_contacted,
              fi:familles_impact(id,name), agent:profiles!contacts_assigned_to_fkey(id,name),
              integrators:contact_integrators(position)`)
     .eq('status','active').order('created_at',{ascending:false}).limit(1000)
@@ -31,6 +28,22 @@ export default async function VisiteursPage({ searchParams }) {
   const { data: contacts } = await query
   const { data: fis } = await supabase.from('familles_impact').select('id,name').eq('status','active')
   const { data: communes } = await supabase.from('communes').select('id,name').eq('active',true).order('name')
+
+  // Mêmes tables que app/suivi/page.jsx, mêmes colonnes — c'est ce qui
+  // garantit que "Visiteurs" et "Suivi & Tâches" ne peuvent plus
+  // diverger : source de vérité unique, lue à deux endroits.
+  const contactIds = (contacts || []).map(c => c.id)
+  const { data: reports } = contactIds.length
+    ? await supabase.from('integrator_reports')
+        .select('contact_id,contacted_at,next_contact_date')
+        .in('contact_id', contactIds)
+        .order('contacted_at', { ascending: false })
+    : { data: [] }
+  const { data: needs } = contactIds.length
+    ? await supabase.from('contact_needs')
+        .select('id,contact_id,category,status')
+        .in('contact_id', contactIds)
+    : { data: [] }
 
   // ─── Détection des doublons potentiels ───
   // Deux fiches sont suspectes si elles partagent le même nom complet
@@ -89,7 +102,16 @@ export default async function VisiteursPage({ searchParams }) {
 
   return (
     <AppLayout profile={profile} pageId="visiteurs" title="Visiteurs & Contacts">
-      <VisiteursClient contacts={all} stats={stats} fis={fis||[]} communes={communes||[]} profile={profile} duplicates={duplicates} />
+      <VisiteursClient
+        contacts={all}
+        reports={reports || []}
+        needs={needs || []}
+        stats={stats}
+        fis={fis||[]}
+        communes={communes||[]}
+        profile={profile}
+        duplicates={duplicates}
+      />
     </AppLayout>
   )
 }

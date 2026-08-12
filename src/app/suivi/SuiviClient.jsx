@@ -10,11 +10,7 @@ import ExportModal from '@/components/suivi/ExportModal'
 import ParcoursEnCoursTab from '@/components/suivi/ParcoursEnCoursTab'
 import MissionTab from '@/components/suivi/MissionTab'
 import WorkloadPanel from '@/components/suivi/WorkloadPanel'
-import { Users, CheckSquare, Compass, NEED_ICON_MAP, Download, Filter } from '@/lib/icons'
-
-function MissionIcon({ size = 18 }) {
-  return <span style={{ fontSize: size, lineHeight: 1 }}>🎯</span>
-}
+import { Users, CheckSquare, Compass, Target, NEED_ICON_MAP, Download, Filter } from '@/lib/icons'
 
 const FILTERS = [
   ['all', 'Tous'], ['today', 'À contacter aujourd\'hui'], ['late', 'À relancer'],
@@ -248,7 +244,7 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
   return (
     <div style={{ maxWidth: 1200 }}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-        {[['mission', 'Ma mission', MissionIcon], ['nouveaux', 'Suivi des nouveaux', Users], ['taches', 'Tâches', CheckSquare], ...(canViewParcours ? [['parcours', 'Parcours en cours', Compass]] : [])].map(([id, label, Icon]) => (
+        {[['mission', 'Ma journée', Target], ['nouveaux', 'Suivi des nouveaux', Users], ['taches', 'Tâches', CheckSquare], ...(canViewParcours ? [['parcours', 'Parcours en cours', Compass]] : [])].map(([id, label, Icon]) => (
           <div key={id} onClick={() => setTab(id)} style={{
             padding: '13px 26px', borderRadius: 12, cursor: 'pointer', fontSize: 15, fontWeight: 800,
             background: tab === id ? 'var(--n)' : '#fff', color: tab === id ? '#fff' : 'var(--gd)',

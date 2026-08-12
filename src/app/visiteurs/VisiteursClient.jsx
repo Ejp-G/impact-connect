@@ -1,21 +1,27 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { STAGE_LABEL, STAGE_COLOR, STAGES } from '@/lib/constants'
+import { STAGE_LABEL, STAGE_COLOR, STAGES, NEED_CATEGORIES } from '@/lib/constants'
 import { formatDate, scoreColor } from '@/lib/utils'
+import { getContactStatus, getContactCategory } from '@/lib/suivi-priority'
 import ImportModal from '@/components/contacts/ImportModal'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { Search, Upload, Filter, X } from '@/lib/icons'
 
-function AlertDot({ level }) {
-  const color = level === 'red' ? '#EF4444' : level === 'orange' ? '#F97316' : '#22C55E'
-  return <span style={{ display:'inline-block', width:9, height:9, borderRadius:'50%', background:color }} />
+function StatusBadge({ status }) {
+  const bg = status.key === 'a_contacter' ? '#FEF2F2' : status.key === 'en_cours' ? '#FFF7ED' : status.key === 'engage' ? '#F0FDF4' : '#F8FAFC'
+  const color = status.key === 'a_contacter' ? '#DC2626' : status.key === 'en_cours' ? '#C2410C' : status.key === 'engage' ? '#16A34A' : '#64748B'
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color, background: bg, padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+      {status.emoji} {status.label}
+    </span>
+  )
 }
 
 const normName = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim()
 const normPhone = p => (p || '').replace(/\D/g, '')
 
-export default function VisiteursClient({ contacts, stats, fis, communes, profile, duplicates = [] }) {
+export default function VisiteursClient({ contacts, reports = [], needs = [], stats, fis, communes, profile, duplicates = [] }) {
   const searchParams = useSearchParams()
   const [filter, setFilter] = useState(searchParams.get('filter') || 'all')
   const [showFilterMenu, setShowFilterMenu] = useState(false)
@@ -39,22 +45,69 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
   // Ensemble des fiches appartenant à un groupe de doublons (marquage des lignes)
   const duplicateIds = new Set(duplicates.flatMap(g => g.contacts.map(c => c.id)))
 
-  const filtered = contacts.filter(c => {
+  // Dernier compte-rendu par contact — même logique que SuiviClient.jsx
+  // (latestReportByContact), pour garantir un calcul identique de
+  // "À contacter aujourd'hui" / "À relancer" des deux côtés.
+  const latestReportByContact = useMemo(() => {
+    const map = {}
+    reports.forEach(r => {
+      if (!map[r.contact_id] || new Date(r.contacted_at) > new Date(map[r.contact_id].contacted_at)) {
+        map[r.contact_id] = r
+      }
+    })
+    return map
+  }, [reports])
+
+  const needsByContact = useMemo(() => {
+    const map = {}
+    needs.forEach(n => { (map[n.contact_id] = map[n.contact_id] || []).push(n) })
+    return map
+  }, [needs])
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  // Statut + catégorie précalculés une fois par contact, réutilisés à
+  // la fois pour les filtres et pour la colonne "Statut" du tableau —
+  // pas de recalcul dupliqué à chaque rendu de ligne.
+  const enriched = useMemo(() => {
+    return contacts.map(c => {
+      const lastReport = latestReportByContact[c.id]
+      const status = getContactStatus(c, lastReport, new Date())
+      const category = getContactCategory(c, new Date())
+      const hasReconciliation = (needsByContact[c.id] || []).some(n => n.category === 'reconciliation')
+      return { ...c, _status: status, _category: category, _hasReconciliation: hasReconciliation, _lastReport: lastReport }
+    })
+  }, [contacts, latestReportByContact, needsByContact])
+
+  const filtered = enriched.filter(c => {
     const q = search.toLowerCase()
     const haystack = (c.first_name+' '+c.last_name+' '+(c.commune||'')+' '+(c.phone||'')+' '+normPhone(c.phone)).toLowerCase()
     const matchSearch = !q || haystack.includes(q)
     if (!matchSearch) return false
+
+    // Filtres existants, inchangés
     if (filter === 'alert') return c.alert_level === 'red'
     if (filter === 'orange') return c.alert_level === 'orange'
-    if (filter === 'new') return c.created_at?.startsWith(new Date().toISOString().split('T')[0])
     if (filter === 'minor') return c.is_minor
-    if (filter === 'men') return c.sex === 'M'
-    if (filter === 'women') return c.sex === 'F'
-    if (filter === 'no_integrator') return !(c.integrators?.length)
-    if (filter === 'duplicates') return duplicateIds.has(c.id)
-    if (filter === 'salvation') return c.salvation_call === true
     if (filter === 'no_contact') return c.contact_preference === 'none'
     if (filter === 'mine') return c.agent?.id === profile?.id
+    if (filter === 'duplicates') return duplicateIds.has(c.id)
+
+    // Filtres demandés — chacun est un test booléen indépendant, donc
+    // une même personne peut correspondre à plusieurs filtres à la fois
+    // (ex: Jordan peut être "À contacter aujourd'hui" ET "Nouveaux" ET
+    // "Homme" ET "FI attribuée" simultanément).
+    if (filter === 'today') return c._status.key === 'a_contacter' && (!c._lastReport || c._lastReport.next_contact_date === today || !c.integrator_contacted)
+    if (filter === 'late') return !!c._lastReport?.next_contact_date && c._lastReport.next_contact_date < today
+    if (filter === 'new') return c._category === 'prioritaire'
+    if (filter === 'salvation') return c.salvation_call === true
+    if (filter === 'reconciliation') return c._hasReconciliation
+    if (filter === 'no_integrator') return !(c.integrators?.length)
+    if (filter === 'men') return c.sex === 'M'
+    if (filter === 'women') return c.sex === 'F'
+    if (filter === 'fi_yes') return !!c.fi
+    if (filter === 'fi_no') return !c.fi
+
     return true
   })
 
@@ -90,16 +143,29 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
 
   const canAdd = ['admin','responsable_suivi','equipe_suivi'].includes(profile?.role)
 
+  // Compteurs des nouveaux filtres, calculés une fois sur `enriched`
+  // (pas sur `filtered`), pour que chaque badge affiche le total réel
+  // indépendamment du filtre actif — comme les compteurs existants.
+  const countToday = enriched.filter(c => c._status.key === 'a_contacter' && (!c._lastReport || c._lastReport.next_contact_date === today || !c.integrator_contacted)).length
+  const countLate = enriched.filter(c => !!c._lastReport?.next_contact_date && c._lastReport.next_contact_date < today).length
+  const countNew = enriched.filter(c => c._category === 'prioritaire').length
+  const countReconciliation = enriched.filter(c => c._hasReconciliation).length
+  const countFiYes = enriched.filter(c => !!c.fi).length
+  const countFiNo = enriched.filter(c => !c.fi).length
+
   const filterBtns = [
     ['all', 'Tous', stats.total],
-    ['alert', 'Urgences', stats.alerts],
-    ['new', "Aujourd'hui", stats.today],
-    ['minor', 'Mineurs', stats.mineurs],
-    ['men', 'Hommes', stats.hommes],
-    ['women', 'Femmes', stats.femmes],
+    ['today', "À contacter aujourd'hui", countToday],
+    ['late', 'À relancer', countLate],
+    ['new', 'Nouveaux', countNew],
+    ['salvation', 'Prière du salut', enriched.filter(c => c.salvation_call).length],
+    ['reconciliation', 'Réconciliation', countReconciliation],
     ['no_integrator', 'Sans intégrateur', stats.sansIntegrateur],
+    ['men', 'Homme', stats.hommes],
+    ['women', 'Femme', stats.femmes],
+    ['fi_yes', 'FI attribuée', countFiYes],
+    ['fi_no', 'FI non attribuée', countFiNo],
     ...(stats.doublons > 0 ? [['duplicates', 'Doublons', stats.doublons]] : []),
-    ['no_contact', 'Ne pas contacter', contacts.filter(c => c.contact_preference === 'none').length],
   ]
 
   return (
@@ -229,7 +295,7 @@ export default function VisiteursClient({ contacts, stats, fis, communes, profil
                     </div>
                   </td>
                   <td style={{ fontSize:12, color:'var(--gd)' }}>{c.agent?.name||<span style={{color:'var(--gy)',fontStyle:'italic'}}>Non assigne</span>}</td>
-                  <td><AlertDot level={c.alert_level} /></td>
+                  <td><StatusBadge status={c._status} /></td>
                 </tr>
               ))}
               {filtered.length === 0 && (

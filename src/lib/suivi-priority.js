@@ -203,6 +203,23 @@ export function buildWorkload(contacts, tasks, needs, reports = [], today = new 
     .sort((a, b) => b.total - a.total)
 }
 
+// --- NOUVEAU : "en retard" limité aux contacts récents ---------------------
+// Clarification métier essentielle : une tâche techniquement dépassée
+// (due_date < today) ne doit compter comme "en retard" — et donc créer
+// un sentiment d'urgence pour l'intégrateur — QUE si le contact associé
+// est encore récent (catégorie "prioritaire" ou "normal", donc arrivé ce
+// mois-ci ou le mois précédent). Un contact de plus de 2 mois
+// ("a_reprendre") dont une vieille tâche traîne ne doit JAMAIS remonter
+// comme "en retard" : cette ancienneté relève d'une logique de relance
+// bienveillante, pas d'urgence. On ne fait ici que trier la même donnée
+// (getTaskState) selon un second critère (getContactCategory) — aucune
+// des deux fonctions existantes n'est modifiée.
+export function isTaskTrulyOverdue(task, contact, today = new Date()) {
+  if (getTaskState(task, today) !== 'a_relancer') return false
+  const category = getContactCategory(contact, today)
+  return category === 'prioritaire' || category === 'normal'
+}
+
 export const CATEGORY_LABEL = {
   prioritaire: { emoji: '🔥', label: 'Prioritaire' },
   normal: { emoji: '🟢', label: 'Normal' },

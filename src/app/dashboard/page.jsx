@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AppLayout from '@/components/layout/AppLayout'
 import DashboardClient from './DashboardClient'
-import { isTaskTrulyOverdue } from '@/lib/suivi-priority'
+import { isTaskTrulyOverdue, getContactCategory, getContactStatus } from '@/lib/suivi-priority'
 export default async function DashboardPage() {
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -17,15 +17,18 @@ export default async function DashboardPage() {
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
 
   // Statistiques agrégées
+  // CORRIGÉ : alertsRed ne vient plus d'un COUNT sur contacts.alert_level
+  // (champ figé, recalculé une fois par nuit par le cron
+  // update_alerts_and_scores, qui ignore l'ancienneté du contact — voir
+  // ci-dessous, calcul recalculé "à la volée" à la place).
   const [{ count: totalContacts }, { count: newThisMonth }, { count: salvations },
-         { count: pendingTasks }, { count: alertsRed }, { data: fiData }] = await Promise.all([
+         { count: pendingTasks }, { data: fiData }] = await Promise.all([
     supabase.from('contacts').select('*', { count:'exact', head:true }).eq('status','active'),
     supabase.from('contacts').select('*', { count:'exact', head:true })
       .eq('status','active').gte('first_visit_date', startOfMonth),
     supabase.from('contacts').select('*', { count:'exact', head:true }).eq('salvation_call', true)
       .gte('first_visit_date', startOfMonth),
     supabase.from('tasks').select('*', { count:'exact', head:true }).eq('status','pending').eq('assigned_to', session.user.id),
-    supabase.from('contacts').select('*', { count:'exact', head:true }).eq('alert_level','red').eq('status','active'),
     // Toutes les FIJ sauf celles definitivement fermees : une FIJ "en
     // developpement" ou "en pause" reste une FIJ existante et doit
     // compter dans le total (seul 'fermee' est exclu).
@@ -46,6 +49,37 @@ export default async function DashboardPage() {
   // pause" affichee sur la carte Dashboard (les FIJ en pause comptent
   // dans le total mais meritent d'etre signalees separement).
   const fiPausedCount = fiData?.filter(f => f.status === 'en_pause').length || 0
+
+  // ---------- Alertes urgentes (recalcul à la volée, remplace alert_level) ----------
+  // "Urgent" = contact récent (catégorie prioritaire ou normal, donc
+  // arrivé ce mois-ci ou le précédent — voir getContactCategory) ET
+  // dont le statut réel (getContactStatus, basé sur integrator_contacted
+  // + next_contact_date) est "à contacter". Un contact de plus de deux
+  // mois n'est plus jamais compté ici, même si son alert_level historique
+  // était "red" : il relève de "à relancer", pas d'urgence.
+  const { data: alertContacts } = await supabase.from('contacts')
+    .select('id,first_visit_date,created_at,stage,integrator_contacted')
+    .eq('status', 'active')
+  const alertContactIds = (alertContacts || []).map(c => c.id)
+  const { data: alertReports } = alertContactIds.length
+    ? await supabase.from('integrator_reports')
+        .select('contact_id,contacted_at,next_contact_date')
+        .in('contact_id', alertContactIds)
+        .order('contacted_at', { ascending: false })
+    : { data: [] }
+  const lastReportByContact = {}
+  ;(alertReports || []).forEach(r => {
+    if (!lastReportByContact[r.contact_id]) lastReportByContact[r.contact_id] = r
+  })
+  const nowRef = new Date()
+  const alertsRed = (alertContacts || []).filter(c => {
+    const category = getContactCategory(c, nowRef)
+    if (category !== 'prioritaire' && category !== 'normal') return false
+    const status = getContactStatus(c, lastReportByContact[c.id], nowRef)
+    return status.key === 'a_contacter'
+  }).length
+
+  const stats = { totalContacts, newThisMonth, salvations, pendingTasks, alertsRed, stageCounts, fiData, fiMemberCounts, fiPausedCount }
 
   // Croissance annuelle (mois par mois, annee civile en cours), basee
   // sur first_visit_date. On ne filtre PAS par status='active' ici :
@@ -85,7 +119,9 @@ export default async function DashboardPage() {
     monthlyAccueil[m] += r.nouveaux_comptes
   })
 
-  const stats = { totalContacts, newThisMonth, salvations, pendingTasks, alertsRed, stageCounts, fiData, fiMemberCounts, fiPausedCount, monthlyVisitors, monthlyIntegrations, monthlyAccueil }
+  stats.monthlyVisitors = monthlyVisitors
+  stats.monthlyIntegrations = monthlyIntegrations
+  stats.monthlyAccueil = monthlyAccueil
 
   // ---------- Hero vivant : "aujourd'hui en un coup d'oeil" ----------
   const { count: newToday } = await supabase.from('contacts')
@@ -103,8 +139,8 @@ export default async function DashboardPage() {
   // l'équipe pour superviseur/responsable_suivi/admin (role de
   // garde-fou), y compris via le role secondaire responsable_suivi.
   //
-  // CORRIGÉ : "en retard" doit être réservé aux contacts récents
-  // (arrivés ce mois-ci ou le précédent) — voir isTaskTrulyOverdue dans
+  // "en retard" doit être réservé aux contacts récents (arrivés ce
+  // mois-ci ou le précédent) — voir isTaskTrulyOverdue dans
   // lib/suivi-priority.js. Une vieille tâche liée à un contact de plus
   // de 2 mois n'est plus un "retard" mais une "relance" (stats.toRelaunchTasks),
   // pour ne pas donner le sentiment trompeur de dizaines de retards.
@@ -122,7 +158,6 @@ export default async function DashboardPage() {
   if (!isSupervisorView) overdueQuery = overdueQuery.eq('assigned_to', session.user.id)
   const { data: overdueTasksRaw } = await overdueQuery
 
-  const nowRef = new Date()
   const trulyOverdue = []
   const toRelaunch = []
   ;(overdueTasksRaw || []).forEach(t => {

@@ -225,24 +225,49 @@ export default function DashboardClient({ stats, profile }) {
           data: {
             labels: MONTH_SHORT,
             datasets: [
-              { type: 'bar', label: 'Visiteurs (formulaire)', data: visitorsData, backgroundColor: '#0B3D91', borderRadius: 5, order: 2, barPercentage: .65, categoryPercentage: .7 },
-              { type: 'bar', label: 'Intégrations FI', data: integrationsData, backgroundColor: '#22C55E', borderRadius: 5, order: 2, barPercentage: .65, categoryPercentage: .7 },
-              { type: 'bar', label: 'Comptage Accueil', data: accueilData, backgroundColor: '#F97316', borderRadius: 5, order: 2, barPercentage: .65, categoryPercentage: .7 },
-              { type: 'line', label: 'Tendance (moy. mobile)', data: trend, borderColor: '#94A3B8', borderWidth: 2, borderDash: [4, 3], pointRadius: 0, tension: .4, fill: false, order: 1 },
+              {
+                type: 'bar', label: 'Visiteurs', data: visitorsData,
+                backgroundColor: '#4F46E5', borderRadius: { topLeft: 8, topRight: 8 },
+                borderSkipped: false, order: 3, barPercentage: .7, categoryPercentage: .8
+              },
+              {
+                type: 'bar', label: 'Intégrations FI', data: integrationsData,
+                backgroundColor: '#16A34A', borderRadius: { topLeft: 8, topRight: 8 },
+                borderSkipped: false, order: 3, barPercentage: .7, categoryPercentage: .8
+              },
+              {
+                // Traité différemment des deux barres ci-dessus : ligne +
+                // points plutôt qu'une 3e barre, car le Comptage Accueil
+                // n'est pas de même nature (saisie manuelle par culte,
+                // pas une fiche par personne) — évite la confusion visuelle.
+                type: 'line', label: 'Comptage Accueil', data: accueilData,
+                borderColor: '#F97316', backgroundColor: '#F97316',
+                pointBackgroundColor: '#F97316', pointRadius: 5, pointHoverRadius: 7,
+                borderWidth: 2, showLine: false, order: 1
+              },
+              {
+                type: 'line', label: 'Tendance', data: trend,
+                borderColor: '#D4A017', borderWidth: 3, pointRadius: 0,
+                tension: .4, cubicInterpolationMode: 'monotone', fill: false, order: 2
+              },
             ]
           },
           options: {
             responsive: true, maintainAspectRatio: false,
-            onClick: (evt, elements) => { const bar = elements.find(e => e.datasetIndex <= 2); if (bar) openMonth(bar.index) },
+            onClick: (evt, elements) => { const bar = elements.find(e => e.datasetIndex <= 1); if (bar) openMonth(bar.index) },
             plugins: {
-              legend: { position: 'bottom', labels: { font: { size: 11 }, usePointStyle: true, padding: 14 } },
+              legend: {
+                position: 'bottom',
+                labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 10, boxHeight: 10, padding: 18, font: { size: 12, weight: '600' } }
+              },
               tooltip: {
-                backgroundColor: '#1E293B', padding: 10, cornerRadius: 8, titleFont: { size: 12, weight: '700' }, bodyFont: { size: 12 },
+                backgroundColor: '#1E293B', padding: 12, cornerRadius: 10,
+                titleFont: { size: 13, weight: '700' }, bodyFont: { size: 12 }, bodySpacing: 4,
                 callbacks: { title: (items) => `${MONTH_FULL[items[0].dataIndex]} ${viewYear}` }
               }
             },
             scales: {
-              x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+              x: { grid: { display: false }, ticks: { font: { size: 11, weight: '600' }, color: '#64748B' } },
               y: { grid: { color: '#F1F5F9' }, beginAtZero: true, ticks: { font: { size: 10 }, stepSize: 1, precision: 0 } }
             }
           }

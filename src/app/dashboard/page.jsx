@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AppLayout from '@/components/layout/AppLayout'
 import DashboardClient from './DashboardClient'
+import { isTaskTrulyOverdue } from '@/lib/suivi-priority'
 export default async function DashboardPage() {
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -101,17 +102,36 @@ export default async function DashboardPage() {
   // Personnelle pour un intégrateur normal ; visible sur TOUTE
   // l'équipe pour superviseur/responsable_suivi/admin (role de
   // garde-fou), y compris via le role secondaire responsable_suivi.
+  //
+  // CORRIGÉ : "en retard" doit être réservé aux contacts récents
+  // (arrivés ce mois-ci ou le précédent) — voir isTaskTrulyOverdue dans
+  // lib/suivi-priority.js. Une vieille tâche liée à un contact de plus
+  // de 2 mois n'est plus un "retard" mais une "relance" (stats.toRelaunchTasks),
+  // pour ne pas donner le sentiment trompeur de dizaines de retards.
+  // La limite passe de 20 à 300 : avec l'ancien tri "due_date ascending
+  // + limit 20", les tâches les plus anciennes (souvent hors sujet)
+  // remplissaient déjà toute la liste avant même le filtrage.
   const isSupervisorView = ['admin', 'responsable_suivi', 'superviseur'].includes(profile?.role)
     || (profile?.secondary_roles || []).includes('responsable_suivi')
   let overdueQuery = supabase.from('tasks')
-    .select('id,title,type,due_date,contact:contacts(id,first_name,last_name),assignee:profiles!tasks_assigned_to_fkey(name)')
+    .select('id,title,type,due_date,contact:contacts(id,first_name,last_name,first_visit_date,created_at,stage),assignee:profiles!tasks_assigned_to_fkey(name)')
     .eq('status', 'pending')
     .lt('due_date', today)
     .order('due_date', { ascending: true })
-    .limit(20)
+    .limit(300)
   if (!isSupervisorView) overdueQuery = overdueQuery.eq('assigned_to', session.user.id)
-  const { data: overdueTasks } = await overdueQuery
-  stats.overdueTasks = overdueTasks || []
+  const { data: overdueTasksRaw } = await overdueQuery
+
+  const nowRef = new Date()
+  const trulyOverdue = []
+  const toRelaunch = []
+  ;(overdueTasksRaw || []).forEach(t => {
+    if (!t.contact) return
+    if (isTaskTrulyOverdue(t, t.contact, nowRef)) trulyOverdue.push(t)
+    else toRelaunch.push(t)
+  })
+  stats.overdueTasks = trulyOverdue
+  stats.toRelaunchTasks = toRelaunch
   stats.overdueIsTeamWide = isSupervisorView
 
   // ---------- Mon espace de suivi ----------

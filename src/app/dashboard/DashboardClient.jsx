@@ -5,7 +5,7 @@ import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { createClient } from '@/lib/supabase/client'
 import TreatAlertModal from '@/components/dashboard/TreatAlertModal'
-import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft, ChevronLeft, ChevronRight, Download, CheckCircle2, BookOpen } from '@/lib/icons'
+import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft, ChevronLeft, ChevronRight, Download, CheckCircle2, BookOpen, TrendingUp, TrendingDown } from '@/lib/icons'
 
 const ACTIVITY_ICON_MAP = {
   new_contact: UserPlus,
@@ -19,7 +19,7 @@ const ACTIVITY_COLOR_MAP = {
   report: '#3B82F6',
   need: '#F97316',
 }
-const MONTH_SHORT = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+const MONTH_SHORT = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc']
 const MONTH_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 
 function timeAgo(dateStr) {
@@ -27,6 +27,19 @@ function timeAgo(dateStr) {
   if (h < 1) return 'à l\'instant'
   if (h < 24) return `il y a ${Math.floor(h)}h`
   return `il y a ${Math.floor(h / 24)}j`
+}
+
+// Moyenne mobile sur 3 mois (fenêtre glissante, bornée aux extrémités)
+// — c'est un calcul dérivé de données réelles, pas une donnée inventée.
+// Sert uniquement de courbe de tendance visuelle sur le graphique.
+function movingAverage(arr, window = 3) {
+  return arr.map((_, i) => {
+    const start = Math.max(0, i - Math.floor(window / 2))
+    const end = Math.min(arr.length - 1, i + Math.floor(window / 2))
+    const slice = arr.slice(start, end + 1)
+    const sum = slice.reduce((s, v) => s + v, 0)
+    return Math.round((sum / slice.length) * 10) / 10
+  })
 }
 
 export default function DashboardClient({ stats, profile }) {
@@ -38,8 +51,10 @@ export default function DashboardClient({ stats, profile }) {
   const growthChartInstance = useRef(null)
 
   const currentYear = new Date().getFullYear()
+  const YEAR_OPTIONS = [currentYear - 5, currentYear - 4, currentYear - 3, currentYear - 2, currentYear - 1, currentYear]
   const [viewYear, setViewYear] = useState(currentYear)
-  const [yearData, setYearData] = useState(null)
+  const [yearData, setYearData] = useState(null) // null = utiliser stats (annee en cours), sinon {visitors:[], integrations:[], accueil:[]}
+  const [prevYearTotal, setPrevYearTotal] = useState(null) // total visiteurs de l'année N-1, pour la carte "Progression"
   const [drillLevel, setDrillLevel] = useState('year')
   const [drillMonth, setDrillMonth] = useState(null)
   const [drillMonthData, setDrillMonthData] = useState([])
@@ -52,6 +67,8 @@ export default function DashboardClient({ stats, profile }) {
 
   useRealtimeRefresh(['contacts', 'tasks', 'familles_impact'])
 
+  // Charge les 12 mois d'une annee differente de l'annee en cours (celle-ci
+  // est deja fournie via stats, calculee cote serveur au chargement initial).
   async function loadYear(year) {
     setLoadingDrill(true)
     const yearStart = `${year}-01-01`
@@ -71,12 +88,28 @@ export default function DashboardClient({ stats, profile }) {
     setLoadingDrill(false)
   }
 
+  // Total visiteurs de l'année précédente — requête légère (count only),
+  // uniquement pour calculer la progression réelle affichée sous le
+  // graphique. Si l'année précédente n'a aucune donnée, la carte
+  // "Progression" l'indique proprement plutôt que d'afficher un chiffre
+  // inventé (section 28 : gérer le cas où l'année N-1 vaut 0 ou n'existe pas).
+  async function loadPrevYearTotal(year) {
+    const { count } = await supabase.from('contacts')
+      .select('*', { count: 'exact', head: true })
+      .gte('first_visit_date', `${year - 1}-01-01`)
+      .lt('first_visit_date', `${year}-01-01`)
+    setPrevYearTotal(count || 0)
+  }
+
   function goToYear(year) {
     setViewYear(year)
     setDrillLevel('year'); setDrillMonth(null); setDrillDay(null)
     if (year === currentYear) setYearData(null)
     else loadYear(year)
+    loadPrevYearTotal(year)
   }
+
+  useEffect(() => { loadPrevYearTotal(currentYear) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openMonth(monthIndex) {
     setLoadingDrill(true)
@@ -162,6 +195,21 @@ export default function DashboardClient({ stats, profile }) {
     return () => { cancelled = true; pieChartInstance.current?.destroy() }
   }, [stats])
 
+  // Totaux réels de l'année affichée — base des cartes de synthèse
+  // sous le graphique (section 27). Jamais de valeur inventée : si une
+  // série n'a pas de données, son total est simplement 0.
+  const visitorsData = yearData ? yearData.visitors : (stats.monthlyVisitors || Array(12).fill(0))
+  const integrationsData = yearData ? yearData.integrations : (stats.monthlyIntegrations || Array(12).fill(0))
+  const accueilData = yearData ? yearData.accueil : (stats.monthlyAccueil || Array(12).fill(0))
+  const yearVisitorsTotal = visitorsData.reduce((s, v) => s + v, 0)
+  const yearIntegrationsTotal = integrationsData.reduce((s, v) => s + v, 0)
+  // Progression vs année précédente (section 28) : calcul réel uniquement
+  // si l'année N-1 a des données ; sinon affichage neutre "—" plutôt
+  // qu'un pourcentage fabriqué.
+  const growthPct = (prevYearTotal !== null && prevYearTotal > 0)
+    ? Math.round(((yearVisitorsTotal - prevYearTotal) / prevYearTotal) * 100)
+    : null
+
   useEffect(() => {
     if (drillLevel === 'day') return
     let cancelled = false
@@ -172,23 +220,27 @@ export default function DashboardClient({ stats, profile }) {
       growthChartInstance.current?.destroy()
 
       if (drillLevel === 'year') {
-        const visitorsData = yearData ? yearData.visitors : (stats.monthlyVisitors || Array(12).fill(0))
-        const integrationsData = yearData ? yearData.integrations : (stats.monthlyIntegrations || Array(12).fill(0))
-        const accueilData = yearData ? yearData.accueil : (stats.monthlyAccueil || Array(12).fill(0))
+        const trend = movingAverage(visitorsData, 3)
         growthChartInstance.current = new Chart(growthRef.current, {
-          type: 'line',
           data: {
             labels: MONTH_SHORT,
             datasets: [
-              { label: 'Visiteurs (formulaire)', data: visitorsData, borderColor: '#0B3D91', backgroundColor: 'rgba(11,61,145,.08)', fill: true, tension: .4, borderWidth: 2 },
-              { label: 'Intégrations FI', data: integrationsData, borderColor: '#22C55E', backgroundColor: 'rgba(34,197,94,.05)', fill: true, tension: .4, borderWidth: 2 },
-              { label: 'Comptage Accueil', data: accueilData, borderColor: '#F97316', backgroundColor: 'rgba(249,115,22,.04)', fill: true, tension: .4, borderWidth: 2, borderDash: [5, 4] },
+              { type: 'bar', label: 'Visiteurs (formulaire)', data: visitorsData, backgroundColor: '#0B3D91', borderRadius: 5, order: 2, barPercentage: .65, categoryPercentage: .7 },
+              { type: 'bar', label: 'Intégrations FI', data: integrationsData, backgroundColor: '#22C55E', borderRadius: 5, order: 2, barPercentage: .65, categoryPercentage: .7 },
+              { type: 'bar', label: 'Comptage Accueil', data: accueilData, backgroundColor: '#F97316', borderRadius: 5, order: 2, barPercentage: .65, categoryPercentage: .7 },
+              { type: 'line', label: 'Tendance (moy. mobile)', data: trend, borderColor: '#94A3B8', borderWidth: 2, borderDash: [4, 3], pointRadius: 0, tension: .4, fill: false, order: 1 },
             ]
           },
           options: {
             responsive: true, maintainAspectRatio: false,
-            onClick: (evt, elements) => { if (elements.length) openMonth(elements[0].index) },
-            plugins: { legend: { labels: { font: { size: 11 } } } },
+            onClick: (evt, elements) => { const bar = elements.find(e => e.datasetIndex <= 2); if (bar) openMonth(bar.index) },
+            plugins: {
+              legend: { position: 'bottom', labels: { font: { size: 11 }, usePointStyle: true, padding: 14 } },
+              tooltip: {
+                backgroundColor: '#1E293B', padding: 10, cornerRadius: 8, titleFont: { size: 12, weight: '700' }, bodyFont: { size: 12 },
+                callbacks: { title: (items) => `${MONTH_FULL[items[0].dataIndex]} ${viewYear}` }
+              }
+            },
             scales: {
               x: { grid: { display: false }, ticks: { font: { size: 10 } } },
               y: { grid: { color: '#F1F5F9' }, beginAtZero: true, ticks: { font: { size: 10 }, stepSize: 1, precision: 0 } }
@@ -216,7 +268,7 @@ export default function DashboardClient({ stats, profile }) {
     }
     loadGrowthChart()
     return () => { cancelled = true; growthChartInstance.current?.destroy() }
-  }, [drillLevel, drillMonth, drillMonthData, yearData, stats.monthlyVisitors, stats.monthlyIntegrations, stats.monthlyAccueil])
+  }, [drillLevel, drillMonth, drillMonthData, yearData, stats.monthlyVisitors, stats.monthlyIntegrations, stats.monthlyAccueil, viewYear])
 
   const firstName = profile?.name?.split(' ')[0] || 'Pasteur'
 
@@ -400,11 +452,11 @@ export default function DashboardClient({ stats, profile }) {
 
       <div className="g2r">
         <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-          <div className="card">
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
+          <div className="card" style={{ border: '1px solid #F1F5F9' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14, flexWrap:'wrap', gap:10 }}>
               <div>
-                <div style={{ fontSize:15, fontWeight:700 }}>Croissance annuelle</div>
-                <div style={{ fontSize:12, color:'var(--gy)' }}>Cliquez un mois, puis un jour, pour voir le détail</div>
+                <div style={{ fontSize:16, fontWeight:800, color:'#1E293B' }}>Croissance annuelle</div>
+                <div style={{ fontSize:12, color:'var(--gy)', marginTop:2 }}>Suivez l'évolution de vos visiteurs et intégrations</div>
               </div>
               <div style={{ display:'flex', gap:6 }}>
                 {drillLevel !== 'day' && (
@@ -423,40 +475,41 @@ export default function DashboardClient({ stats, profile }) {
               </div>
             </div>
 
+            {/* Sélecteur d'année en pills (section 23) */}
             {drillLevel === 'year' && (
-              <div style={{ fontSize:11, color:'var(--gy)', background:'#F8FAFC', borderRadius:8, padding:'8px 10px', marginBottom:4, lineHeight:1.5 }}>
-                <b style={{ color:'#0B3D91' }}>Visiteurs (formulaire)</b> : fiches réellement créées, selon leur date de première visite.{' '}
-                <b style={{ color:'#22C55E' }}>Intégrations FI</b> : personnes ayant rejoint une Famille d'Impact ce mois-là.{' '}
-                <b style={{ color:'#F97316' }}>Comptage Accueil</b> : nouveaux comptés à l'entrée (Module Accueil), peut différer si des personnes reperées ne remplissent jamais de fiche. Cliquez une ligne dans la légende pour l'afficher/la masquer.
+              <div style={{ display:'flex', gap:6, marginBottom:14, flexWrap:'wrap' }}>
+                {YEAR_OPTIONS.map(y => (
+                  <button key={y} onClick={() => goToYear(y)} style={{
+                    padding:'6px 14px', borderRadius:999, border:'none', cursor:'pointer',
+                    fontSize:12, fontWeight:700,
+                    background: y === viewYear ? 'var(--n)' : '#F1F5F9',
+                    color: y === viewYear ? '#fff' : '#64748B',
+                    transition:'background .15s'
+                  }}>
+                    {y}
+                  </button>
+                ))}
               </div>
             )}
 
-            <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, margin:'10px 0' }}>
-              <button onClick={() => goToYear(viewYear - 1)} style={yearNavBtnStyle} title="Année précédente">
-                <ChevronLeft size={12} strokeWidth={2} />
-              </button>
-              <span onClick={backToYear} style={{ cursor:'pointer', fontWeight: drillLevel==='year'?700:400, color: drillLevel==='year'?'var(--n)':'var(--gy)' }}>{viewYear}</span>
-              <button onClick={() => goToYear(viewYear + 1)} style={yearNavBtnStyle} title="Année suivante">
-                <ChevronRight size={12} strokeWidth={2} />
-              </button>
-              {drillMonth !== null && (
-                <>
-                  <span style={{ color:'var(--gy)' }}>›</span>
-                  <span onClick={backToMonth} style={{ cursor:'pointer', fontWeight: drillLevel==='month'?700:400, color: drillLevel==='month'?'var(--n)':'var(--gy)' }}>{MONTH_FULL[drillMonth]}</span>
-                </>
-              )}
-              {drillDay && (
-                <>
-                  <span style={{ color:'var(--gy)' }}>›</span>
-                  <span style={{ fontWeight:700, color:'var(--n)' }}>
-                    {new Date(drillDay).toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })}
-                  </span>
-                </>
-              )}
-            </div>
+            {drillMonth !== null && drillLevel !== 'year' && (
+              <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, marginBottom:10 }}>
+                <span onClick={backToYear} style={{ cursor:'pointer', color:'var(--gy)' }}>{viewYear}</span>
+                <span style={{ color:'var(--gy)' }}>›</span>
+                <span onClick={backToMonth} style={{ cursor:'pointer', fontWeight: drillLevel==='month'?700:400, color: drillLevel==='month'?'var(--n)':'var(--gy)' }}>{MONTH_FULL[drillMonth]}</span>
+                {drillDay && (
+                  <>
+                    <span style={{ color:'var(--gy)' }}>›</span>
+                    <span style={{ fontWeight:700, color:'var(--n)' }}>
+                      {new Date(drillDay).toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
 
             {loadingDrill ? (
-              <div style={{ height:220, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--gy)', fontSize:13 }}>Chargement…</div>
+              <div style={{ height:260, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--gy)', fontSize:13 }}>Chargement…</div>
             ) : drillLevel === 'day' ? (
               <div style={{ maxHeight:260, overflowY:'auto' }}>
                 {drillDayContacts.length === 0 ? (
@@ -476,7 +529,24 @@ export default function DashboardClient({ stats, profile }) {
                 )}
               </div>
             ) : (
-              <div style={{ height:220 }}><canvas ref={growthRef} /></div>
+              <div style={{ height:260 }}><canvas ref={growthRef} /></div>
+            )}
+
+            {/* Cartes de synthèse (section 27) — uniquement en vue année,
+                jamais de chiffre inventé : "—" si la donnée n'est pas
+                disponible plutôt qu'un pourcentage fabriqué. */}
+            {drillLevel === 'year' && !loadingDrill && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px,1fr))', gap:10, marginTop:18, paddingTop:18, borderTop:'1px solid #F1F5F9' }}>
+                <SummaryCard label="Visiteurs cette année" value={yearVisitorsTotal} color="#0B3D91" />
+                <SummaryCard label="Intégrations FI" value={yearIntegrationsTotal} color="#22C55E" />
+                <SummaryCard
+                  label="Progression"
+                  value={growthPct === null ? '—' : `${growthPct > 0 ? '+' : ''}${growthPct}%`}
+                  color={growthPct === null ? '#94A3B8' : growthPct >= 0 ? '#16A34A' : '#DC2626'}
+                  icon={growthPct === null ? null : growthPct >= 0 ? TrendingUp : TrendingDown}
+                  sub={prevYearTotal === null ? null : `vs ${viewYear - 1} (${prevYearTotal})`}
+                />
+              </div>
             )}
           </div>
         </div>
@@ -553,13 +623,22 @@ export default function DashboardClient({ stats, profile }) {
   )
 }
 
+function SummaryCard({ label, value, color, icon: Icon, sub }) {
+  return (
+    <div style={{ background:'#F8FAFC', borderRadius:12, padding:'12px 14px' }}>
+      <div style={{ fontSize:11, color:'#94A3B8', fontWeight:600, marginBottom:4 }}>{label}</div>
+      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+        {Icon && <Icon size={14} strokeWidth={2.5} color={color} />}
+        <span style={{ fontSize:20, fontWeight:800, color }}>{value}</span>
+      </div>
+      {sub && <div style={{ fontSize:10, color:'#94A3B8', marginTop:2 }}>{sub}</div>}
+    </div>
+  )
+}
+
 const backBtnStyle = {
   display:'flex', alignItems:'center', gap:5, background:'#F1F5F9', border:'none',
   borderRadius:8, padding:'6px 12px', fontSize:11, fontWeight:600, color:'#64748B', cursor:'pointer'
-}
-const yearNavBtnStyle = {
-  display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20,
-  background:'#F1F5F9', border:'none', borderRadius:6, color:'#64748B', cursor:'pointer', padding:0
 }
 const treatBtnStyle = {
   background:'#fff', color:'#DC2626', border:'1px solid #FCA5A5', borderRadius:8,

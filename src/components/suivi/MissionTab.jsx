@@ -65,6 +65,15 @@ export default function MissionTab({ contacts, tasks, needs, reports, profile, o
   const doneCount = missionItems.filter(i => !i.needsAction).length
   const missionComplete = missionIds.length > 0 && doneCount >= missionIds.length
 
+  // Reprise automatique : si au moins une personne a déjà été traitée
+  // (doneCount > 0), on considère la mission "commencée" même après un
+  // changement de page — `started` étant un simple state local, il
+  // repartait sinon à false et réaffichait "Commencer mes contacts"
+  // comme si rien n'avait été fait, malgré une barre déjà à 1/5.
+  useEffect(() => {
+    if (doneCount > 0 && !started) setStarted(true)
+  }, [doneCount]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const currentItem = missionItems.find(i => i.needsAction && !skippedIds.includes(i.contact.id))
 
   const firstName = profile?.name?.split(' ')[0] || ''
@@ -100,7 +109,7 @@ export default function MissionTab({ contacts, tasks, needs, reports, profile, o
         )}
         {!started && missionIds.length > 0 && (
           <button onClick={() => setStarted(true)} style={{ marginTop: 16, background: '#fff', color: 'var(--n)', border: 'none', padding: '10px 20px', borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
-            COMMENCER MES CONTACTS
+            {doneCount > 0 ? 'CONTINUER MES CONTACTS' : 'COMMENCER MES CONTACTS'}
           </button>
         )}
       </div>

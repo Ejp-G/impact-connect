@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { STAGE_LABEL, STAGE_COLOR, NEED_CATEGORIES } from '@/lib/constants'
-import { getTaskState, TASK_STATE_LABEL, getContactStatus } from '@/lib/suivi-priority'
+import { getTaskState, TASK_STATE_LABEL, getContactStatus, getContactCategory } from '@/lib/suivi-priority'
 import TaskDetailModal from '@/components/tasks/TaskDetailModal'
 import NewcomerReportPanel from '@/components/suivi/NewcomerReportPanel'
 import NeedsDrilldownModal from '@/components/suivi/NeedsDrilldownModal'
@@ -127,12 +127,18 @@ export default function SuiviClient({ contacts, reports, needs, allNeeds = [], c
       if (periodFilter === 'year' && !(c.first_visit_date >= yearStr)) return false
       if (periodFilter === 'sunday' && sundayDate && c.first_visit_date !== sundayDate) return false
 
-      if (filter === 'today') return lastReport?.next_contact_date === today
-      if (filter === 'late') return lastReport?.next_contact_date && lastReport.next_contact_date < today
-      if (filter === 'new') {
-        const days = (Date.now() - new Date(c.first_visit_date || c.created_at).getTime()) / 86400000
-        return days <= 7
+      // Alignement sur getContactStatus/getContactCategory
+      // (lib/suivi-priority.js) — même logique que "Ma journée" et la
+      // page Visiteurs, pour ne plus jamais diverger entre les trois
+      // écrans. Avant ce correctif, "today" exigeait next_contact_date
+      // === today (posé manuellement), ce qui laissait le filtre vide
+      // quasiment tout le temps.
+      if (filter === 'today') {
+        const status = getContactStatus(c, lastReport, new Date())
+        return status.key === 'a_contacter' && (!lastReport || lastReport.next_contact_date === today || !c.integrator_contacted)
       }
+      if (filter === 'late') return !!lastReport?.next_contact_date && lastReport.next_contact_date < today
+      if (filter === 'new') return getContactCategory(c, new Date()) === 'prioritaire'
       if (filter === 'salvation') return c.salvation_call === true
       if (filter === 'reconciliation') return contactNeeds.some(n => n.category === 'reconciliation')
       if (filter === 'no_integrator') return !hasIntegrators

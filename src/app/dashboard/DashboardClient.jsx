@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { createClient } from '@/lib/supabase/client'
-import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft, ChevronLeft, ChevronRight, Download, CheckCircle2 } from '@/lib/icons'
+import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft, ChevronLeft, ChevronRight, Download, CheckCircle2, BookOpen } from '@/lib/icons'
 
 const ACTIVITY_ICON_MAP = {
   new_contact: UserPlus,
@@ -251,6 +251,26 @@ export default function DashboardClient({ stats, profile }) {
               <div style={{ fontSize:12, color:'#991B1B', fontStyle:'italic' }}>+ {stats.overdueTasks.length - 5} autre(s), voir Suivi &amp; Tâches</div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* NOUVEAU : bloc "à relancer" — séparé et non-alarmant. Ce sont
+          des contacts de plus de 2 mois avec une vieille tâche en
+          attente : ce n'est plus une urgence, juste une reprise de
+          contact à programmer tranquillement. Voir isTaskTrulyOverdue
+          dans lib/suivi-priority.js pour la logique de séparation. */}
+      {stats.toRelaunchTasks && stats.toRelaunchTasks.length > 0 && (
+        <div style={{ background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:14, padding:'14px 18px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, fontWeight:700, color:'#475569', fontSize:14, marginBottom:6 }}>
+            <BookOpen size={16} strokeWidth={2} color="#64748B" />
+            {stats.toRelaunchTasks.length} personne{stats.toRelaunchTasks.length>1?'s':''} à relancer
+          </div>
+          <div style={{ fontSize:12, color:'#64748B', fontStyle:'italic', marginBottom:10 }}>
+            Ces personnes n'ont pas été oubliées — ce n'est pas urgent, juste une reprise de contact à programmer quand vous avez un moment.
+          </div>
+          <button onClick={() => router.push('/suivi?tab=mission')} style={{ ...backBtnStyle, background:'#fff', border:'1px solid #E2E8F0' }}>
+            Voir dans Suivi &amp; Tâches
+          </button>
         </div>
       )}
 

@@ -236,19 +236,22 @@ export default function DashboardClient({ stats, profile }) {
                 borderSkipped: false, order: 3, barPercentage: .7, categoryPercentage: .8
               },
               {
-                // Traité différemment des deux barres ci-dessus : ligne +
-                // points plutôt qu'une 3e barre, car le Comptage Accueil
-                // n'est pas de même nature (saisie manuelle par culte,
-                // pas une fiche par personne) — évite la confusion visuelle.
+                // Traité différemment des deux barres ci-dessus : ligne
+                // fine + aire translucide plutôt qu'une 3e barre, car le
+                // Comptage Accueil n'est pas de même nature (saisie
+                // manuelle par culte, pas une fiche par personne). Aucun
+                // point visible au repos — seulement au survol — pour un
+                // rendu plus sobre.
                 type: 'line', label: 'Comptage Accueil', data: accueilData,
-                borderColor: '#F97316', backgroundColor: '#F97316',
-                pointBackgroundColor: '#F97316', pointRadius: 5, pointHoverRadius: 7,
-                borderWidth: 2, showLine: false, order: 1
+                borderColor: '#F97316', backgroundColor: 'rgba(249,115,22,.10)',
+                borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 5,
+                pointHoverBackgroundColor: '#F97316', pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2,
+                tension: .4, cubicInterpolationMode: 'monotone', fill: true, order: 2
               },
               {
                 type: 'line', label: 'Tendance', data: trend,
                 borderColor: '#D4A017', borderWidth: 3, pointRadius: 0,
-                tension: .4, cubicInterpolationMode: 'monotone', fill: false, order: 2
+                tension: .4, cubicInterpolationMode: 'monotone', fill: false, order: 1
               },
             ]
           },

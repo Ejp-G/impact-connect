@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { createClient } from '@/lib/supabase/client'
+import TreatAlertModal from '@/components/dashboard/TreatAlertModal'
 import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft, ChevronLeft, ChevronRight, Download, CheckCircle2, BookOpen } from '@/lib/icons'
 
 const ACTIVITY_ICON_MAP = {
@@ -38,7 +39,7 @@ export default function DashboardClient({ stats, profile }) {
 
   const currentYear = new Date().getFullYear()
   const [viewYear, setViewYear] = useState(currentYear)
-  const [yearData, setYearData] = useState(null) // null = utiliser stats (annee en cours), sinon {visitors:[], integrations:[]}
+  const [yearData, setYearData] = useState(null)
   const [drillLevel, setDrillLevel] = useState('year')
   const [drillMonth, setDrillMonth] = useState(null)
   const [drillMonthData, setDrillMonthData] = useState([])
@@ -46,10 +47,11 @@ export default function DashboardClient({ stats, profile }) {
   const [drillDayContacts, setDrillDayContacts] = useState([])
   const [loadingDrill, setLoadingDrill] = useState(false)
 
+  // Traitement d'alerte directement depuis le dashboard (sections 10-17)
+  const [treatingTaskId, setTreatingTaskId] = useState(null)
+
   useRealtimeRefresh(['contacts', 'tasks', 'familles_impact'])
 
-  // Charge les 12 mois d'une annee differente de l'annee en cours (celle-ci
-  // est deja fournie via stats, calculee cote serveur au chargement initial).
   async function loadYear(year) {
     setLoadingDrill(true)
     const yearStart = `${year}-01-01`
@@ -240,11 +242,14 @@ export default function DashboardClient({ stats, profile }) {
             <AlertCircle size={16} strokeWidth={2} color="#DC2626" />
             {stats.overdueTasks.length} tâche{stats.overdueTasks.length>1?'s':''} en retard
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
             {stats.overdueTasks.slice(0,5).map(t => (
-              <div key={t.id} style={{ fontSize:13, color:'#991B1B' }}>
-                Vous devez contacter <b>{t.contact?.first_name} {t.contact?.last_name}</b> — {t.title || t.type} (échéance : {t.due_date})
-                {stats.overdueIsTeamWide && t.assignee?.name && <span> · <i>{t.assignee.name}</i></span>}
+              <div key={t.id} style={{ fontSize:13, color:'#991B1B', display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+                <span>
+                  Vous devez contacter <b>{t.contact?.first_name} {t.contact?.last_name}</b> — {t.title || t.type} (échéance : {t.due_date})
+                  {stats.overdueIsTeamWide && t.assignee?.name && <span> · <i>{t.assignee.name}</i></span>}
+                </span>
+                <button onClick={() => setTreatingTaskId(t.id)} style={treatBtnStyle}>✓ Traiter</button>
               </div>
             ))}
             {stats.overdueTasks.length > 5 && (
@@ -254,11 +259,6 @@ export default function DashboardClient({ stats, profile }) {
         </div>
       )}
 
-      {/* NOUVEAU : bloc "à relancer" — séparé et non-alarmant. Ce sont
-          des contacts de plus de 2 mois avec une vieille tâche en
-          attente : ce n'est plus une urgence, juste une reprise de
-          contact à programmer tranquillement. Voir isTaskTrulyOverdue
-          dans lib/suivi-priority.js pour la logique de séparation. */}
       {stats.toRelaunchTasks && stats.toRelaunchTasks.length > 0 && (
         <div style={{ background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:14, padding:'14px 18px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, fontWeight:700, color:'#475569', fontSize:14, marginBottom:6 }}>
@@ -356,7 +356,6 @@ export default function DashboardClient({ stats, profile }) {
         ))}
       </div>
 
-      {/* Verification du dernier culte (Module Accueil) */}
       {stats.culteCheck && (() => {
         const cc = stats.culteCheck
         const nouveauxDiff = cc.nouveauxComptes != null ? cc.nouveauxComptes - cc.nouveauxReels : 0
@@ -546,6 +545,10 @@ export default function DashboardClient({ stats, profile }) {
           })}
         </div>
       </div>
+
+      {treatingTaskId && (
+        <TreatAlertModal taskId={treatingTaskId} onClose={() => setTreatingTaskId(null)} />
+      )}
     </div>
   )
 }
@@ -557,4 +560,8 @@ const backBtnStyle = {
 const yearNavBtnStyle = {
   display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20,
   background:'#F1F5F9', border:'none', borderRadius:6, color:'#64748B', cursor:'pointer', padding:0
+}
+const treatBtnStyle = {
+  background:'#fff', color:'#DC2626', border:'1px solid #FCA5A5', borderRadius:8,
+  padding:'5px 12px', fontSize:11, fontWeight:700, cursor:'pointer', flexShrink:0
 }

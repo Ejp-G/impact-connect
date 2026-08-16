@@ -9,7 +9,7 @@ import {
   Flag, LifeBuoy, Footprints, Building2, Compass, GraduationCap,
   Wallet, Utensils, Car, Briefcase, Accessibility, Frown, Stethoscope,
   ShieldAlert, Lock, ArrowLeft, MapPin, ChevronUp, MessageSquare, Tag, HelpCircle, Save,
-  Target
+  Target, TrendingUp, TrendingDown
 } from 'lucide-react'
 
 // Point d'entree unique du systeme d'icones. Mappe chaque id de
@@ -124,5 +124,5 @@ export {
   Wallet, Utensils, Car, Briefcase, Accessibility, Frown, Stethoscope,
   ShieldAlert, Lock, ArrowLeft, MapPin, ChevronUp, LayoutDashboard,
   MessageSquare, Tag, HelpCircle, Save,
-  Target
+  Target, TrendingUp, TrendingDown
 }

@@ -9,13 +9,9 @@ import {
   Flag, LifeBuoy, Footprints, Building2, Compass, GraduationCap,
   Wallet, Utensils, Car, Briefcase, Accessibility, Frown, Stethoscope,
   ShieldAlert, Lock, ArrowLeft, MapPin, ChevronUp, MessageSquare, Tag, HelpCircle, Save,
-  Target, TrendingUp, TrendingDown
+  Target, TrendingUp, TrendingDown, RotateCcw, HeartHandshake
 } from 'lucide-react'
 
-// Point d'entree unique du systeme d'icones. Mappe chaque id de
-// NAV_ITEMS (voir lib/constants.js) vers son icone Lucide. Si on
-// change de bibliotheque ou de style plus tard, tout se modifie ici
-// sans toucher aux pages qui consomment NAV_ICON_MAP.
 export const NAV_ICON_MAP = {
   dashboard: LayoutDashboard,
   accueil: Calendar,
@@ -35,8 +31,6 @@ export const NAV_ICON_MAP = {
   parametres: Settings,
 }
 
-// Icones par etape du pipeline (remplace STAGES[].emoji, retire de
-// lib/constants.js pour garder ce fichier comme seule source d'icones).
 export const STAGE_ICON_MAP = {
   visiteur: Users,
   contacte: Phone,
@@ -51,8 +45,6 @@ export const STAGE_ICON_MAP = {
   leader: Crown,
 }
 
-// Icones par statut de FIJ (remplace les emojis de statusInfo() dans
-// FIClient.jsx : En developpement / Active / En pause / Fermee).
 export const FI_STATUS_ICON_MAP = {
   en_developpement: RefreshCw,
   active: CheckCircle2,
@@ -60,8 +52,6 @@ export const FI_STATUS_ICON_MAP = {
   fermee: XCircle,
 }
 
-// Icones par type d'entree du journal FIJ (remplace JOURNAL_TYPES[].icon
-// dans FIClient.jsx).
 export const JOURNAL_TYPE_ICON_MAP = {
   priere: Heart,
   besoin: LifeBuoy,
@@ -71,7 +61,6 @@ export const JOURNAL_TYPE_ICON_MAP = {
   decision: Flag,
 }
 
-// Icones par methode de contact (utilise dans FIClient, NewcomerReportPanel)
 export const CONTACT_METHOD_ICON_MAP = {
   appel: Phone,
   telephone: Phone,
@@ -83,10 +72,6 @@ export const CONTACT_METHOD_ICON_MAP = {
   autre: FileText,
 }
 
-// Icones par categorie de besoin (remplace NEED_CATEGORIES[].emoji,
-// retire de lib/constants.js). Certaines icones sont volontairement
-// reutilisees entre categories proches plutot que de risquer un nom
-// d'icone Lucide incertain qui casserait tout le build.
 export const NEED_ICON_MAP = {
   nouveau_converti: Sparkles,
   reconciliation: Users,
@@ -112,7 +97,6 @@ export const NEED_ICON_MAP = {
   autre: FileText,
 }
 
-// Icones generiques reutilisables pour actions et statuts courants
 export {
   Search, Bell, Plus, Upload, Download, Pencil, Trash2, X, XCircle, Check,
   Phone, Mail, Calendar, AlertTriangle, AlertCircle, ChevronDown, ChevronRight,
@@ -124,5 +108,5 @@ export {
   Wallet, Utensils, Car, Briefcase, Accessibility, Frown, Stethoscope,
   ShieldAlert, Lock, ArrowLeft, MapPin, ChevronUp, LayoutDashboard,
   MessageSquare, Tag, HelpCircle, Save,
-  Target, TrendingUp, TrendingDown
+  Target, TrendingUp, TrendingDown, RotateCcw, HeartHandshake
 }

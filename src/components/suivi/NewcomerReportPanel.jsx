@@ -8,21 +8,28 @@ import { DEFAULT_RELANCE_DELAY_DAYS } from '@/lib/suivi-priority'
 import {
   NEED_ICON_MAP, Sparkles, Heart, Phone, MessageCircle, Calendar, Mail,
   MessageSquare, MapPin, Home, FileText, Tag, Clock, HelpCircle, Save, AlertTriangle, CheckCircle2,
-  HeartHandshake
+  HeartHandshake, RefreshCw
 } from '@/lib/icons'
 
 const METHODS = [
   ['telephone', 'Téléphone'], ['whatsapp', 'WhatsApp'], ['sms', 'SMS'],
   ['visite', 'Visite'], ['rencontre_culte', 'Rencontre après le culte']
 ]
-// NOUVEAU : "en_attente_reponse" ajouté — signifie "contact effectué,
-// on attend simplement la réponse", distinct de "pas de réponse"
-// (qui veut dire qu'on n'a même pas réussi à joindre la personne).
 const RESULTS = [
   ['repondu', 'A répondu'], ['messagerie', 'Messagerie'],
   ['en_attente_reponse', 'En attente de réponse'],
   ['pas_de_reponse', 'Pas de réponse'], ['numero_invalide', 'Numéro invalide']
 ]
+
+// Raisons du statut "Ne plus contacter" — stockées dans
+// contacts.do_not_contact_reason, avec un champ libre pour "Autre".
+const DNC_REASONS = [
+  { value: 'autre_eglise', label: 'Fréquente déjà une église' },
+  { value: 'demande_explicite', label: 'A demandé à ne pas être recontacté(e)' },
+  { value: 'situation_particuliere', label: 'Situation particulière' },
+  { value: 'autre', label: 'Autre' },
+]
+const DNC_REASON_LABEL = Object.fromEntries(DNC_REASONS.map(r => [r.value, r.label]))
 
 const COMPLETENESS_FIELDS = [
   { id: 'date_of_birth', label: 'Date de naissance', Icon: Calendar, type: 'date' },
@@ -175,22 +182,57 @@ function UnsavedChangesConfirm({ onContinue, onDiscard }) {
   )
 }
 
-// NOUVEAU : confirmation dédiée avant de marquer "Ne plus contacter" —
-// action peu fréquente et significative, on évite un clic accidentel.
-function DoNotContactConfirm({ contactName, onConfirm, onCancel, saving }) {
+// Panneau de raison (nouveau) : s'ouvre automatiquement au clic sur
+// "Ne plus contacter". La validation reste bloquée tant qu'aucune
+// raison n'est sélectionnée, et tant que "Autre" est choisi sans texte.
+function DoNotContactPanel({ contactName, onConfirm, onCancel, saving }) {
+  const [reason, setReason] = useState('')
+  const [detail, setDetail] = useState('')
+
+  const canConfirm = reason && (reason !== 'autre' || detail.trim().length > 0)
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ background: '#fff', borderRadius: 14, padding: 22, maxWidth: 400, width: '100%', boxShadow: '0 20px 50px rgba(0,0,0,.3)' }}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 22, maxWidth: 440, width: '100%', boxShadow: '0 20px 50px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <HeartHandshake size={18} strokeWidth={2} color="#6D28D9" />
           <div style={{ fontSize: 14, fontWeight: 800, color: '#1E293B' }}>À porter dans la prière</div>
         </div>
-        <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, marginBottom: 18 }}>
-          {contactName} sortira des listes de contact/relance actives. La fiche reste dans la base et reste consultable — cette action est réversible à tout moment depuis la fiche.
+        <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, marginBottom: 16 }}>
+          {contactName} sortira des listes de contact/relance actives. La fiche reste dans la base — cette action est réversible à tout moment.
         </div>
+
+        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 8 }}>
+          Raison *
+        </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+          {DNC_REASONS.map(r => (
+            <label key={r.value} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+              <input type="radio" name="dnc_reason" checked={reason === r.value} onChange={() => setReason(r.value)} />
+              {r.label}
+            </label>
+          ))}
+        </div>
+
+        {reason === 'autre' && (
+          <div style={{ marginBottom: 12 }}>
+            <textarea
+              value={detail}
+              onChange={e => setDetail(e.target.value)}
+              placeholder="Précisez la raison…"
+              rows={2}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #E2E8F0', fontSize: 13, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }}
+            />
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button onClick={onCancel} className="btn btn-secondary" disabled={saving}>Annuler</button>
-          <button onClick={onConfirm} disabled={saving} style={{ padding: '9px 16px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700, background: '#6D28D9', color: '#fff', cursor: 'pointer' }}>
+          <button onClick={() => onConfirm(reason, detail.trim())} disabled={saving || !canConfirm} style={{
+            padding: '9px 16px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700,
+            background: canConfirm ? '#6D28D9' : '#C4B5FD', color: '#fff',
+            cursor: canConfirm && !saving ? 'pointer' : 'not-allowed'
+          }}>
             {saving ? 'Enregistrement…' : 'Confirmer'}
           </button>
         </div>
@@ -224,9 +266,9 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
   })
   const [checkedNeeds, setCheckedNeeds] = useState({})
 
-  // NOUVEAU : bouton/état "Ne plus contacter"
-  const [showDoNotContactConfirm, setShowDoNotContactConfirm] = useState(false)
+  const [showDoNotContactPanel, setShowDoNotContactPanel] = useState(false)
   const [savingDoNotContact, setSavingDoNotContact] = useState(false)
+  const [reactivating, setReactivating] = useState(false)
 
   useEffect(() => { if (contactId) load() }, [contactId])
 
@@ -236,7 +278,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
       .select(`
         id,first_name,last_name,sex,phone,whatsapp,commune,quartier,address,stage,
         date_of_birth,email,situation,interests,availability,how_found,prayer_request,
-        contact_preference,
+        contact_preference,do_not_contact_reason,do_not_contact_detail,do_not_contact_at,
         fi:familles_impact(name),welcomed_by:profiles!contacts_welcomed_by_fkey(name)
       `)
       .eq('id', contactId).single()
@@ -281,10 +323,6 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
     setSaving(true)
     setSaveSuccess(false)
 
-    // NOUVEAU : "En attente de réponse" auto-remplit next_contact_date
-    // à J+5 si l'intégrateur n'a pas précisé de date manuellement —
-    // c'est ce qui fait apparaître automatiquement la relance dans
-    // Suivi & Tâches sans que personne n'ait à s'en souvenir.
     const autoNextContactDate = form.result === 'en_attente_reponse' && !form.next_contact_date
       ? addDays(null, DEFAULT_RELANCE_DELAY_DAYS)
       : (form.next_contact_date || null)
@@ -337,17 +375,57 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
     router.refresh()
   }
 
-  // NOUVEAU : marque "Ne plus contacter" — écrit contact_preference =
-  // 'none' sur contacts, champ déjà existant et déjà respecté par les
-  // crons (relance-nouvelles). N'insère aucune ligne dans
-  // integrator_reports : ce n'est pas un échange, c'est un changement
-  // de préférence.
-  async function confirmDoNotContact() {
+  // Confirmation avec raison — écrit contact_preference='none' +
+  // do_not_contact_reason/detail/at. Tracé dans audit_log pour garder
+  // "quand et pourquoi" dans l'historique de la fiche.
+  async function confirmDoNotContact(reason, detail) {
+    const { data: { session } } = await supabase.auth.getSession()
     setSavingDoNotContact(true)
-    const { error } = await supabase.from('contacts').update({ contact_preference: 'none' }).eq('id', contactId)
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('contacts').update({
+      contact_preference: 'none',
+      do_not_contact_reason: reason,
+      do_not_contact_detail: reason === 'autre' ? (detail || null) : null,
+      do_not_contact_at: now,
+    }).eq('id', contactId)
+    if (!error) {
+      await supabase.from('audit_log').insert({
+        action: 'Ne plus contacter',
+        entity_type: 'contact',
+        entity_id: contactId,
+        performed_by: session?.user?.id,
+        details: { reason, detail: reason === 'autre' ? detail : null },
+      })
+    }
     setSavingDoNotContact(false)
     if (error) { alert(error.message); return }
-    setShowDoNotContactConfirm(false)
+    setShowDoNotContactPanel(false)
+    await load()
+    router.refresh()
+  }
+
+  // Réactivation — remise à zéro complète des 4 champs. L'historique
+  // garde la trace via audit_log ("Suivi réactivé"), la fiche elle-même
+  // ne montre plus que l'état courant (redevient éligible au suivi).
+  async function reactivateContact() {
+    const { data: { session } } = await supabase.auth.getSession()
+    setReactivating(true)
+    const { error } = await supabase.from('contacts').update({
+      contact_preference: null,
+      do_not_contact_reason: null,
+      do_not_contact_detail: null,
+      do_not_contact_at: null,
+    }).eq('id', contactId)
+    if (!error) {
+      await supabase.from('audit_log').insert({
+        action: 'Suivi réactivé',
+        entity_type: 'contact',
+        entity_id: contactId,
+        performed_by: session?.user?.id,
+      })
+    }
+    setReactivating(false)
+    if (error) { alert(error.message); return }
     await load()
     router.refresh()
   }
@@ -437,11 +515,23 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
 
               {isDoNotContact && (
                 <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8, background: '#F5F3FF', color: '#6D28D9',
-                  border: '1px solid #DDD6FE', borderRadius: 10, padding: '10px 14px', marginBottom: 16,
-                  fontSize: 13, fontWeight: 700
+                  background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 10, padding: '12px 14px', marginBottom: 16,
                 }}>
-                  <HeartHandshake size={16} strokeWidth={2} /> À porter dans la prière — ne pas contacter
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <HeartHandshake size={16} strokeWidth={2} color="#6D28D9" />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#6D28D9' }}>À porter dans la prière — ne pas contacter</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#5B21B6', marginBottom: 10 }}>
+                    Raison : {DNC_REASON_LABEL[contact.do_not_contact_reason] || '—'}
+                    {contact.do_not_contact_reason === 'autre' && contact.do_not_contact_detail ? ` — ${contact.do_not_contact_detail}` : ''}
+                    {contact.do_not_contact_at ? ` · depuis le ${new Date(contact.do_not_contact_at).toLocaleDateString('fr-FR')}` : ''}
+                  </div>
+                  <button onClick={reactivateContact} disabled={reactivating} style={{
+                    display: 'flex', alignItems: 'center', gap: 6, background: '#6D28D9', color: '#fff',
+                    border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer'
+                  }}>
+                    <RefreshCw size={13} strokeWidth={2} /> {reactivating ? 'Réactivation…' : 'Réactiver le suivi'}
+                  </button>
                 </div>
               )}
 
@@ -467,7 +557,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div style={{ fontWeight: 700, fontSize: 13 }}>Nouveau compte-rendu</div>
                 {!isDoNotContact && (
-                  <button onClick={() => setShowDoNotContactConfirm(true)} style={{ ...smallBtnStyle, display: 'flex', alignItems: 'center', gap: 5, color: '#6D28D9', borderColor: '#DDD6FE' }}>
+                  <button onClick={() => setShowDoNotContactPanel(true)} style={{ ...smallBtnStyle, display: 'flex', alignItems: 'center', gap: 5, color: '#6D28D9', borderColor: '#DDD6FE' }}>
                     <HeartHandshake size={12} strokeWidth={2} /> Ne plus contacter
                   </button>
                 )}
@@ -485,7 +575,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
                 </div>
                 {form.result === 'en_attente_reponse' && (
                   <div style={{ fontSize: 11, color: '#7C3AED', background: '#F5F3FF', borderRadius: 8, padding: '8px 10px' }}>
-                    🟣 Une relance sera automatiquement programmée {form.next_contact_date ? `le ${form.next_contact_date}` : `dans ${DEFAULT_RELANCE_DELAY_DAYS} jours`} si aucune date n'est précisée ci-dessous.
+                    Une relance sera automatiquement programmée {form.next_contact_date ? `le ${form.next_contact_date}` : `dans ${DEFAULT_RELANCE_DELAY_DAYS} jours`} si aucune date n'est précisée ci-dessous.
                   </div>
                 )}
                 <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
@@ -561,11 +651,11 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
         />
       )}
 
-      {showDoNotContactConfirm && contact && (
-        <DoNotContactConfirm
+      {showDoNotContactPanel && contact && (
+        <DoNotContactPanel
           contactName={`${contact.first_name} ${contact.last_name}`}
           onConfirm={confirmDoNotContact}
-          onCancel={() => setShowDoNotContactConfirm(false)}
+          onCancel={() => setShowDoNotContactPanel(false)}
           saving={savingDoNotContact}
         />
       )}

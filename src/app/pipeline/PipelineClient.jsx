@@ -21,6 +21,10 @@ const ADVANCED_FILTERS = [
   ['en_service', 'En service'],
   ['a_relancer', 'À relancer'],
   ['visites_30j', 'Visites des 30 derniers jours'],
+  // NOUVEAU : seul filtre qui RÉVÈLE les contacts hors territoire —
+  // par défaut ils sont exclus du pipeline actif (funnel, compteurs,
+  // liste), sans jamais être supprimés ni perdus.
+  ['hors_territoire', '📍 Hors territoire'],
 ]
 
 function timeAgo(dateStr) {
@@ -37,7 +41,10 @@ function CompactCard({ c, onClick }) {
     <div onClick={onClick} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', borderRadius:10, background:'#F8FAFC', cursor:'pointer', border: c.alert_level === 'red' ? '1px solid #FCA5A5' : '1px solid transparent' }}>
       <div style={{ width:30, height:30, borderRadius:'50%', background: c.sex==='F'?'#8B5CF6':'var(--n)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:11, fontWeight:700, flexShrink:0 }}>{ini(c.first_name,c.last_name)}</div>
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.first_name} {c.last_name}</div>
+        <div style={{ fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:6 }}>
+          {c.first_name} {c.last_name}
+          {c.hors_territoire && <span style={{ fontSize:9, background:'#FFF7ED', color:'#9A3412', padding:'1px 5px', borderRadius:4, fontWeight:700, flexShrink:0 }}>📍</span>}
+        </div>
         <div style={{ fontSize:11, color:'var(--gy)' }}>{c.commune || '—'} · {timeAgo(c.last_contact_at || c.first_visit_date)}</div>
       </div>
       {c.alert_level === 'red' && <span style={{ width:8, height:8, borderRadius:'50%', background:'#EF4444', flexShrink:0 }} />}
@@ -79,6 +86,15 @@ export default function PipelineClient({ contacts, fis = [], communes = [], stag
     const d7 = new Date(now - 7 * 86400000).toISOString().slice(0, 10)
     const d30 = new Date(now - 30 * 86400000).toISOString().slice(0, 10)
     return contacts.filter(c => {
+      // Par défaut, le pipeline actif exclut les contacts hors
+      // territoire — sauf si ce filtre précis est explicitement
+      // activé, auquel cas seuls eux sont montrés.
+      if (advanced.hors_territoire) {
+        if (!c.hors_territoire) return false
+      } else if (c.hors_territoire) {
+        return false
+      }
+
       if (q && !`${c.first_name} ${c.last_name} ${c.phone||''}`.toLowerCase().includes(q)) return false
       if (secteur && c.commune !== secteur) return false
       if (fiFilter && c.fi?.id !== fiFilter) return false
@@ -106,6 +122,7 @@ export default function PipelineClient({ contacts, fis = [], communes = [], stag
   const totalFunnel = filteredContacts.filter(c => FUNNEL_STAGES.includes(c.stage)).length
   const baptisesCount = filteredContacts.filter(c => c.baptism_date).length
   const enServiceCount = filteredContacts.filter(c => c.stage === 'service').length
+  const horsTerritoireCount = useMemo(() => contacts.filter(c => c.hors_territoire).length, [contacts])
 
   const drawerContacts = drawerStage && drawerStage !== '__baptises' && drawerStage !== '__service'
     ? filteredContacts.filter(c => c.stage === drawerStage) : []
@@ -183,8 +200,12 @@ export default function PipelineClient({ contacts, fis = [], communes = [], stag
         {showAdvanced && (
           <div style={{ width:'100%', display:'flex', gap:8, flexWrap:'wrap', paddingTop:10, borderTop:'1px solid #F1F5F9' }}>
             {ADVANCED_FILTERS.map(([key,label]) => (
-              <div key={key} onClick={() => toggleAdvanced(key)} style={{ padding:'6px 12px', borderRadius:999, fontSize:12, fontWeight:600, cursor:'pointer', background: advanced[key] ? 'var(--n)' : '#F1F5F9', color: advanced[key] ? '#fff' : 'var(--gd)' }}>
-                {label}
+              <div key={key} onClick={() => toggleAdvanced(key)} style={{
+                padding:'6px 12px', borderRadius:999, fontSize:12, fontWeight:600, cursor:'pointer',
+                background: advanced[key] ? (key === 'hors_territoire' ? '#EA580C' : 'var(--n)') : '#F1F5F9',
+                color: advanced[key] ? '#fff' : 'var(--gd)'
+              }}>
+                {label}{key === 'hors_territoire' && horsTerritoireCount > 0 ? ` (${horsTerritoireCount})` : ''}
               </div>
             ))}
             {activeFilterCount > 0 && (
@@ -201,6 +222,9 @@ export default function PipelineClient({ contacts, fis = [], communes = [], stag
           <div>
             <div style={{ fontSize:11, color:'var(--gy)', marginBottom:8 }}>
               Le premier chiffre est le nombre de personnes à cette étape. <b>"% du pipeline"</b> = part de cette étape parmi toutes les personnes en parcours. <b>"vs 30j précédents"</b> = évolution du nombre de personnes arrivées à cette étape par rapport au mois précédent.
+              {!advanced.hors_territoire && horsTerritoireCount > 0 && (
+                <span> · <b>{horsTerritoireCount}</b> personne(s) hors territoire non comptée(s) ici — voir "Plus de filtres".</span>
+              )}
             </div>
             <div style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:8 }}>
               {FUNNEL_STAGES.map((stageId, i) => {
@@ -269,7 +293,10 @@ export default function PipelineClient({ contacts, fis = [], communes = [], stag
               <tbody>
                 {sortedForList.map(c => (
                   <tr key={c.id}>
-                    <td onClick={() => router.push(`/visiteurs/${c.id}`)} style={{ cursor:'pointer', fontSize:13, fontWeight:600 }}>{c.first_name} {c.last_name}</td>
+                    <td onClick={() => router.push(`/visiteurs/${c.id}`)} style={{ cursor:'pointer', fontSize:13, fontWeight:600 }}>
+                      {c.first_name} {c.last_name}
+                      {c.hors_territoire && <span style={{ fontSize:10, background:'#FFF7ED', color:'#9A3412', padding:'1px 5px', borderRadius:4, marginLeft:6, fontWeight:700 }}>📍 hors territoire</span>}
+                    </td>
                     <td style={{ fontSize:12 }}>{c.phone || '—'}</td>
                     <td style={{ fontSize:12 }}>{c.commune || '—'}</td>
                     <td style={{ fontSize:12 }}>{c.fi?.name || '—'}</td>

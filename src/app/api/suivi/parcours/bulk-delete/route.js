@@ -1,9 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-// Même garde-fou et même logique de traçabilité que DELETE sur
-// /api/suivi/parcours/[id], appliqués à plusieurs ids en une requête —
-// évite de cliquer un par un quand il y a beaucoup de fiches de test.
 export async function POST(request) {
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -21,13 +18,18 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Motif requis (5 caractères minimum)' }, { status: 400 })
   }
 
-  const { data: existingRows } = await supabase
+  // CORRIGÉ : admin client pour lecture ET suppression, même raison
+  // que sur la route unitaire — RLS pouvait bloquer silencieusement le
+  // DELETE en laissant la commande "réussir" sans rien supprimer.
+  const admin = createAdminClient()
+
+  const { data: existingRows } = await admin
     .from('parcours_integration')
     .select('*')
     .in('id', ids)
 
   if (existingRows?.length) {
-    await supabase.from('audit_log').insert(
+    await admin.from('audit_log').insert(
       existingRows.map(row => ({
         action: 'Suppression parcours inachevé (groupée)',
         entity_type: 'parcours',
@@ -38,8 +40,11 @@ export async function POST(request) {
     )
   }
 
-  const { error } = await supabase.from('parcours_integration').delete().in('id', ids)
+  const { error, count } = await admin
+    .from('parcours_integration')
+    .delete({ count: 'exact' })
+    .in('id', ids)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ success: true, deleted: existingRows?.length || 0 })
+  return NextResponse.json({ success: true, deleted: count ?? existingRows?.length ?? 0 })
 }

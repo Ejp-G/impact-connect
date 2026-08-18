@@ -13,22 +13,11 @@ export default async function SuiviPage({ searchParams }) {
   const secondaryRoles = profile?.secondary_roles || []
   const primaryRole = profile?.role
 
-  // canViewTeam (large) : accorde le choix "Mes taches / Toute l'equipe" a
-  // toute l'equipe operationnelle (suivi, integration, accueil), en plus
-  // des roles de supervision qui l'avaient deja.
-  // canViewIndividuals (restreint) : seul un role de supervision peut en
-  // plus choisir un membre precis par son nom dans le menu — protection
-  // cote serveur, pas seulement cote UI, meme si le parametre d'URL est
-  // manipule directement.
   const canViewTeam = ['admin', 'superviseur', 'responsable_suivi', 'equipe_suivi', 'integrateur', 'equipe_accueil'].includes(primaryRole)
     || secondaryRoles.some(r => ['responsable_suivi', 'equipe_suivi', 'integrateur', 'equipe_accueil'].includes(r))
   const canViewIndividuals = ['admin', 'superviseur', 'responsable_suivi'].includes(primaryRole)
     || secondaryRoles.includes('responsable_suivi')
 
-  // Onglet "Parcours en cours" : reserve au Responsable Suivi &
-  // Intégration (et admin). RLS sur parcours_integration applique de
-  // toute facon la meme restriction cote base — cette variable ne fait
-  // que masquer l'onglet cote UI pour ne pas polluer les autres roles.
   const canViewParcours = primaryRole === 'admin' || primaryRole === 'responsable_suivi'
     || secondaryRoles.includes('responsable_suivi')
 
@@ -37,18 +26,9 @@ export default async function SuiviPage({ searchParams }) {
   const viewingAll = viewAs === 'all'
   const targetId = viewAs === 'me' || !canViewTeam ? myId : viewAs
 
-  // Tableau intelligent des besoins : outil collaboratif, distinct de
-  // la logique "mon portefeuille / portefeuille de X" ci-dessus.
-  // Visible pour equipe_suivi (principal ou secondaire), superviseur,
-  // responsable_suivi — jamais scope a un seul intégrateur, car le
-  // suivi des besoins est un travail d'equipe.
   const canViewNeedsBoard = ['superviseur', 'responsable_suivi', 'equipe_suivi'].includes(profile?.role)
     || secondaryRoles.includes('equipe_suivi')
 
-  // La liste nominative (menu "Tâches de X") reste volontairement
-  // limitee a equipe_suivi/responsable_suivi, comme avant — accueil et
-  // integrateur ne sont pas ajoutes a cette liste, meme s'ils peuvent
-  // desormais basculer sur "Toute l'équipe".
   const { data: teamMembers } = canViewIndividuals
     ? await supabase.from('profiles')
         .select('id,name,role,secondary_roles')
@@ -59,12 +39,6 @@ export default async function SuiviPage({ searchParams }) {
     ['equipe_suivi', 'responsable_suivi'].includes(p.role) || (p.secondary_roles || []).includes('equipe_suivi')
   )
 
-  // Portefeuille reel de targetId : on ne peut PAS se fier uniquement
-  // a contacts.assigned_to, qui ne reflete que l'integrateur position 1
-  // (principal). Un binome en position 2 dans contact_integrators doit
-  // aussi voir/recevoir ces visiteurs et taches — sinon des ames ne
-  // sont jamais rappelees par le second integrateur qui ignore meme
-  // qu'on lui a confie ce suivi.
   let targetContactIds = []
   if (!viewingAll) {
     const { data: integratorLinks } = await supabase
@@ -74,11 +48,13 @@ export default async function SuiviPage({ searchParams }) {
     targetContactIds = (integratorLinks || []).map(l => l.contact_id)
   }
 
+  // Ajout : hors_territoire, nécessaire à buildPriorityQueue
+  // (lib/suivi-priority.js) pour exclure ces contacts du suivi actif.
   let contactsQuery = supabase.from('contacts')
     .select(`
       id, first_name, last_name, sex, phone, whatsapp, email, commune, first_visit_date, created_at, stage,
       alert_level, integration_score, salvation_call, status, integrator_contacted,
-      welcomed_by_name,
+      welcomed_by_name, hors_territoire,
       fi:familles_impact(name),
       integrators:contact_integrators(position, integrator:profiles(id,name))
     `)
@@ -107,16 +83,10 @@ export default async function SuiviPage({ searchParams }) {
         .in('contact_id', contactIds)
     : { data: [] }
 
-  // Besoins non filtres, toute l'equipe — uniquement pour les roles
-  // autorises a voir le tableau collaboratif. Independant du filtre
-  // "Mes taches / Toute l'equipe" utilise pour le reste de la page.
   const { data: allNeeds } = canViewNeedsBoard
     ? await supabase.from('contact_needs').select('id,contact_id,category,status,detected_at')
     : { data: [] }
 
-  // Meme logique pour les taches : un binome doit voir les taches liees
-  // aux contacts dont il est integrateur, meme si assigned_to pointe
-  // vers le principal.
   let tasksQuery = supabase.from('tasks')
     .select('*, contact:contacts(id,first_name,last_name,phone,sex,commune), assignee:profiles!tasks_assigned_to_fkey(id,name)')
     .eq('status', 'pending')
@@ -133,10 +103,6 @@ export default async function SuiviPage({ searchParams }) {
   const { data: fis } = await supabase.from('familles_impact').select('id,name').eq('status', 'active').order('name')
   const { data: communes } = await supabase.from('communes').select('id,name').eq('active', true).order('name')
 
-  // Parcours d'integration non lies a un contact deja affiche ailleurs :
-  // la RLS de parcours_integration limite deja cette lecture a
-  // admin/responsable_suivi cote base, canViewParcours ne fait que
-  // masquer l'onglet pour les autres roles.
   const { data: parcoursList } = canViewParcours
     ? await supabase.from('parcours_integration')
         .select('id, token, status, current_step, form_data, contact_id, started_at, last_activity_at, finalized_at, to_relaunch')

@@ -48,8 +48,11 @@ export default async function SuiviPage({ searchParams }) {
     targetContactIds = (integratorLinks || []).map(l => l.contact_id)
   }
 
-  // Ajout : hors_territoire, nécessaire à buildPriorityQueue
-  // (lib/suivi-priority.js) pour exclure ces contacts du suivi actif.
+  // CORRIGÉ : .eq('hors_territoire', false) ajouté — sans ce filtre, un
+  // contact hors territoire restait visible dans "Suivi des nouveaux"
+  // (liste complète) avec un badge de statut pouvant afficher "🔴 À
+  // contacter", même s'il était déjà exclu de "Ma journée" et du
+  // dashboard. Il reste bien sûr consultable via sa fiche/Visiteurs.
   let contactsQuery = supabase.from('contacts')
     .select(`
       id, first_name, last_name, sex, phone, whatsapp, email, commune, first_visit_date, created_at, stage,
@@ -59,6 +62,7 @@ export default async function SuiviPage({ searchParams }) {
       integrators:contact_integrators(position, integrator:profiles(id,name))
     `)
     .eq('status', 'active')
+    .eq('hors_territoire', false)
     .order('first_visit_date', { ascending: false })
   if (!viewingAll) {
     const idsClause = targetContactIds.length
@@ -87,8 +91,14 @@ export default async function SuiviPage({ searchParams }) {
     ? await supabase.from('contact_needs').select('id,contact_id,category,status,detected_at')
     : { data: [] }
 
+  // CORRIGÉ : hors_territoire ajouté au select du contact lié, puis
+  // filtré après récupération — Supabase ne permet pas de filtrer
+  // directement sur une colonne d'une table jointe dans .eq(). Sans ce
+  // filtre, une tâche générée par un cron (relance_nouvelles,
+  // fiche_incomplete) pour un contact désormais hors territoire restait
+  // visible dans l'onglet "Tâches" de ses intégrateurs.
   let tasksQuery = supabase.from('tasks')
-    .select('*, contact:contacts(id,first_name,last_name,phone,sex,commune), assignee:profiles!tasks_assigned_to_fkey(id,name)')
+    .select('*, contact:contacts(id,first_name,last_name,phone,sex,commune,hors_territoire), assignee:profiles!tasks_assigned_to_fkey(id,name)')
     .eq('status', 'pending')
     .order('due_date', { ascending: true })
   if (!viewingAll) {
@@ -97,7 +107,8 @@ export default async function SuiviPage({ searchParams }) {
       : '00000000-0000-0000-0000-000000000000'
     tasksQuery = tasksQuery.or(`assigned_to.eq.${targetId},contact_id.in.(${idsClause})`)
   }
-  const { data: tasks } = await tasksQuery
+  const { data: tasksRaw } = await tasksQuery
+  const tasks = (tasksRaw || []).filter(t => !t.contact?.hors_territoire)
 
   const { data: profiles } = await supabase.from('profiles').select('id,name').eq('active', true).order('name')
   const { data: fis } = await supabase.from('familles_impact').select('id,name').eq('status', 'active').order('name')

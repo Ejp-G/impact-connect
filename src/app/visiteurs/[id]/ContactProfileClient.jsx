@@ -8,10 +8,20 @@ import { createClient } from '@/lib/supabase/client'
 import {
   ArrowLeft, Pencil, Phone, Mail, MapPin, Calendar, Users, Home,
   MessageCircle, Compass, CheckCircle2, XCircle, Clock, NEED_ICON_MAP,
-  AlertTriangle, MessageSquare, FileText, Tag, HelpCircle, Heart, Save
+  AlertTriangle, MessageSquare, FileText, Tag, HelpCircle, Heart, Save,
+  HeartHandshake, RefreshCw
 } from '@/lib/icons'
 
 const TIMELINE_STAGES = ['visiteur', 'contacte', 'invite_fi', 'fi1', 'fi2', 'integre', 'parcours']
+
+// Raisons du statut "Ne plus contacter" — mêmes valeurs que
+// NewcomerReportPanel.jsx (contacts.do_not_contact_reason).
+const DNC_REASON_LABEL = {
+  autre_eglise: 'Fréquente déjà une église',
+  demande_explicite: 'A demandé à ne pas être recontacté(e)',
+  situation_particuliere: 'Situation particulière',
+  autre: 'Autre',
+}
 
 function ProgressTimeline({ stage }) {
   const currentIndex = TIMELINE_STAGES.indexOf(stage)
@@ -68,12 +78,6 @@ function computeAge(d) {
   return age
 }
 
-// ============================================================
-// Panneau de complétude : détecte les champs vides parmi une
-// liste fixe, affiche une barre de progression + formulaire de
-// complétion rapide. Écrit directement dans `contacts` (RLS +
-// trigger d'historique gèrent la traçabilité automatiquement).
-// ============================================================
 const COMPLETENESS_FIELDS = [
   { id: 'date_of_birth', label: 'Date de naissance', Icon: Calendar, type: 'date' },
   { id: 'email',         label: 'E-mail',            Icon: Mail,     type: 'email' },
@@ -319,18 +323,56 @@ function DeleteVisitorModal({ contact, onClose, onDeleted }) {
 
 export default function ContactProfileClient({ contact, integratorPair, timeline, needs, communications, reports, profile }) {
   const router = useRouter()
+  const supabase = useMemo(() => createClient(), [])
   const [tab, setTab] = useState('apercu')
   const [showEdit, setShowEdit] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
 
-  // --- Rôles réels de l'app ---
+  const [togglingTerritoire, setTogglingTerritoire] = useState(false)
+  // NOUVEAU : réactivation du suivi ("Ne plus contacter" → suivi normal)
+  const [reactivating, setReactivating] = useState(false)
+
+  async function toggleHorsTerritoire(value) {
+    setTogglingTerritoire(true)
+    const res = await fetch(`/api/contacts/${contact.id}/hors-territoire`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ horsTerritoire: value })
+    })
+    const data = await res.json()
+    setTogglingTerritoire(false)
+    if (data.error) { alert(data.error); return }
+    router.refresh()
+  }
+
+  // NOUVEAU : remise à zéro complète des 4 champs "Ne plus contacter" —
+  // même logique que dans NewcomerReportPanel.jsx, tracée dans
+  // audit_log ("Suivi réactivé") pour garder l'historique du cycle.
+  async function reactivateContact() {
+    const { data: { session } } = await supabase.auth.getSession()
+    setReactivating(true)
+    const { error } = await supabase.from('contacts').update({
+      contact_preference: null,
+      do_not_contact_reason: null,
+      do_not_contact_detail: null,
+      do_not_contact_at: null,
+    }).eq('id', contact.id)
+    if (!error) {
+      await supabase.from('audit_log').insert({
+        action: 'Suivi réactivé',
+        entity_type: 'contact',
+        entity_id: contact.id,
+        performed_by: session?.user?.id,
+      })
+    }
+    setReactivating(false)
+    if (error) { alert(error.message); return }
+    router.refresh()
+  }
+
   const secondaryRoles = profile?.secondary_roles || []
   const hasEquipeSuivi = profile?.role === 'equipe_suivi' || secondaryRoles.includes('equipe_suivi')
   const hasResponsableSuivi = profile?.role === 'responsable_suivi' || secondaryRoles.includes('responsable_suivi')
   const canEdit = ['admin', 'superviseur', 'integrateur'].includes(profile?.role) || hasEquipeSuivi || hasResponsableSuivi
-  // Suppression réservée à admin, superviseur, responsable_suivi (rôle
-  // principal ou secondaire) — un ancien bug excluait 'admin' du test
-  // et ignorait les rôles secondaires, malgré le nom de la variable.
   const isAdmin = ['admin', 'superviseur'].includes(profile?.role) || hasResponsableSuivi
 
   const isAssignedIntegrator = integratorPair.some(p => p.integrator?.id === profile?.id)
@@ -346,6 +388,8 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
   const parentalRefused = ['refuse', 'refused', 'rejected'].includes(parentalStatusNorm)
   const parentName = [contact.parent_first_name, contact.parent_last_name].filter(Boolean).join(' ')
   const missingParentInfo = !parentName || !contact.parent_phone
+
+  const isDoNotContact = contact.contact_preference === 'none'
 
   const TABS = [
     ['apercu', 'Aperçu'],
@@ -393,12 +437,19 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
                 Sexe non renseigné — attribution d'intégrateur impossible
               </span>
             )}
-            {contact.contact_preference === 'none' && (
-              <span className="badge" style={{ background: '#FEF2F2', color: '#DC2626', fontWeight: 700 }}>Ne pas contacter</span>
+            {isDoNotContact && (
+              <span className="badge" style={{ background: '#F5F3FF', color: '#6D28D9', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <HeartHandshake size={11} strokeWidth={2} /> À porter dans la prière
+              </span>
             )}
             {contact.integrator_contacted && (
               <span className="badge" style={{ background: '#DCFCE7', color: '#166534', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <CheckCircle2 size={11} strokeWidth={2} /> Contact confirmé
+              </span>
+            )}
+            {contact.hors_territoire && (
+              <span className="badge" style={{ background: '#FFF7ED', color: '#9A3412', fontWeight: 700 }}>
+                📍 Hors territoire
               </span>
             )}
             <CompletenessBadge missingCount={missingFields.length} total={COMPLETENESS_FIELDS.length} />
@@ -431,6 +482,32 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
         )}
       </div>
 
+      {/* NOUVEAU : bloc "Ne plus contacter" — raison + réactivation.
+          Visible uniquement si le statut est actif, cohérent avec le
+          même bloc dans NewcomerReportPanel.jsx (même source de
+          vérité : contacts.contact_preference/do_not_contact_*). */}
+      {isDoNotContact && (
+        <div className="card" style={{ marginBottom: 20, border: '1px solid #DDD6FE', background: '#F5F3FF' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <HeartHandshake size={16} strokeWidth={2} color="#6D28D9" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#6D28D9' }}>À porter dans la prière — ne pas contacter</span>
+          </div>
+          <div style={{ fontSize: 12, color: '#5B21B6', marginBottom: 10 }}>
+            Raison : {DNC_REASON_LABEL[contact.do_not_contact_reason] || '—'}
+            {contact.do_not_contact_reason === 'autre' && contact.do_not_contact_detail ? ` — ${contact.do_not_contact_detail}` : ''}
+            {contact.do_not_contact_at ? ` · depuis le ${new Date(contact.do_not_contact_at).toLocaleDateString('fr-FR')}` : ''}
+          </div>
+          {canEdit && (
+            <button onClick={reactivateContact} disabled={reactivating} style={{
+              display: 'flex', alignItems: 'center', gap: 6, background: '#6D28D9', color: '#fff',
+              border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer'
+            }}>
+              <RefreshCw size={13} strokeWidth={2} /> {reactivating ? 'Réactivation…' : 'Réactiver le suivi'}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Panneau de complétion rapide, visible uniquement pour ceux qui peuvent éditer */}
       {canEdit && missingFields.length > 0 && (
         <MissingInfoPanel
@@ -443,9 +520,6 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
 
       <ProgressTimeline stage={contact.stage} />
 
-      {/* Mise en page a deux colonnes : classe CSS g2r au lieu d'un
-          style en ligne, pour que ca s'empile correctement sur mobile
-          (le style en ligne ignorait completement le correctif mobile). */}
       <div className="g2r" style={{ alignItems: 'start' }}>
 
         {/* Colonne info */}
@@ -525,6 +599,22 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
             ) : (
               <div style={{ fontSize: 13, color: '#94A3B8' }}>Non attribuée</div>
             )}
+          </div>
+
+          <div className="card" style={{ border: contact.hors_territoire ? '1px solid #FED7AA' : undefined }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 12 }}>Suivi territorial</div>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: canEdit ? 'pointer' : 'default' }}>
+              <input type="checkbox" checked={contact.hors_territoire} disabled={!canEdit || togglingTerritoire}
+                onChange={e => toggleHorsTerritoire(e.target.checked)} style={{ width: 18, height: 18, marginTop: 2 }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Hors territoire</div>
+                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+                  {contact.hors_territoire
+                    ? "Sort du suivi territorial actif — reste dans la base."
+                    : "Reste dans le suivi actif du territoire."}
+                </div>
+              </div>
+            </label>
           </div>
         </div>
 

@@ -5,6 +5,10 @@
       "schedule": "0 4 * * *"
     },
     {
+      "path": "/api/cron/reactivate-integrators",
+      "schedule": "15 5 * * *"
+    },
+    {
       "path": "/api/cron/daily",
       "schedule": "0 6 * * *"
     },

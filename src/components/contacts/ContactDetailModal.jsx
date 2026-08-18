@@ -79,6 +79,10 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
   const [savingIntegrators, setSavingIntegrators] = useState(false)
   const [savingParental, setSavingParental] = useState(false)
 
+  // NOUVEAU : case "Hors territoire", indépendante de contacts.stage.
+  const [horsTerritoire, setHorsTerritoire] = useState(false)
+  const [savingHorsTerritoire, setSavingHorsTerritoire] = useState(false)
+
   const isDirty = form && initialFormSnapshot
     ? JSON.stringify(form) !== JSON.stringify(initialFormSnapshot)
     : false
@@ -88,10 +92,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     else onClose()
   }
 
-  // Fermeture uniquement via la croix, le bouton Annuler, ou apres
-  // enregistrement — plus de fermeture au clic sur l'arriere-plan.
-  // Echap passe desormais par la meme verification (modifications
-  // non enregistrees) plutot que de fermer directement.
   useEffect(() => {
     function onKeyDown(e) {
       if (e.key === 'Escape') requestClose()
@@ -112,6 +112,22 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     router.refresh()
   }
 
+  // NOUVEAU : réutilise le même pattern que la route /stage — écriture
+  // directe, tracage dans audit_log via la route dédiée.
+  async function toggleHorsTerritoire(value) {
+    setSavingHorsTerritoire(true)
+    const res = await fetch(`/api/contacts/${contactId}/hors-territoire`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ horsTerritoire: value })
+    })
+    const data = await res.json()
+    setSavingHorsTerritoire(false)
+    if (data.error) { alert(data.error); return }
+    setHorsTerritoire(value)
+    await load()
+    router.refresh()
+  }
+
   useEffect(() => {
     if (contactId) load()
   }, [contactId])
@@ -122,6 +138,7 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
       .select('*, fi:familles_impact(id,name), agent:profiles!contacts_assigned_to_fkey(id,name)')
       .eq('id', contactId).single()
     setContact(data)
+    setHorsTerritoire(!!data?.hors_territoire)
     const nextForm = data ? {
       first_name: data.first_name || '', last_name: data.last_name || '',
       sex: data.sex || '',
@@ -222,23 +239,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
     router.refresh()
   }
 
-  // ============================================================
-  // CORRIGÉ : ce bouton écrivait uniquement dans contacts.last_contact_at
-  // et communication_logs — deux tables jamais lues par le module
-  // Suivi & Tâches (lib/suivi-priority.js) ni par le badge "Contact
-  // confirmé" (contacts.integrator_contacted) ni par l'historique
-  // "Nouveau compte-rendu" (integrator_reports). Résultat : confirmer un
-  // contact depuis la fiche visiteur ne faisait avancer ni la barre de
-  // progression de "Ma journée" ni le badge de la fiche elle-même — deux
-  // systèmes de confirmation qui divergeaient silencieusement.
-  //
-  // Le correctif ajoute deux écritures, sans rien retirer de l'existant :
-  // 1) contacts.integrator_contacted = true (même champ que
-  //    NewcomerReportPanel.jsx pose après un compte-rendu)
-  // 2) un insert dans integrator_reports (même table lue par
-  //    wasHandledToday() dans lib/suivi-priority.js et par la timeline
-  //    de la fiche visiteur)
-  // ============================================================
   async function submitContactConfirmation() {
     const { data: { session } } = await supabase.auth.getSession()
     const now = new Date().toISOString()
@@ -252,10 +252,6 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
       sent_by: session?.user?.id, sent_at: now, status: 'sent'
     })
 
-    // integrator_reports.method n'accepte que les valeurs déjà utilisées
-    // par NewcomerReportPanel.jsx (telephone/whatsapp/sms/visite/
-    // rencontre_culte) — "email" n'en fait pas partie, on le rattache à
-    // "sms" par défaut plutôt que d'introduire une valeur inconnue.
     if (session?.user?.id) {
       const methodMap = { appel: 'telephone', whatsapp: 'whatsapp', sms: 'sms', email: 'sms' }
       await supabase.from('integrator_reports').insert({
@@ -398,6 +394,25 @@ export default function ContactDetailModal({ contactId, onClose, communes = [], 
                     <CheckCircle2 size={13} strokeWidth={2} /> Parcours de croissance commencé
                   </div>
                 )}
+              </div>
+
+              {/* NOUVEAU : case "Hors territoire", indépendante de l'étape
+                  ci-dessus. Reste dans la base, sort du suivi actif. */}
+              <div style={{ background: horsTerritoire ? '#FFF7ED' : '#F8FAFC', border: horsTerritoire ? '1px solid #FED7AA' : 'none', borderRadius: 12, padding: 14, marginBottom: 18 }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={horsTerritoire} disabled={savingHorsTerritoire}
+                    onChange={e => toggleHorsTerritoire(e.target.checked)} style={{ width: 18, height: 18, marginTop: 2 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: horsTerritoire ? '#9A3412' : '#334155' }}>
+                      📍 Hors territoire
+                    </div>
+                    <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+                      {horsTerritoire
+                        ? `Coché${contact?.hors_territoire_since ? ` le ${new Date(contact.hors_territoire_since).toLocaleDateString('fr-FR')}` : ''} — reste dans la base, sort du suivi territorial actif.`
+                        : "À cocher si le jeune a quitté le territoire — il reste membre de l'église, son historique est conservé, mais il sort du suivi local actif (Ma journée, alertes, assignations)."}
+                    </div>
+                  </div>
+                </label>
               </div>
 
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18 }}>

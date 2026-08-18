@@ -1,9 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-// Verrou serveur redondant avec la RLS : meme si la policy protege deja
-// la table, on rejette explicitement ici pour renvoyer un message clair
-// plutot qu'un echec silencieux de la policy.
 async function requireResponsableSuivi(supabase) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return { ok: false, status: 401 }
@@ -38,10 +35,12 @@ export async function PATCH(request, { params }) {
   return NextResponse.json({ success: true })
 }
 
-// NOUVEAU : suppression définitive d'un parcours inachevé — même
-// garde-fou que PATCH (requireResponsableSuivi). Le snapshot complet
-// (form_data compris) est archivé dans audit_log AVANT suppression,
-// pour garder une trace de ce qui a été supprimé et pourquoi.
+// CORRIGÉ : l'autorisation reste vérifiée via le client normal
+// (requireResponsableSuivi, avec RLS), mais la lecture + suppression
+// réelles passent désormais par createAdminClient() — sans ça, si la
+// table parcours_integration n'a pas de policy RLS "DELETE" pour ce
+// rôle, la commande "réussissait" sans erreur mais supprimait 0 ligne,
+// laissant la fiche visible après rechargement.
 export async function DELETE(request, { params }) {
   const supabase = createClient()
   const auth = await requireResponsableSuivi(supabase)
@@ -52,14 +51,16 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: 'Motif requis (5 caractères minimum)' }, { status: 400 })
   }
 
-  const { data: existing, error: fetchError } = await supabase
+  const admin = createAdminClient()
+
+  const { data: existing, error: fetchError } = await admin
     .from('parcours_integration')
     .select('*')
     .eq('id', params.id)
     .single()
   if (fetchError || !existing) return NextResponse.json({ error: 'Parcours introuvable' }, { status: 404 })
 
-  await supabase.from('audit_log').insert({
+  await admin.from('audit_log').insert({
     action: 'Suppression parcours inachevé',
     entity_type: 'parcours',
     entity_id: params.id,
@@ -67,8 +68,12 @@ export async function DELETE(request, { params }) {
     details: { reason: reason.trim(), snapshot: existing },
   })
 
-  const { error } = await supabase.from('parcours_integration').delete().eq('id', params.id)
+  const { error, count } = await admin
+    .from('parcours_integration')
+    .delete({ count: 'exact' })
+    .eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!count) return NextResponse.json({ error: "La suppression n'a affecté aucune ligne — vérifiez les droits RLS sur parcours_integration." }, { status: 500 })
 
   return NextResponse.json({ success: true })
 }

@@ -37,3 +37,38 @@ export async function PATCH(request, { params }) {
 
   return NextResponse.json({ success: true })
 }
+
+// NOUVEAU : suppression définitive d'un parcours inachevé — même
+// garde-fou que PATCH (requireResponsableSuivi). Le snapshot complet
+// (form_data compris) est archivé dans audit_log AVANT suppression,
+// pour garder une trace de ce qui a été supprimé et pourquoi.
+export async function DELETE(request, { params }) {
+  const supabase = createClient()
+  const auth = await requireResponsableSuivi(supabase)
+  if (!auth.ok) return NextResponse.json({ error: 'Non autorisé' }, { status: auth.status })
+
+  const { reason } = await request.json()
+  if (!reason || reason.trim().length < 5) {
+    return NextResponse.json({ error: 'Motif requis (5 caractères minimum)' }, { status: 400 })
+  }
+
+  const { data: existing, error: fetchError } = await supabase
+    .from('parcours_integration')
+    .select('*')
+    .eq('id', params.id)
+    .single()
+  if (fetchError || !existing) return NextResponse.json({ error: 'Parcours introuvable' }, { status: 404 })
+
+  await supabase.from('audit_log').insert({
+    action: 'Suppression parcours inachevé',
+    entity_type: 'parcours',
+    entity_id: params.id,
+    performed_by: auth.session.user.id,
+    details: { reason: reason.trim(), snapshot: existing },
+  })
+
+  const { error } = await supabase.from('parcours_integration').delete().eq('id', params.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ success: true })
+}

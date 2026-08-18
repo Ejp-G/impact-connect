@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation'
 import AppLayout from '@/components/layout/AppLayout'
 import VisiteursClient from './VisiteursClient'
 
-// Normalisation pour la détection de doublons
 const normName = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim()
 const normPhone = p => (p || '').replace(/\D/g, '')
 
@@ -15,11 +14,10 @@ export default async function VisiteursPage({ searchParams }) {
   const stage = searchParams?.stage || null
   const alert = searchParams?.alert || null
 
-  // Ajouts au select : integrator_contacted (indispensable pour
-  // getContactStatus — sans lui, "À contacter"/"À relancer" ne peuvent
-  // pas être distingués côté client, exactement comme dans SuiviPage).
+  // Ajout : hors_territoire, pour le filtre dédié et le badge dans
+  // VisiteursClient.jsx.
   let query = supabase.from('contacts')
-    .select(`id,first_name,last_name,sex,phone,email,commune,quartier,stage,integration_score,alert_level,is_minor,created_at,first_visit_date,contact_preference,salvation_call,integrator_contacted,
+    .select(`id,first_name,last_name,sex,phone,email,commune,quartier,stage,integration_score,alert_level,is_minor,created_at,first_visit_date,contact_preference,salvation_call,integrator_contacted,hors_territoire,
              fi:familles_impact(id,name), agent:profiles!contacts_assigned_to_fkey(id,name),
              integrators:contact_integrators(position)`)
     .eq('status','active').order('created_at',{ascending:false}).limit(1000)
@@ -29,9 +27,6 @@ export default async function VisiteursPage({ searchParams }) {
   const { data: fis } = await supabase.from('familles_impact').select('id,name').eq('status','active')
   const { data: communes } = await supabase.from('communes').select('id,name').eq('active',true).order('name')
 
-  // Mêmes tables que app/suivi/page.jsx, mêmes colonnes — c'est ce qui
-  // garantit que "Visiteurs" et "Suivi & Tâches" ne peuvent plus
-  // diverger : source de vérité unique, lue à deux endroits.
   const contactIds = (contacts || []).map(c => c.id)
   const { data: reports } = contactIds.length
     ? await supabase.from('integrator_reports')
@@ -45,10 +40,6 @@ export default async function VisiteursPage({ searchParams }) {
         .in('contact_id', contactIds)
     : { data: [] }
 
-  // ─── Détection des doublons potentiels ───
-  // Deux fiches sont suspectes si elles partagent le même nom complet
-  // (insensible à la casse et aux accents) ou le même téléphone
-  // (chiffres uniquement). Les groupes qui se recoupent sont fusionnés.
   const byKey = {}
   for (const c of contacts || []) {
     const n = normName(`${c.first_name} ${c.last_name}`)
@@ -85,7 +76,6 @@ export default async function VisiteursPage({ searchParams }) {
     }),
   }))
 
-  // ─── Statistiques réelles, calculées sur TOUTES les fiches actives ───
   const todayStr = new Date().toISOString().split('T')[0]
   const all = contacts || []
   const stats = {

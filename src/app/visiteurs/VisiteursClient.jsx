@@ -42,12 +42,8 @@ export default function VisiteursClient({ contacts, reports = [], needs = [], st
 
   const isMinor = form.dateOfBirth && new Date(form.dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear()-18))
 
-  // Ensemble des fiches appartenant à un groupe de doublons (marquage des lignes)
   const duplicateIds = new Set(duplicates.flatMap(g => g.contacts.map(c => c.id)))
 
-  // Dernier compte-rendu par contact — même logique que SuiviClient.jsx
-  // (latestReportByContact), pour garantir un calcul identique de
-  // "À contacter aujourd'hui" / "À relancer" des deux côtés.
   const latestReportByContact = useMemo(() => {
     const map = {}
     reports.forEach(r => {
@@ -66,9 +62,6 @@ export default function VisiteursClient({ contacts, reports = [], needs = [], st
 
   const today = new Date().toISOString().slice(0, 10)
 
-  // Statut + catégorie précalculés une fois par contact, réutilisés à
-  // la fois pour les filtres et pour la colonne "Statut" du tableau —
-  // pas de recalcul dupliqué à chaque rendu de ligne.
   const enriched = useMemo(() => {
     return contacts.map(c => {
       const lastReport = latestReportByContact[c.id]
@@ -85,18 +78,20 @@ export default function VisiteursClient({ contacts, reports = [], needs = [], st
     const matchSearch = !q || haystack.includes(q)
     if (!matchSearch) return false
 
-    // Filtres existants, inchangés
+    // Par défaut ("Tous"), les contacts hors territoire restent
+    // masqués — ils ne sont pas "perdus", juste sortis du suivi actif.
+    // On ne les affiche que si le filtre "Hors territoire" est
+    // explicitement sélectionné.
+    if (filter !== 'hors_territoire' && c.hors_territoire) return false
+
     if (filter === 'alert') return c.alert_level === 'red'
     if (filter === 'orange') return c.alert_level === 'orange'
     if (filter === 'minor') return c.is_minor
     if (filter === 'no_contact') return c.contact_preference === 'none'
     if (filter === 'mine') return c.agent?.id === profile?.id
     if (filter === 'duplicates') return duplicateIds.has(c.id)
+    if (filter === 'hors_territoire') return c.hors_territoire
 
-    // Filtres demandés — chacun est un test booléen indépendant, donc
-    // une même personne peut correspondre à plusieurs filtres à la fois
-    // (ex: Jordan peut être "À contacter aujourd'hui" ET "Nouveaux" ET
-    // "Homme" ET "FI attribuée" simultanément).
     if (filter === 'today') return c._status.key === 'a_contacter' && (!c._lastReport || c._lastReport.next_contact_date === today || !c.integrator_contacted)
     if (filter === 'late') return !!c._lastReport?.next_contact_date && c._lastReport.next_contact_date < today
     if (filter === 'new') return c._category === 'prioritaire'
@@ -114,8 +109,6 @@ export default function VisiteursClient({ contacts, reports = [], needs = [], st
   const ini = (fn, ln) => ((fn||'')[0]||'') + ((ln||'')[0]||'')
 
   async function saveVisitor() {
-    // Garde-fou anti-doublon : vérifier si une fiche existe déjà avec
-    // le même nom complet ou le même numéro de téléphone
     const newName = normName(`${form.firstName} ${form.lastName}`)
     const newPhone = normPhone(form.phone)
     const existing = contacts.find(c =>
@@ -143,28 +136,27 @@ export default function VisiteursClient({ contacts, reports = [], needs = [], st
 
   const canAdd = ['admin','responsable_suivi','equipe_suivi'].includes(profile?.role)
 
-  // Compteurs des nouveaux filtres, calculés une fois sur `enriched`
-  // (pas sur `filtered`), pour que chaque badge affiche le total réel
-  // indépendamment du filtre actif — comme les compteurs existants.
-  const countToday = enriched.filter(c => c._status.key === 'a_contacter' && (!c._lastReport || c._lastReport.next_contact_date === today || !c.integrator_contacted)).length
-  const countLate = enriched.filter(c => !!c._lastReport?.next_contact_date && c._lastReport.next_contact_date < today).length
-  const countNew = enriched.filter(c => c._category === 'prioritaire').length
-  const countReconciliation = enriched.filter(c => c._hasReconciliation).length
-  const countFiYes = enriched.filter(c => !!c.fi).length
-  const countFiNo = enriched.filter(c => !c.fi).length
+  const countToday = enriched.filter(c => !c.hors_territoire && c._status.key === 'a_contacter' && (!c._lastReport || c._lastReport.next_contact_date === today || !c.integrator_contacted)).length
+  const countLate = enriched.filter(c => !c.hors_territoire && !!c._lastReport?.next_contact_date && c._lastReport.next_contact_date < today).length
+  const countNew = enriched.filter(c => !c.hors_territoire && c._category === 'prioritaire').length
+  const countReconciliation = enriched.filter(c => !c.hors_territoire && c._hasReconciliation).length
+  const countFiYes = enriched.filter(c => !c.hors_territoire && !!c.fi).length
+  const countFiNo = enriched.filter(c => !c.hors_territoire && !c.fi).length
+  const countHorsTerritoire = enriched.filter(c => c.hors_territoire).length
 
   const filterBtns = [
-    ['all', 'Tous', stats.total],
+    ['all', 'Tous', stats.total - countHorsTerritoire],
     ['today', "À contacter aujourd'hui", countToday],
     ['late', 'À relancer', countLate],
     ['new', 'Nouveaux', countNew],
-    ['salvation', 'Prière du salut', enriched.filter(c => c.salvation_call).length],
+    ['salvation', 'Prière du salut', enriched.filter(c => !c.hors_territoire && c.salvation_call).length],
     ['reconciliation', 'Réconciliation', countReconciliation],
     ['no_integrator', 'Sans intégrateur', stats.sansIntegrateur],
     ['men', 'Homme', stats.hommes],
     ['women', 'Femme', stats.femmes],
     ['fi_yes', 'FI attribuée', countFiYes],
     ['fi_no', 'FI non attribuée', countFiNo],
+    ...(countHorsTerritoire > 0 ? [['hors_territoire', '📍 Hors territoire', countHorsTerritoire]] : []),
     ...(stats.doublons > 0 ? [['duplicates', 'Doublons', stats.doublons]] : []),
   ]
 
@@ -173,7 +165,7 @@ export default function VisiteursClient({ contacts, reports = [], needs = [], st
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:12 }}>
         <div className="filter-chips-desktop" style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {filterBtns.map(([f,l,c])=>(
-            <div key={f} onClick={()=>setFilter(f)} style={{ padding:'6px 14px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, background:filter===f?'var(--n)':f==='duplicates'?'#FFF7ED':'#F1F5F9', color:filter===f?'#fff':f==='duplicates'?'#9A3412':'#64748B', display:'flex', alignItems:'center', gap:5 }}>
+            <div key={f} onClick={()=>setFilter(f)} style={{ padding:'6px 14px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, background:filter===f?'var(--n)':f==='duplicates'||f==='hors_territoire'?'#FFF7ED':'#F1F5F9', color:filter===f?'#fff':f==='duplicates'||f==='hors_territoire'?'#9A3412':'#64748B', display:'flex', alignItems:'center', gap:5 }}>
               {l} <span style={{ background:filter===f?'rgba(255,255,255,.2)':'#E2E8F0', padding:'0 5px', borderRadius:999, fontSize:10 }}>{c}</span>
             </div>
           ))}
@@ -211,7 +203,6 @@ export default function VisiteursClient({ contacts, reports = [], needs = [], st
         </div>
       </div>
 
-      {/* ─── Alerte doublons potentiels ─── */}
       {duplicates.length > 0 && (
         <div className="card" style={{ border:'1px solid #FED7AA', background:'#FFF7ED', marginBottom:16 }}>
           <div
@@ -266,7 +257,7 @@ export default function VisiteursClient({ contacts, reports = [], needs = [], st
             </tr></thead>
             <tbody>
               {filtered.map(c => (
-                <tr key={c.id} onClick={() => router.push(`/visiteurs/${c.id}`)} style={{ cursor: 'pointer', background: duplicateIds.has(c.id) ? '#FFFBF5' : undefined }}>
+                <tr key={c.id} onClick={() => router.push(`/visiteurs/${c.id}`)} style={{ cursor: 'pointer', background: duplicateIds.has(c.id) ? '#FFFBF5' : c.hors_territoire ? '#FFFBF5' : undefined }}>
                   <td><div style={{ display:'flex', alignItems:'center', gap:10 }}>
                     <div style={{ width:32, height:32, borderRadius:'50%', background:c.sex==='F'?'#8B5CF6':'var(--n)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:11, fontWeight:700, flexShrink:0 }}>
                       {ini(c.first_name, c.last_name)}
@@ -274,6 +265,7 @@ export default function VisiteursClient({ contacts, reports = [], needs = [], st
                     <div>
                       <div style={{ fontSize:13, fontWeight:600 }}>{c.first_name} {c.last_name}
                         {c.is_minor && <span style={{ fontSize:10, background:'#FEF3C7', color:'#92400E', padding:'1px 5px', borderRadius:4, marginLeft:6 }}>mineur</span>}
+                        {c.hors_territoire && <span style={{ fontSize:10, background:'#FFF7ED', color:'#9A3412', padding:'1px 5px', borderRadius:4, marginLeft:6, fontWeight:700 }}>📍 hors territoire</span>}
                         {duplicateIds.has(c.id) && <span style={{ fontSize:10, background:'#FFF7ED', color:'#9A3412', padding:'1px 5px', borderRadius:4, marginLeft:6, fontWeight:700 }}>doublon ?</span>}
                       </div>
                       <div style={{ fontSize:11, color:'var(--gy)' }}>{formatDate(c.first_visit_date)}</div>

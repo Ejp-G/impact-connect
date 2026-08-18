@@ -15,8 +15,6 @@ export function getWeekStart(date = new Date()) {
   return d
 }
 
-// Exportée : utilisée maintenant aussi par getContactStatus et par
-// SuiviClient pour comparer une next_contact_date au jour courant.
 export function toDateOnly(str) {
   if (!str) return null
   const d = new Date(str)
@@ -94,14 +92,6 @@ export function wasHandledToday(contactId, reportsByContact, today = new Date())
   return list.some(r => sameDate(toDateOnly(r.contacted_at), now))
 }
 
-// --- NOUVEAU (point 3) : statut réel affiché comme badge "Urgence" ------
-// Remplace contacts.alert_level (recalculé une seule fois par nuit, donc
-// figé toute la journée) par une lecture temps réel : jamais contacté →
-// rouge ; contacté mais échéance dépassée → rouge ; contacté, rien
-// d'urgent aujourd'hui mais rien de prévu → orange ; prochaine action
-// prévue dans le futur → blanc/gris ; stade avancé → vert. Le rouge ne
-// reste donc plus affiché après un contact réel, contrairement à
-// alert_level qui ne se met à jour qu'au cron du lendemain matin.
 export function getContactStatus(contact, lastReport, today = new Date()) {
   if (ADVANCED_STAGES.includes(contact.stage)) {
     return { key: 'engage', emoji: '🟢', label: 'Parcours engagé' }
@@ -134,7 +124,11 @@ export function buildPriorityQueue(contacts, tasks, needs, reports = [], today =
   const reportsByContact = groupReportsByContact(reports)
 
   return contacts
-    .filter(c => !STOP_STAGES.includes(c.stage))
+    // NOUVEAU : un contact "hors territoire" sort du suivi actif — même
+    // logique que STOP_STAGES pour les stades avancés. Il reste dans la
+    // base et son historique n'est jamais touché ; il disparaît juste
+    // de "Ma journée", des compteurs dashboard et des files de priorité.
+    .filter(c => !STOP_STAGES.includes(c.stage) && !c.hors_territoire)
     .map(c => {
       const category = getContactCategory(c, today)
       const neverContacted = isNeverContacted(c)
@@ -203,18 +197,11 @@ export function buildWorkload(contacts, tasks, needs, reports = [], today = new 
     .sort((a, b) => b.total - a.total)
 }
 
-// --- NOUVEAU : "en retard" limité aux contacts récents ---------------------
-// Clarification métier essentielle : une tâche techniquement dépassée
-// (due_date < today) ne doit compter comme "en retard" — et donc créer
-// un sentiment d'urgence pour l'intégrateur — QUE si le contact associé
-// est encore récent (catégorie "prioritaire" ou "normal", donc arrivé ce
-// mois-ci ou le mois précédent). Un contact de plus de 2 mois
-// ("a_reprendre") dont une vieille tâche traîne ne doit JAMAIS remonter
-// comme "en retard" : cette ancienneté relève d'une logique de relance
-// bienveillante, pas d'urgence. On ne fait ici que trier la même donnée
-// (getTaskState) selon un second critère (getContactCategory) — aucune
-// des deux fonctions existantes n'est modifiée.
 export function isTaskTrulyOverdue(task, contact, today = new Date()) {
+  // NOUVEAU : un contact hors territoire n'est jamais "en retard",
+  // même si une vieille tâche traîne — il n'appartient plus au suivi
+  // territorial actif.
+  if (contact?.hors_territoire) return false
   if (getTaskState(task, today) !== 'a_relancer') return false
   const category = getContactCategory(contact, today)
   return category === 'prioritaire' || category === 'normal'

@@ -10,6 +10,14 @@ import { createAdminClient } from '@/lib/supabase/server'
 // le suivi rapproche n'a plus lieu d'etre. Genere une tache par membre
 // du binome assigne (contact_integrators), jamais de doublon tant qu'une
 // tache du meme type est deja en attente pour ce contact + cet integrateur.
+//
+// CORRIGÉ : les deux requêtes excluent maintenant hors_territoire=true,
+// au même titre que STOP_STAGES — un contact hors territoire ne doit
+// plus jamais recevoir de nouvelle tâche automatique, sans quoi elles
+// s'accumulent silencieusement en base pour un contact qui n'est plus
+// affiché nulle part côté intégrateur (Ma journée, Suivi des nouveaux,
+// Dashboard filtrent déjà ces contacts, mais le cron continuait de
+// produire du travail invisible).
 // =========================================================
 
 const RELANCE_INTERVAL_DAYS = 15
@@ -28,6 +36,7 @@ async function checkRelancesNouvelles(supabase) {
     .from('contacts')
     .select('id, first_name, last_name, first_visit_date, created_at, assignment_date, integrators:contact_integrators(integrator_id)')
     .eq('status', 'active')
+    .eq('hors_territoire', false)
     .not('stage', 'in', `(${STOP_STAGES.join(',')})`)
 
   if (!contacts?.length) return { checked: 'relances_nouvelles', created: 0 }
@@ -123,6 +132,7 @@ async function checkFichesIncompletes(supabase) {
     .from('contacts')
     .select(`id, first_name, last_name, integrator_contacted, ${fieldsSelect}, integrators:contact_integrators(integrator_id)`)
     .eq('status', 'active')
+    .eq('hors_territoire', false)
     .not('stage', 'in', `(${STOP_STAGES.join(',')})`)
 
   if (!contacts?.length) return { checked: 'fiches_incompletes', created: 0 }

@@ -8,6 +8,10 @@
 const STOP_STAGES = ['parcours', 'bapteme', 'service', 'leader_pot', 'leader']
 const ADVANCED_STAGES = ['integre', 'parcours', 'bapteme', 'service', 'leader_pot', 'leader']
 
+// Délai par défaut appliqué quand "En attente de réponse" est
+// sélectionné sans date de relance précisée manuellement.
+export const DEFAULT_RELANCE_DELAY_DAYS = 5
+
 export function getWeekStart(date = new Date()) {
   const d = new Date(date)
   d.setHours(0, 0, 0, 0)
@@ -26,6 +30,14 @@ export function toDateOnly(str) {
 function sameDate(a, b) {
   if (!a || !b) return false
   return a.getTime() === b.getTime()
+}
+
+// "Ne pas contacter" : réutilise contact_preference déjà existant sur
+// contacts (déjà géré dans ContactDetailModal.jsx). Recouvre aussi la
+// demande "À porter dans la prière" — c'est la même situation vue sous
+// deux angles (préférence de contact = aucune sollicitation).
+export function isDoNotContact(contact) {
+  return contact?.contact_preference === 'none'
 }
 
 export function getContactCategory(contact, today = new Date()) {
@@ -92,30 +104,43 @@ export function wasHandledToday(contactId, reportsByContact, today = new Date())
   return list.some(r => sameDate(toDateOnly(r.contacted_at), now))
 }
 
+// --- Statut réel du contact (badge affiché partout) ------------------
+// RÉVISÉ : distingue maintenant "À relancer" (rose, échéance de
+// relance dépassée) de "À contacter" (rouge, jamais contacté) — les
+// deux partageaient la même clé auparavant, ce qui donnait un ton
+// aussi alarmant pour une simple relance que pour un contact jamais
+// fait. "En attente de réponse" (violet) devient également un statut
+// explicite plutôt qu'un simple "attente" neutre. "À porter dans la
+// prière" prime sur tout le reste : une personne qui ne veut plus être
+// contactée ne doit jamais remonter comme "à contacter"/"à relancer",
+// quel que soit son historique.
 export function getContactStatus(contact, lastReport, today = new Date()) {
+  if (isDoNotContact(contact)) {
+    return { key: 'priere', emoji: '🙏', label: 'À porter dans la prière', icon: 'HeartHandshake' }
+  }
   if (ADVANCED_STAGES.includes(contact.stage)) {
-    return { key: 'engage', emoji: '🟢', label: 'Parcours engagé' }
+    return { key: 'engage', emoji: '🟢', label: 'Parcours engagé', icon: 'CheckCircle2' }
   }
   if (!contact.integrator_contacted) {
-    return { key: 'a_contacter', emoji: '🔴', label: 'À contacter' }
+    return { key: 'a_contacter', emoji: '🔴', label: 'À contacter', icon: 'AlertCircle' }
   }
   const now = new Date(today); now.setHours(0, 0, 0, 0)
   const nextDate = lastReport?.next_contact_date ? toDateOnly(lastReport.next_contact_date) : null
   if (nextDate && nextDate < now) {
-    return { key: 'a_contacter', emoji: '🔴', label: 'À relancer' }
+    return { key: 'a_relancer', emoji: '🩷', label: 'À relancer', icon: 'RotateCcw' }
   }
   if (nextDate && sameDate(nextDate, now)) {
-    return { key: 'en_cours', emoji: '🟠', label: "À recontacter aujourd'hui" }
+    return { key: 'a_relancer', emoji: '🩷', label: "À recontacter aujourd'hui", icon: 'RotateCcw' }
   }
   if (nextDate && nextDate > now) {
-    return { key: 'attente', emoji: '⚪', label: 'En attente' }
+    return { key: 'en_attente', emoji: '🟣', label: 'En attente de réponse', icon: 'Clock' }
   }
-  return { key: 'en_cours', emoji: '🟠', label: 'Contact établi' }
+  return { key: 'en_cours', emoji: '🟠', label: 'Contact établi', icon: 'Send' }
 }
 
 const RANK = {
   never_contacted: 0, prioritaire: 1, accompagnement: 2,
-  a_relancer: 3, normal: 4, a_reprendre: 5,
+  a_relancer: 3, en_attente: 4, normal: 5, a_reprendre: 6, priere: 7,
 }
 
 export function buildPriorityQueue(contacts, tasks, needs, reports = [], today = new Date()) {
@@ -124,11 +149,10 @@ export function buildPriorityQueue(contacts, tasks, needs, reports = [], today =
   const reportsByContact = groupReportsByContact(reports)
 
   return contacts
-    // NOUVEAU : un contact "hors territoire" sort du suivi actif — même
-    // logique que STOP_STAGES pour les stades avancés. Il reste dans la
-    // base et son historique n'est jamais touché ; il disparaît juste
-    // de "Ma journée", des compteurs dashboard et des files de priorité.
-    .filter(c => !STOP_STAGES.includes(c.stage) && !c.hors_territoire)
+    // "Ne pas contacter" exclut du suivi actif au même titre que
+    // hors_territoire et STOP_STAGES — jamais de tâche ni d'apparition
+    // dans "Ma journée" pour ces contacts, mais rien n'est supprimé.
+    .filter(c => !STOP_STAGES.includes(c.stage) && !c.hors_territoire && !isDoNotContact(c))
     .map(c => {
       const category = getContactCategory(c, today)
       const neverContacted = isNeverContacted(c)
@@ -136,15 +160,24 @@ export function buildPriorityQueue(contacts, tasks, needs, reports = [], today =
       const pending = pendingByContact[c.id]
       const hasOverdueTask = pending?.worstState === 'a_relancer'
       const handledToday = wasHandledToday(c.id, reportsByContact, today)
+      const lastReport = reportsByContact[c.id]?.[0]
+      const status = getContactStatus(c, lastReport, today)
 
       let reason = 'normal'
       if (neverContacted) reason = 'never_contacted'
       else if (category === 'prioritaire') reason = 'prioritaire'
       else if (accompagnement) reason = 'accompagnement'
-      else if (hasOverdueTask) reason = 'a_relancer'
+      else if (status.key === 'a_relancer' || hasOverdueTask) reason = 'a_relancer'
+      else if (status.key === 'en_attente') reason = 'en_attente'
       else if (category === 'normal') reason = 'normal'
       else reason = 'a_reprendre'
 
+      // "en_attente" (violet) est volontairement EXCLU des raisons
+      // actionnables : on attend une réponse, il n'y a rien à faire
+      // tant que l'échéance de relance n'est pas dépassée. Elle ne
+      // bascule en "a_relancer" (actionnable) qu'une fois la date
+      // passée — c'est getContactStatus qui fait cette bascule
+      // automatiquement au jour J+1.
       const actionableReasons = ['never_contacted', 'prioritaire', 'accompagnement', 'a_relancer']
       const needsAction = actionableReasons.includes(reason) && !handledToday
 
@@ -155,6 +188,7 @@ export function buildPriorityQueue(contacts, tasks, needs, reports = [], today =
         accompagnement,
         hasOverdueTask,
         handledToday,
+        status,
         pendingTasks: pending?.tasks || [],
         reason,
         needsAction,
@@ -188,7 +222,7 @@ export function buildWorkload(contacts, tasks, needs, reports = [], today = new 
       })
       entry.total++
       if (item.category === 'prioritaire') entry.prioritaire++
-      if (item.hasOverdueTask) entry.a_relancer++
+      if (item.hasOverdueTask || item.status?.key === 'a_relancer') entry.a_relancer++
       if (item.category === 'a_reprendre') entry.a_reprendre++
     })
   })
@@ -197,11 +231,11 @@ export function buildWorkload(contacts, tasks, needs, reports = [], today = new 
     .sort((a, b) => b.total - a.total)
 }
 
+// "En retard" reste réservé aux tâches réelles (module Tâches), jamais
+// concerné par ce nouveau statut de contact — logique inchangée.
 export function isTaskTrulyOverdue(task, contact, today = new Date()) {
-  // NOUVEAU : un contact hors territoire n'est jamais "en retard",
-  // même si une vieille tâche traîne — il n'appartient plus au suivi
-  // territorial actif.
   if (contact?.hors_territoire) return false
+  if (isDoNotContact(contact)) return false
   if (getTaskState(task, today) !== 'a_relancer') return false
   const category = getContactCategory(contact, today)
   return category === 'prioritaire' || category === 'normal'
@@ -214,14 +248,28 @@ export const CATEGORY_LABEL = {
 }
 export const TASK_STATE_LABEL = {
   dans_les_delais: { emoji: '🟢', label: 'Dans les délais' },
-  a_relancer: { emoji: '🟠', label: 'À relancer' },
+  a_relancer: { emoji: '🩷', label: 'À relancer' },
   termine: { emoji: '✅', label: 'Terminé' },
 }
 export const REASON_LABEL = {
   never_contacted: { emoji: '🚨', label: 'Nouveau contact non contacté' },
   prioritaire: { emoji: '🔥', label: 'Prioritaire à contacter' },
   accompagnement: { emoji: '❤️', label: 'À accompagner' },
-  a_relancer: { emoji: '🟠', label: 'À relancer' },
+  a_relancer: { emoji: '🩷', label: 'À relancer' },
+  en_attente: { emoji: '🟣', label: 'En attente de réponse' },
   normal: { emoji: '🟢', label: 'Suivi normal' },
   a_reprendre: { emoji: '📚', label: 'À reprendre' },
+}
+
+// Couleurs réelles associées à chaque clé de statut — un seul endroit
+// pour ces valeurs, consommé par SuiviClient/VisiteursClient/ContactProfileClient
+// plutôt que de redéfinir la palette à chaque fichier.
+export const STATUS_COLORS = {
+  a_contacter: { bg: '#FEF2F2', color: '#DC2626' },
+  a_relancer:  { bg: '#FDF2F8', color: '#DB2777' },
+  en_attente:  { bg: '#F5F3FF', color: '#7C3AED' },
+  en_cours:    { bg: '#FFF7ED', color: '#C2410C' },
+  priere:      { bg: '#F5F3FF', color: '#6D28D9' },
+  engage:      { bg: '#F0FDF4', color: '#16A34A' },
+  attente:     { bg: '#F8FAFC', color: '#64748B' },
 }

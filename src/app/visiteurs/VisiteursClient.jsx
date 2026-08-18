@@ -3,17 +3,18 @@ import { useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { STAGE_LABEL, STAGE_COLOR, STAGES, NEED_CATEGORIES } from '@/lib/constants'
 import { formatDate, scoreColor } from '@/lib/utils'
-import { getContactStatus, getContactCategory } from '@/lib/suivi-priority'
+import { getContactStatus, getContactCategory, STATUS_COLORS } from '@/lib/suivi-priority'
 import ImportModal from '@/components/contacts/ImportModal'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
-import { Search, Upload, Filter, X } from '@/lib/icons'
+import { Search, Upload, Filter, X, AlertCircle, RotateCcw, Clock, Send, HeartHandshake, CheckCircle2 } from '@/lib/icons'
 
+const STATUS_ICON_MAP = { AlertCircle, RotateCcw, Clock, Send, HeartHandshake, CheckCircle2 }
 function StatusBadge({ status }) {
-  const bg = status.key === 'a_contacter' ? '#FEF2F2' : status.key === 'en_cours' ? '#FFF7ED' : status.key === 'engage' ? '#F0FDF4' : '#F8FAFC'
-  const color = status.key === 'a_contacter' ? '#DC2626' : status.key === 'en_cours' ? '#C2410C' : status.key === 'engage' ? '#16A34A' : '#64748B'
+  const colors = STATUS_COLORS[status.key] || STATUS_COLORS.attente
+  const Icon = STATUS_ICON_MAP[status.icon] || AlertCircle
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color, background: bg, padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-      {status.emoji} {status.label}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: colors.color, background: colors.bg, padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+      <Icon size={11} strokeWidth={2.3} /> {status.label}
     </span>
   )
 }

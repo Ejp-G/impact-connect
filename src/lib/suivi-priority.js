@@ -33,9 +33,8 @@ function sameDate(a, b) {
 }
 
 // "Ne pas contacter" : réutilise contact_preference déjà existant sur
-// contacts (déjà géré dans ContactDetailModal.jsx). Recouvre aussi la
-// demande "À porter dans la prière" — c'est la même situation vue sous
-// deux angles (préférence de contact = aucune sollicitation).
+// contacts. Recouvre aussi "À porter dans la prière" — même situation
+// vue sous deux angles (préférence de contact = aucune sollicitation).
 export function isDoNotContact(contact) {
   return contact?.contact_preference === 'none'
 }
@@ -105,15 +104,11 @@ export function wasHandledToday(contactId, reportsByContact, today = new Date())
 }
 
 // --- Statut réel du contact (badge affiché partout) ------------------
-// RÉVISÉ : distingue maintenant "À relancer" (rose, échéance de
-// relance dépassée) de "À contacter" (rouge, jamais contacté) — les
-// deux partageaient la même clé auparavant, ce qui donnait un ton
-// aussi alarmant pour une simple relance que pour un contact jamais
-// fait. "En attente de réponse" (violet) devient également un statut
-// explicite plutôt qu'un simple "attente" neutre. "À porter dans la
+// Distingue "À relancer" (rose, échéance de relance dépassée) de
+// "À contacter" (rouge, jamais contacté). "En attente de réponse"
+// (violet) est un statut explicite entre les deux. "À porter dans la
 // prière" prime sur tout le reste : une personne qui ne veut plus être
-// contactée ne doit jamais remonter comme "à contacter"/"à relancer",
-// quel que soit son historique.
+// contactée ne doit jamais remonter comme "à contacter"/"à relancer".
 export function getContactStatus(contact, lastReport, today = new Date()) {
   if (isDoNotContact(contact)) {
     return { key: 'priere', emoji: '🙏', label: 'À porter dans la prière', icon: 'HeartHandshake' }
@@ -150,8 +145,7 @@ export function buildPriorityQueue(contacts, tasks, needs, reports = [], today =
 
   return contacts
     // "Ne pas contacter" exclut du suivi actif au même titre que
-    // hors_territoire et STOP_STAGES — jamais de tâche ni d'apparition
-    // dans "Ma journée" pour ces contacts, mais rien n'est supprimé.
+    // hors_territoire et STOP_STAGES.
     .filter(c => !STOP_STAGES.includes(c.stage) && !c.hors_territoire && !isDoNotContact(c))
     .map(c => {
       const category = getContactCategory(c, today)
@@ -173,11 +167,9 @@ export function buildPriorityQueue(contacts, tasks, needs, reports = [], today =
       else reason = 'a_reprendre'
 
       // "en_attente" (violet) est volontairement EXCLU des raisons
-      // actionnables : on attend une réponse, il n'y a rien à faire
-      // tant que l'échéance de relance n'est pas dépassée. Elle ne
-      // bascule en "a_relancer" (actionnable) qu'une fois la date
-      // passée — c'est getContactStatus qui fait cette bascule
-      // automatiquement au jour J+1.
+      // actionnables : on attend une réponse, rien à faire tant que
+      // l'échéance n'est pas dépassée. Elle bascule en "a_relancer"
+      // automatiquement au jour J+1 via getContactStatus.
       const actionableReasons = ['never_contacted', 'prioritaire', 'accompagnement', 'a_relancer']
       const needsAction = actionableReasons.includes(reason) && !handledToday
 
@@ -231,8 +223,7 @@ export function buildWorkload(contacts, tasks, needs, reports = [], today = new 
     .sort((a, b) => b.total - a.total)
 }
 
-// "En retard" reste réservé aux tâches réelles (module Tâches), jamais
-// concerné par ce nouveau statut de contact — logique inchangée.
+// "En retard" reste réservé aux tâches réelles (module Tâches).
 export function isTaskTrulyOverdue(task, contact, today = new Date()) {
   if (contact?.hors_territoire) return false
   if (isDoNotContact(contact)) return false
@@ -261,9 +252,9 @@ export const REASON_LABEL = {
   a_reprendre: { emoji: '📚', label: 'À reprendre' },
 }
 
-// Couleurs réelles associées à chaque clé de statut — un seul endroit
-// pour ces valeurs, consommé par SuiviClient/VisiteursClient/ContactProfileClient
-// plutôt que de redéfinir la palette à chaque fichier.
+// Couleurs réelles associées à chaque clé de statut — un seul endroit,
+// consommé par SuiviClient/VisiteursClient/ContactProfileClient plutôt
+// que de redéfinir la palette à chaque fichier.
 export const STATUS_COLORS = {
   a_contacter: { bg: '#FEF2F2', color: '#DC2626' },
   a_relancer:  { bg: '#FDF2F8', color: '#DB2777' },

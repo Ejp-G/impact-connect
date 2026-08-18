@@ -4,17 +4,23 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { STAGE_LABEL, NEED_CATEGORIES, NEED_IS_SENSITIVE } from '@/lib/constants'
 import { formatWhatsappNumber, getPhoneCountryDisplay } from '@/lib/phone'
+import { DEFAULT_RELANCE_DELAY_DAYS } from '@/lib/suivi-priority'
 import {
   NEED_ICON_MAP, Sparkles, Heart, Phone, MessageCircle, Calendar, Mail,
-  MessageSquare, MapPin, Home, FileText, Tag, Clock, HelpCircle, Save, AlertTriangle, CheckCircle2
+  MessageSquare, MapPin, Home, FileText, Tag, Clock, HelpCircle, Save, AlertTriangle, CheckCircle2,
+  HeartHandshake
 } from '@/lib/icons'
 
 const METHODS = [
   ['telephone', 'Téléphone'], ['whatsapp', 'WhatsApp'], ['sms', 'SMS'],
   ['visite', 'Visite'], ['rencontre_culte', 'Rencontre après le culte']
 ]
+// NOUVEAU : "en_attente_reponse" ajouté — signifie "contact effectué,
+// on attend simplement la réponse", distinct de "pas de réponse"
+// (qui veut dire qu'on n'a même pas réussi à joindre la personne).
 const RESULTS = [
   ['repondu', 'A répondu'], ['messagerie', 'Messagerie'],
+  ['en_attente_reponse', 'En attente de réponse'],
   ['pas_de_reponse', 'Pas de réponse'], ['numero_invalide', 'Numéro invalide']
 ]
 
@@ -37,6 +43,12 @@ function isEmptyValue(v) {
   if (Array.isArray(v)) return v.length === 0
   if (typeof v === 'string') return v.trim() === ''
   return false
+}
+
+function addDays(dateStr, days) {
+  const d = dateStr ? new Date(dateStr) : new Date()
+  d.setDate(d.getDate() + days)
+  return d.toISOString().slice(0, 10)
 }
 
 function MissingInfoPanel({ contact, missingFields, isAssignedIntegrator, onSaved, onDirtyChange }) {
@@ -163,6 +175,30 @@ function UnsavedChangesConfirm({ onContinue, onDiscard }) {
   )
 }
 
+// NOUVEAU : confirmation dédiée avant de marquer "Ne plus contacter" —
+// action peu fréquente et significative, on évite un clic accidentel.
+function DoNotContactConfirm({ contactName, onConfirm, onCancel, saving }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 22, maxWidth: 400, width: '100%', boxShadow: '0 20px 50px rgba(0,0,0,.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <HeartHandshake size={18} strokeWidth={2} color="#6D28D9" />
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#1E293B' }}>À porter dans la prière</div>
+        </div>
+        <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, marginBottom: 18 }}>
+          {contactName} sortira des listes de contact/relance actives. La fiche reste dans la base et reste consultable — cette action est réversible à tout moment depuis la fiche.
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onCancel} className="btn btn-secondary" disabled={saving}>Annuler</button>
+          <button onClick={onConfirm} disabled={saving} style={{ padding: '9px 16px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700, background: '#6D28D9', color: '#fff', cursor: 'pointer' }}>
+            {saving ? 'Enregistrement…' : 'Confirmer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProfile, currentProfile }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -175,10 +211,6 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [missingInfoDirty, setMissingInfoDirty] = useState(false)
 
-  // Confirmation visuelle après "Enregistrer le compte-rendu" (point 1
-  // du cahier des charges) : disparaît d'elle-même après 4 secondes,
-  // sans fermer la fenêtre — l'intégrateur voit que c'est bien
-  // enregistré et peut enchaîner sur un autre visiteur ou fermer lui-même.
   const [saveSuccess, setSaveSuccess] = useState(false)
   useEffect(() => {
     if (!saveSuccess) return
@@ -192,6 +224,10 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
   })
   const [checkedNeeds, setCheckedNeeds] = useState({})
 
+  // NOUVEAU : bouton/état "Ne plus contacter"
+  const [showDoNotContactConfirm, setShowDoNotContactConfirm] = useState(false)
+  const [savingDoNotContact, setSavingDoNotContact] = useState(false)
+
   useEffect(() => { if (contactId) load() }, [contactId])
 
   async function load() {
@@ -200,6 +236,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
       .select(`
         id,first_name,last_name,sex,phone,whatsapp,commune,quartier,address,stage,
         date_of_birth,email,situation,interests,availability,how_found,prayer_request,
+        contact_preference,
         fi:familles_impact(name),welcomed_by:profiles!contacts_welcomed_by_fkey(name)
       `)
       .eq('id', contactId).single()
@@ -244,6 +281,14 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
     setSaving(true)
     setSaveSuccess(false)
 
+    // NOUVEAU : "En attente de réponse" auto-remplit next_contact_date
+    // à J+5 si l'intégrateur n'a pas précisé de date manuellement —
+    // c'est ce qui fait apparaître automatiquement la relance dans
+    // Suivi & Tâches sans que personne n'ait à s'en souvenir.
+    const autoNextContactDate = form.result === 'en_attente_reponse' && !form.next_contact_date
+      ? addDays(null, DEFAULT_RELANCE_DELAY_DAYS)
+      : (form.next_contact_date || null)
+
     const { error } = await supabase.from('integrator_reports').insert({
       contact_id: contactId,
       integrator_id: session.user.id,
@@ -252,7 +297,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
       duration_minutes: form.duration_minutes ? Number(form.duration_minutes) : null,
       notes: form.notes.trim() || null,
       next_action: form.next_action.trim() || null,
-      next_contact_date: form.next_contact_date || null
+      next_contact_date: autoNextContactDate
     })
 
     if (!error) {
@@ -288,12 +333,21 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
     setForm({ method: 'telephone', result: 'repondu', duration_minutes: '', notes: '', next_action: '', next_contact_date: '' })
     setCheckedNeeds({})
     setSaveSuccess(true)
-    // load() recharge l'historique local (donc le nouveau compte-rendu
-    // apparaît immédiatement dans "Historique des échanges" ci-dessous),
-    // et router.refresh() force Next.js à relire les données côté
-    // serveur pour SuiviPage — c'est ce second appel qui fait que "Ma
-    // journée" et son badge de progression se remettent à jour sans
-    // recharger la page.
+    await load()
+    router.refresh()
+  }
+
+  // NOUVEAU : marque "Ne plus contacter" — écrit contact_preference =
+  // 'none' sur contacts, champ déjà existant et déjà respecté par les
+  // crons (relance-nouvelles). N'insère aucune ligne dans
+  // integrator_reports : ce n'est pas un échange, c'est un changement
+  // de préférence.
+  async function confirmDoNotContact() {
+    setSavingDoNotContact(true)
+    const { error } = await supabase.from('contacts').update({ contact_preference: 'none' }).eq('id', contactId)
+    setSavingDoNotContact(false)
+    if (error) { alert(error.message); return }
+    setShowDoNotContactConfirm(false)
     await load()
     router.refresh()
   }
@@ -309,6 +363,7 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
   const primaryPhone = contact?.phone || contact?.whatsapp
   const whatsappNumber = formatWhatsappNumber(contact?.whatsapp || contact?.phone)
   const countryDisplay = getPhoneCountryDisplay(primaryPhone)
+  const isDoNotContact = contact?.contact_preference === 'none'
 
   const reportDirty = form.notes.trim() !== '' || form.next_action.trim() !== ''
     || form.next_contact_date !== '' || form.duration_minutes !== ''
@@ -380,6 +435,16 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
                 </div>
               )}
 
+              {isDoNotContact && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, background: '#F5F3FF', color: '#6D28D9',
+                  border: '1px solid #DDD6FE', borderRadius: 10, padding: '10px 14px', marginBottom: 16,
+                  fontSize: 13, fontWeight: 700
+                }}>
+                  <HeartHandshake size={16} strokeWidth={2} /> À porter dans la prière — ne pas contacter
+                </div>
+              )}
+
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 18, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                 <InfoLine label="Intégrateurs" value={integratorPair.map(p => p.integrator?.name).filter(Boolean).join(' & ') || '—'} />
                 <InfoLine label="FIJ" value={contact.fi?.name || 'Non attribuée'} />
@@ -399,7 +464,14 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
                 onDirtyChange={setMissingInfoDirty}
               />
 
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Nouveau compte-rendu</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>Nouveau compte-rendu</div>
+                {!isDoNotContact && (
+                  <button onClick={() => setShowDoNotContactConfirm(true)} style={{ ...smallBtnStyle, display: 'flex', alignItems: 'center', gap: 5, color: '#6D28D9', borderColor: '#DDD6FE' }}>
+                    <HeartHandshake size={12} strokeWidth={2} /> Ne plus contacter
+                  </button>
+                )}
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <select value={form.method} onChange={e => setForm({ ...form, method: e.target.value })} style={{ ...inputStyle, flex: 1 }}>
@@ -411,6 +483,11 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
                   <input type="number" min={0} placeholder="Durée (min)" value={form.duration_minutes}
                     onChange={e => setForm({ ...form, duration_minutes: e.target.value })} style={{ ...inputStyle, width: 110 }} />
                 </div>
+                {form.result === 'en_attente_reponse' && (
+                  <div style={{ fontSize: 11, color: '#7C3AED', background: '#F5F3FF', borderRadius: 8, padding: '8px 10px' }}>
+                    🟣 Une relance sera automatiquement programmée {form.next_contact_date ? `le ${form.next_contact_date}` : `dans ${DEFAULT_RELANCE_DELAY_DAYS} jours`} si aucune date n'est précisée ci-dessous.
+                  </div>
+                )}
                 <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
                   placeholder="Compte rendu (ex: allait bien, travaille de nuit, viendra dimanche...)"
                   style={{ ...inputStyle, minHeight: 60 }} />
@@ -481,6 +558,15 @@ export default function NewcomerReportPanel({ contactId, onClose, onOpenFullProf
         <UnsavedChangesConfirm
           onContinue={() => setShowCloseConfirm(false)}
           onDiscard={onClose}
+        />
+      )}
+
+      {showDoNotContactConfirm && contact && (
+        <DoNotContactConfirm
+          contactName={`${contact.first_name} ${contact.last_name}`}
+          onConfirm={confirmDoNotContact}
+          onCancel={() => setShowDoNotContactConfirm(false)}
+          saving={savingDoNotContact}
         />
       )}
     </div>

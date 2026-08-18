@@ -15,13 +15,38 @@ const CATEGORY_GROUPS = [
   { key:'autres',  label:'Autres',                        roles:['superviseur','responsable_jeunesse'] },
 ]
 
+// Statuts d'intégrateur (chantier 2) : contrôle l'éligibilité à
+// l'assignation automatique (auto_assign_agent / auto_assign_integrators
+// en base) ET aux sélecteurs manuels (ContactDetailModal.jsx).
+const INTEGRATOR_STATUSES = [
+  { value: 'en_service', label: '🟢 En service', color: '#16A34A', bg: '#F0FDF4' },
+  { value: 'en_pause',   label: '🟠 En pause',    color: '#C2410C', bg: '#FFF7ED' },
+  { value: 'inactif',    label: '⚪ Inactif',      color: '#64748B', bg: '#F8FAFC' },
+]
+const INTEGRATOR_STATUS_MAP = Object.fromEntries(INTEGRATOR_STATUSES.map(s => [s.value, s]))
+
+function isIntegratorRole(role, secondaryRoles = []) {
+  return ['equipe_suivi', 'responsable_suivi'].includes(role)
+    || (secondaryRoles || []).includes('equipe_suivi')
+}
+
+function formatDateFR(d) {
+  if (!d) return null
+  return new Date(d).toLocaleDateString('fr-FR')
+}
+
 export default function UtilisateursClient({ users, fis }) {
   const [showModal, setShowModal] = useState(false)
   const [editUser, setEditUser] = useState(null)
-  const [form, setForm] = useState({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, secondary_roles:[] })
+  const [form, setForm] = useState({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, secondary_roles:[], integrator_status:'en_service', integrator_pause_until:'' })
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [openCategories, setOpenCategories] = useState(() => Object.fromEntries(CATEGORY_GROUPS.map(g => [g.key, true])))
+  // Ligne dont le sélecteur rapide de date de pause est ouvert (id
+  // utilisateur), pour ne pas avoir à ouvrir le formulaire complet
+  // juste pour modifier/annuler une date.
+  const [editingPauseDateFor, setEditingPauseDateFor] = useState(null)
+  const [quickPauseDate, setQuickPauseDate] = useState('')
   const router = useRouter()
 
   const filteredUsers = useMemo(() => {
@@ -44,7 +69,12 @@ export default function UtilisateursClient({ users, fis }) {
   async function saveUser() {
     setSaving(true)
     const method = editUser ? 'PATCH' : 'POST'
-    const body = editUser ? { id: editUser.id, ...form } : form
+    const payload = { ...form }
+    // pause_until n'a de sens que si le statut est en_pause — on nettoie
+    // sinon, pour ne pas laisser une date orpheline en base.
+    if (payload.integrator_status !== 'en_pause') payload.integrator_pause_until = null
+    if (payload.integrator_pause_until === '') payload.integrator_pause_until = null
+    const body = editUser ? { id: editUser.id, ...payload } : payload
     const res = await fetch('/api/users', { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
     const { error } = await res.json()
     if (error) { alert(error); setSaving(false); return }
@@ -54,17 +84,44 @@ export default function UtilisateursClient({ users, fis }) {
     await fetch('/api/users', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, active:!active}) })
     router.refresh()
   }
+  // Bascule rapide du statut depuis le tableau. Passer à "en_pause"
+  // ouvre le sélecteur de date au lieu d'enregistrer immédiatement ;
+  // les deux autres statuts s'enregistrent tout de suite et effacent
+  // toute date de pause existante.
+  async function quickSetIntegratorStatus(id, status) {
+    if (status === 'en_pause') {
+      setEditingPauseDateFor(id)
+      setQuickPauseDate('')
+      return
+    }
+    await fetch('/api/users', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, integrator_status: status, integrator_pause_until: null}) })
+    router.refresh()
+  }
+  async function confirmQuickPause(id) {
+    await fetch('/api/users', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+      id, integrator_status: 'en_pause', integrator_pause_until: quickPauseDate || null
+    }) })
+    setEditingPauseDateFor(null)
+    router.refresh()
+  }
+  // Annuler la pause plus tôt que prévu = repasser en service tout de
+  // suite, sans attendre le cron quotidien.
+  async function endPauseNow(id) {
+    await fetch('/api/users', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, integrator_status: 'en_service', integrator_pause_until: null}) })
+    router.refresh()
+  }
   function openEdit(user) {
     setEditUser(user)
-    setForm({ name:user.name, email:user.email, password:'', role:user.role, sex:user.sex||'F', fi_id:user.fi_id||'', active:user.active, secondary_roles:user.secondary_roles||[] })
+    setForm({ name:user.name, email:user.email, password:'', role:user.role, sex:user.sex||'F', fi_id:user.fi_id||'', active:user.active, secondary_roles:user.secondary_roles||[], integrator_status: user.integrator_status || 'en_service', integrator_pause_until: user.integrator_pause_until || '' })
     setShowModal(true)
   }
   function openAdd() {
     setEditUser(null)
-    setForm({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, secondary_roles:[] })
+    setForm({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, secondary_roles:[], integrator_status:'en_service', integrator_pause_until:'' })
     setShowModal(true)
   }
   const btnLabel = saving ? 'Enregistrement...' : editUser ? 'Mettre a jour' : 'Creer le compte'
+  const formIsIntegratorRole = isIntegratorRole(form.role, form.secondary_roles)
 
   return (
     <div style={{maxWidth:1000}}>
@@ -93,9 +150,15 @@ export default function UtilisateursClient({ users, fis }) {
                 <div style={{padding:'16px 18px',fontSize:13,color:'var(--gy)'}}>Aucun utilisateur dans cette catégorie.</div>
               ) : (
                 <table>
-                  <thead><tr><th>Utilisateur</th><th>Email</th><th>FI</th><th>Statut</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>Utilisateur</th><th>Email</th><th>FI</th>
+                    {g.users.some(u => isIntegratorRole(u.role, u.secondary_roles)) && <th>Statut intégrateur</th>}
+                    <th>Actif</th><th>Actions</th></tr></thead>
                   <tbody>
-                    {g.users.map(u=>(
+                    {g.users.map(u=>{
+                      const eligible = isIntegratorRole(u.role, u.secondary_roles)
+                      const statusInfo = INTEGRATOR_STATUS_MAP[u.integrator_status] || INTEGRATOR_STATUS_MAP.en_service
+                      const isEditingPause = editingPauseDateFor === u.id
+                      return (
                       <tr key={u.id}>
                         <td><div style={{display:'flex',alignItems:'center',gap:10}}>
                           <div style={{width:32,height:32,borderRadius:'50%',background:ROLE_COLORS[u.role]||'var(--n)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:11,fontWeight:700}}>{ini(u.name)}</div>
@@ -110,6 +173,40 @@ export default function UtilisateursClient({ users, fis }) {
                         </div></td>
                         <td style={{fontSize:12,color:'var(--gd)'}}>{u.email}</td>
                         <td style={{fontSize:12,color:u.fi?'var(--gr)':'var(--gy)'}}>{u.fi?.name||'—'}</td>
+                        {g.users.some(x => isIntegratorRole(x.role, x.secondary_roles)) && (
+                          <td>
+                            {!eligible ? (
+                              <span style={{fontSize:11,color:'var(--gy)'}}>—</span>
+                            ) : isEditingPause ? (
+                              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                                <input type="date" value={quickPauseDate} onChange={e=>setQuickPauseDate(e.target.value)}
+                                  style={{ fontSize:11, padding:'4px 6px', borderRadius:6, border:'1px solid var(--br)' }} />
+                                <button onClick={()=>confirmQuickPause(u.id)} style={{ fontSize:10, fontWeight:700, background:'var(--n)', color:'#fff', border:'none', borderRadius:6, padding:'4px 8px', cursor:'pointer' }}>OK</button>
+                                <button onClick={()=>setEditingPauseDateFor(null)} style={{ fontSize:10, fontWeight:700, background:'#F1F5F9', color:'#64748B', border:'none', borderRadius:6, padding:'4px 8px', cursor:'pointer' }}>Annuler</button>
+                              </div>
+                            ) : (
+                              <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                                <select
+                                  value={u.integrator_status || 'en_service'}
+                                  onChange={e => quickSetIntegratorStatus(u.id, e.target.value)}
+                                  style={{
+                                    fontSize:11, fontWeight:700, padding:'4px 8px', borderRadius:8, border:'none',
+                                    color: statusInfo.color, background: statusInfo.bg, cursor:'pointer'
+                                  }}
+                                >
+                                  {INTEGRATOR_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                </select>
+                                {u.integrator_status === 'en_pause' && u.integrator_pause_until && (
+                                  <span style={{ fontSize:10, color:'#9A3412', display:'flex', alignItems:'center', gap:4 }}>
+                                    jusqu'au {formatDateFR(u.integrator_pause_until)}
+                                    <span onClick={()=>{setEditingPauseDateFor(u.id); setQuickPauseDate(u.integrator_pause_until)}} style={{ cursor:'pointer', textDecoration:'underline' }}>modifier</span>
+                                    <span onClick={()=>endPauseNow(u.id)} style={{ cursor:'pointer', textDecoration:'underline' }}>reprendre maintenant</span>
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        )}
                         <td>
                           <div className={`tog ${u.active?'on':'off'}`} onClick={()=>toggleActive(u.id,u.active)} style={{cursor:'pointer'}}>
                             <div className="tog-th" />
@@ -121,7 +218,8 @@ export default function UtilisateursClient({ users, fis }) {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               )
@@ -179,6 +277,38 @@ export default function UtilisateursClient({ users, fis }) {
                 ))}
               </div>
             </div>
+
+            {formIsIntegratorRole && (
+              <div className="form-group">
+                <label className="form-label">Statut intégrateur</label>
+                <div style={{ fontSize:11, color:'var(--gy)', marginBottom:8 }}>
+                  Contrôle l'éligibilité à l'assignation automatique de nouveaux visiteurs, ainsi que la sélection manuelle d'intégrateur sur une fiche.
+                </div>
+                <div style={{ display:'flex', gap:8, marginBottom: form.integrator_status === 'en_pause' ? 10 : 0 }}>
+                  {INTEGRATOR_STATUSES.map(s => (
+                    <div key={s.value} onClick={()=>setForm({...form,integrator_status:s.value})} style={{
+                      flex:1, padding:10, borderRadius:10, cursor:'pointer', textAlign:'center', fontSize:12, fontWeight:700,
+                      border:`2px solid ${form.integrator_status===s.value ? s.color : 'var(--br)'}`,
+                      background: form.integrator_status===s.value ? s.bg : '#fff',
+                      color: form.integrator_status===s.value ? s.color : '#64748B'
+                    }}>
+                      {s.label}
+                    </div>
+                  ))}
+                </div>
+                {form.integrator_status === 'en_pause' && (
+                  <div>
+                    <label className="form-label" style={{ fontSize:12 }}>En pause jusqu'au (optionnel)</label>
+                    <input type="date" className="form-input" value={form.integrator_pause_until}
+                      onChange={e=>setForm({...form,integrator_pause_until:e.target.value})} />
+                    <div style={{ fontSize:11, color:'var(--gy)', marginTop:4 }}>
+                      Repasse automatiquement "En service" le lendemain de cette date. Laisser vide pour une pause sans fin programmée.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {form.role === 'pilote_fi' && (
               <div className="form-group"><label className="form-label">Famille Impact assignee</label>
                 <select className="form-input" value={form.fi_id} onChange={e=>setForm({...form,fi_id:e.target.value})}>

@@ -57,7 +57,13 @@ export default function DashboardClient({ stats, profile }) {
   const [prevYearTotal, setPrevYearTotal] = useState(null) // total visiteurs de l'année N-1, pour la carte "Progression"
   const [drillLevel, setDrillLevel] = useState('year')
   const [drillMonth, setDrillMonth] = useState(null)
-  const [drillMonthData, setDrillMonthData] = useState([])
+  // NOUVEAU : source de la vue mensuelle en cours — 'visitors' (fiches
+  // individuelles, table contacts) ou 'accueil' (comptage manuel par
+  // culte, table cultes). Les deux séries n'ont pas la même nature :
+  // Visiteurs ouvre une liste de personnes cliquables, Accueil ouvre
+  // uniquement les totaux saisis par date de culte (pas de fiche
+  // individuelle derrière un chiffre de comptage).
+  const [drillSource, setDrillSource] = useState('visitors')
   const [drillDay, setDrillDay] = useState(null)
   const [drillDayContacts, setDrillDayContacts] = useState([])
   const [loadingDrill, setLoadingDrill] = useState(false)
@@ -103,7 +109,7 @@ export default function DashboardClient({ stats, profile }) {
 
   function goToYear(year) {
     setViewYear(year)
-    setDrillLevel('year'); setDrillMonth(null); setDrillDay(null)
+    setDrillLevel('year'); setDrillMonth(null); setDrillDay(null); setDrillSource('visitors')
     if (year === currentYear) setYearData(null)
     else loadYear(year)
     loadPrevYearTotal(year)
@@ -111,10 +117,33 @@ export default function DashboardClient({ stats, profile }) {
 
   useEffect(() => { loadPrevYearTotal(currentYear) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function openMonth(monthIndex) {
+  // Vue mensuelle — deux sources possibles :
+  // - 'visitors' : une ligne par jour où au moins un visiteur est arrivé
+  //   (table contacts, cliquable ensuite pour voir les fiches du jour).
+  // - 'accueil' : une ligne par date de culte où un comptage a été saisi
+  //   (table cultes, nouveaux_comptes) — pas de drill jour par jour,
+  //   puisqu'il n'y a pas de fiche individuelle derrière ce chiffre.
+  async function openMonth(monthIndex, source = 'visitors') {
     setLoadingDrill(true)
     const start = new Date(viewYear, monthIndex, 1).toISOString().slice(0, 10)
     const end = new Date(viewYear, monthIndex + 1, 1).toISOString().slice(0, 10)
+
+    if (source === 'accueil') {
+      const { data } = await supabase.from('cultes')
+        .select('date,nouveaux_comptes')
+        .gte('date', start).lt('date', end)
+      const sorted = (data || [])
+        .filter(r => r.nouveaux_comptes != null)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map(r => ({ date: r.date, count: r.nouveaux_comptes }))
+      setDrillMonthData(sorted)
+      setDrillSource('accueil')
+      setDrillMonth(monthIndex)
+      setDrillLevel('month')
+      setLoadingDrill(false)
+      return
+    }
+
     const { data } = await supabase.from('contacts')
       .select('first_visit_date')
       .gte('first_visit_date', start).lt('first_visit_date', end)
@@ -122,12 +151,18 @@ export default function DashboardClient({ stats, profile }) {
     data?.forEach(r => { if (r.first_visit_date) counts[r.first_visit_date] = (counts[r.first_visit_date] || 0) + 1 })
     const sorted = Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)).map(([date, count]) => ({ date, count }))
     setDrillMonthData(sorted)
+    setDrillSource('visitors')
     setDrillMonth(monthIndex)
     setDrillLevel('month')
     setLoadingDrill(false)
   }
 
+  const [drillMonthData, setDrillMonthData] = useState([])
+
   async function openDay(dateStr) {
+    // Pas de drill jour par jour pour Comptage Accueil — voir commentaire
+    // sur openMonth.
+    if (drillSource !== 'visitors') return
     setLoadingDrill(true)
     const { data } = await supabase.from('contacts')
       .select('id,first_name,last_name,phone,commune,stage')
@@ -139,7 +174,7 @@ export default function DashboardClient({ stats, profile }) {
     setLoadingDrill(false)
   }
 
-  function backToYear() { setDrillLevel('year'); setDrillMonth(null); setDrillDay(null) }
+  function backToYear() { setDrillLevel('year'); setDrillMonth(null); setDrillDay(null); setDrillSource('visitors') }
   function backToMonth() { setDrillLevel('month'); setDrillDay(null) }
 
   function downloadChartImage() {
@@ -160,7 +195,7 @@ export default function DashboardClient({ stats, profile }) {
       rows.push('Mois,Visiteurs (formulaire),Intégrations FI,Comptage Accueil')
       MONTH_FULL.forEach((m, i) => rows.push(`${m},${visitorsData[i]},${integrationsData[i]},${accueilData[i]}`))
     } else if (drillLevel === 'month') {
-      rows.push('Date,Visiteurs')
+      rows.push(drillSource === 'accueil' ? 'Date,Comptage Accueil' : 'Date,Visiteurs')
       drillMonthData.forEach(d => rows.push(`${d.date},${d.count}`))
     } else if (drillLevel === 'day') {
       rows.push('Prénom,Nom,Commune,Téléphone,Étape')
@@ -209,6 +244,12 @@ export default function DashboardClient({ stats, profile }) {
   const growthPct = (prevYearTotal !== null && prevYearTotal > 0)
     ? Math.round(((yearVisitorsTotal - prevYearTotal) / prevYearTotal) * 100)
     : null
+  // NOUVEAU : la comparaison devient peu fiable si l'année précédente
+  // n'a que très peu de données par rapport à l'année en cours — signe
+  // probable d'une année de référence incomplète (migration, démarrage
+  // de la saisie en cours d'année...) plutôt qu'une vraie explosion de
+  // fréquentation. Seuil arbitraire mais raisonnable : N-1 < 20% de N.
+  const growthUnreliable = growthPct !== null && prevYearTotal > 0 && prevYearTotal < yearVisitorsTotal * 0.2
 
   useEffect(() => {
     if (drillLevel === 'day') return
@@ -241,23 +282,32 @@ export default function DashboardClient({ stats, profile }) {
                 // Comptage Accueil n'est pas de même nature (saisie
                 // manuelle par culte, pas une fiche par personne). Aucun
                 // point visible au repos — seulement au survol — pour un
-                // rendu plus sobre.
+                // rendu plus sobre. pointHitRadius élargi pour que le
+                // clic reste détectable malgré pointRadius: 0.
                 type: 'line', label: 'Comptage Accueil', data: accueilData,
                 borderColor: '#F97316', backgroundColor: 'rgba(249,115,22,.10)',
-                borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 5,
+                borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 5, pointHitRadius: 12,
                 pointHoverBackgroundColor: '#F97316', pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2,
                 tension: .4, cubicInterpolationMode: 'monotone', fill: true, order: 2
               },
               {
                 type: 'line', label: 'Tendance', data: trend,
-                borderColor: '#D4A017', borderWidth: 3, pointRadius: 0,
+                borderColor: '#D4A017', borderWidth: 3, pointRadius: 0, pointHitRadius: 0,
                 tension: .4, cubicInterpolationMode: 'monotone', fill: false, order: 1
               },
             ]
           },
           options: {
             responsive: true, maintainAspectRatio: false,
-            onClick: (evt, elements) => { const bar = elements.find(e => e.datasetIndex <= 1); if (bar) openMonth(bar.index) },
+            onClick: (evt, elements) => {
+              const bar = elements.find(e => e.datasetIndex <= 1)
+              if (bar) { openMonth(bar.index, 'visitors'); return }
+              // NOUVEAU : clic sur la ligne Comptage Accueil (datasetIndex
+              // 2) — ouvre la vue mensuelle correspondante, sourcée sur
+              // cultes plutôt que contacts.
+              const accueilPoint = elements.find(e => e.datasetIndex === 2)
+              if (accueilPoint) openMonth(accueilPoint.index, 'accueil')
+            },
             plugins: {
               legend: {
                 position: 'bottom',
@@ -276,15 +326,24 @@ export default function DashboardClient({ stats, profile }) {
           }
         })
       } else if (drillLevel === 'month') {
+        const isAccueil = drillSource === 'accueil'
         growthChartInstance.current = new Chart(growthRef.current, {
           type: 'bar',
           data: {
             labels: drillMonthData.map(d => new Date(d.date).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit' })),
-            datasets: [{ label: 'Visiteurs', data: drillMonthData.map(d => d.count), backgroundColor: '#0B3D9180', borderColor: '#0B3D91', borderWidth: 1.5, borderRadius: 6 }]
+            datasets: [{
+              label: isAccueil ? 'Comptage Accueil' : 'Visiteurs',
+              data: drillMonthData.map(d => d.count),
+              backgroundColor: isAccueil ? '#F9731680' : '#0B3D9180',
+              borderColor: isAccueil ? '#F97316' : '#0B3D91',
+              borderWidth: 1.5, borderRadius: 6
+            }]
           },
           options: {
             responsive: true, maintainAspectRatio: false,
-            onClick: (evt, elements) => { if (elements.length) openDay(drillMonthData[elements[0].index].date) },
+            // Pas de drill jour par jour pour Comptage Accueil — voir
+            // commentaire sur openDay.
+            onClick: (evt, elements) => { if (isAccueil) return; if (elements.length) openDay(drillMonthData[elements[0].index].date) },
             plugins: { legend: { display: false } },
             scales: {
               x: { grid: { display: false }, ticks: { font: { size: 10 } } },
@@ -296,7 +355,7 @@ export default function DashboardClient({ stats, profile }) {
     }
     loadGrowthChart()
     return () => { cancelled = true; growthChartInstance.current?.destroy() }
-  }, [drillLevel, drillMonth, drillMonthData, yearData, stats.monthlyVisitors, stats.monthlyIntegrations, stats.monthlyAccueil, viewYear])
+  }, [drillLevel, drillMonth, drillMonthData, drillSource, yearData, stats.monthlyVisitors, stats.monthlyIntegrations, stats.monthlyAccueil, viewYear])
 
   const firstName = profile?.name?.split(' ')[0] || 'Pasteur'
 
@@ -524,7 +583,9 @@ export default function DashboardClient({ stats, profile }) {
               <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, marginBottom:10 }}>
                 <span onClick={backToYear} style={{ cursor:'pointer', color:'var(--gy)' }}>{viewYear}</span>
                 <span style={{ color:'var(--gy)' }}>›</span>
-                <span onClick={backToMonth} style={{ cursor:'pointer', fontWeight: drillLevel==='month'?700:400, color: drillLevel==='month'?'var(--n)':'var(--gy)' }}>{MONTH_FULL[drillMonth]}</span>
+                <span onClick={backToMonth} style={{ cursor:'pointer', fontWeight: drillLevel==='month'?700:400, color: drillLevel==='month'?'var(--n)':'var(--gy)' }}>
+                  {MONTH_FULL[drillMonth]}{drillSource === 'accueil' ? ' · Comptage Accueil' : ''}
+                </span>
                 {drillDay && (
                   <>
                     <span style={{ color:'var(--gy)' }}>›</span>
@@ -556,6 +617,18 @@ export default function DashboardClient({ stats, profile }) {
                   </div>
                 )}
               </div>
+            ) : drillLevel === 'month' && drillSource === 'accueil' ? (
+              <>
+                <div style={{ height:260 }}><canvas ref={growthRef} /></div>
+                {!loadingDrill && drillMonthData.length === 0 && (
+                  <div style={{ padding:'12px 0 0', textAlign:'center', color:'var(--gy)', fontSize:12 }}>
+                    Aucun comptage Accueil saisi pour ce mois.
+                  </div>
+                )}
+                <div style={{ fontSize:11, color:'#94A3B8', marginTop:10, textAlign:'center' }}>
+                  Total du mois : <b style={{ color:'#C2410C' }}>{drillMonthData.reduce((s, d) => s + d.count, 0)}</b> — comptage manuel par culte, pas de fiches individuelles à afficher.
+                </div>
+              </>
             ) : (
               <div style={{ height:260 }}><canvas ref={growthRef} /></div>
             )}
@@ -572,7 +645,11 @@ export default function DashboardClient({ stats, profile }) {
                   value={growthPct === null ? '—' : `${growthPct > 0 ? '+' : ''}${growthPct}%`}
                   color={growthPct === null ? '#94A3B8' : growthPct >= 0 ? '#16A34A' : '#DC2626'}
                   icon={growthPct === null ? null : growthPct >= 0 ? TrendingUp : TrendingDown}
-                  sub={prevYearTotal === null ? null : `vs ${viewYear - 1} (${prevYearTotal})`}
+                  sub={
+                    prevYearTotal === null ? null :
+                    growthUnreliable ? `vs ${viewYear - 1} (${prevYearTotal}) — comparaison peu fiable, année de référence incomplète` :
+                    `vs ${viewYear - 1} (${prevYearTotal})`
+                  }
                 />
               </div>
             )}

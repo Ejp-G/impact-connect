@@ -22,11 +22,11 @@ export const ROLES = {
 }
 export const ROLE_NAV = {
   admin:                   'all',
-  equipe_accueil:          ['accueil'],
-  responsable_suivi:       ['dashboard','accueil','visiteurs','fiches-a-completer','pipeline','suivi','qrcode','journal','rapports','parametres','communications'],
-  equipe_suivi:            ['dashboard','accueil','visiteurs','fiches-a-completer','pipeline','suivi','jeunesse','carte','rapports','qrcode','communications'],
+  equipe_accueil:          ['accueil','planning'],
+  responsable_suivi:       ['dashboard','accueil','visiteurs','fiches-a-completer','pipeline','suivi','qrcode','journal','rapports','parametres','communications','planning'],
+  equipe_suivi:            ['dashboard','accueil','visiteurs','fiches-a-completer','pipeline','suivi','jeunesse','carte','rapports','qrcode','communications','planning'],
   pilote_fi:               ['fi','suivi','communications','qrcode'],
-  superviseur:             ['dashboard','accueil','visiteurs','pipeline','fi','suivi','rapports','carte','communications','jeunesse','fiches-a-completer','qrcode','validations'],
+  superviseur:             ['dashboard','accueil','visiteurs','pipeline','fi','suivi','rapports','carte','communications','jeunesse','fiches-a-completer','qrcode','validations','planning'],
   responsable_jeunesse:    ['jeunesse','visiteurs','communications'],
 }
 export const NAV_ITEMS = [
@@ -39,6 +39,7 @@ export const NAV_ITEMS = [
   { id:'suivi',           label:'Suivi & Tâches',        href:'/suivi',            badge:'tasks' },
   { id:'jeunesse',        label:'Jeunesse',              href:'/jeunesse' },
   { id:'communications',  label:'Communications',        href:'/communications' },
+  { id:'planning',        label:'Planning',              href:'/planning' },
   { id:'carte',           label:'Carte Guadeloupe',      href:'/carte' },
   { id:'rapports',        label:'Rapports',              href:'/rapports' },
   { id:'qrcode',          label:'Formulaire QR',         href:'/qrcode' },

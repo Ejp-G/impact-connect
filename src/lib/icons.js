@@ -9,9 +9,8 @@ import {
   Flag, LifeBuoy, Footprints, Building2, Compass, GraduationCap,
   Wallet, Utensils, Car, Briefcase, Accessibility, Frown, Stethoscope,
   ShieldAlert, Lock, ArrowLeft, MapPin, ChevronUp, MessageSquare, Tag, HelpCircle, Save,
-  Target, TrendingUp, TrendingDown, RotateCcw, HeartHandshake
+  Target, TrendingUp, TrendingDown, RotateCcw, HeartHandshake, CalendarDays
 } from 'lucide-react'
-
 export const NAV_ICON_MAP = {
   dashboard: LayoutDashboard,
   accueil: Calendar,
@@ -22,6 +21,7 @@ export const NAV_ICON_MAP = {
   suivi: CheckSquare,
   jeunesse: Star,
   communications: MessageCircle,
+  planning: CalendarDays,
   carte: Map,
   rapports: BarChart3,
   qrcode: QrCode,
@@ -30,7 +30,6 @@ export const NAV_ICON_MAP = {
   validations: CheckSquare,
   parametres: Settings,
 }
-
 export const STAGE_ICON_MAP = {
   visiteur: Users,
   contacte: Phone,
@@ -44,14 +43,12 @@ export const STAGE_ICON_MAP = {
   leader_pot: Star,
   leader: Crown,
 }
-
 export const FI_STATUS_ICON_MAP = {
   en_developpement: RefreshCw,
   active: CheckCircle2,
   en_pause: Pause,
   fermee: XCircle,
 }
-
 export const JOURNAL_TYPE_ICON_MAP = {
   priere: Heart,
   besoin: LifeBuoy,
@@ -60,7 +57,6 @@ export const JOURNAL_TYPE_ICON_MAP = {
   action: CheckCircle2,
   decision: Flag,
 }
-
 export const CONTACT_METHOD_ICON_MAP = {
   appel: Phone,
   telephone: Phone,
@@ -71,7 +67,6 @@ export const CONTACT_METHOD_ICON_MAP = {
   audio: Phone,
   autre: FileText,
 }
-
 export const NEED_ICON_MAP = {
   nouveau_converti: Sparkles,
   reconciliation: Users,
@@ -96,7 +91,6 @@ export const NEED_ICON_MAP = {
   besoin_mentor: UserPlus,
   autre: FileText,
 }
-
 export {
   Search, Bell, Plus, Upload, Download, Pencil, Trash2, X, XCircle, Check,
   Phone, Mail, Calendar, AlertTriangle, AlertCircle, ChevronDown, ChevronRight,
@@ -108,5 +102,5 @@ export {
   Wallet, Utensils, Car, Briefcase, Accessibility, Frown, Stethoscope,
   ShieldAlert, Lock, ArrowLeft, MapPin, ChevronUp, LayoutDashboard,
   MessageSquare, Tag, HelpCircle, Save,
-  Target, TrendingUp, TrendingDown, RotateCcw, HeartHandshake
+  Target, TrendingUp, TrendingDown, RotateCcw, HeartHandshake, CalendarDays
 }

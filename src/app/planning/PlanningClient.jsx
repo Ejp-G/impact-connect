@@ -24,6 +24,9 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
   const [mondays, setMondays] = useState([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [validating, setValidating] = useState(false)
+  const [totalChanges, setTotalChanges] = useState(0)
+  const [modifiedAfterValidation, setModifiedAfterValidation] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [history, setHistory] = useState([])
   const [showAddPost, setShowAddPost] = useState(false)
@@ -40,6 +43,8 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
     setPlanning(data.planning)
     setSundays(data.sundays || [])
     setMondays(data.mondays || [])
+    setTotalChanges(data.totalChanges || 0)
+    setModifiedAfterValidation(data.modifiedAfterValidation || false)
     setLoading(false)
   }, [month])
 
@@ -54,7 +59,7 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
   }
 
   async function generate() {
-    if (planning && !confirm('Un planning existe déjà pour ce mois — le régénérer effacera les assignations actuelles. Continuer ?')) return
+    if (planning && !confirm('Un planning existe déjà pour ce mois — le régénérer effacera les assignations actuelles et annulera la validation en cours. Continuer ?')) return
     setGenerating(true)
     const monthLabel = `${MONTH_NAMES_FR[Number(month.slice(5,7))-1]} ${month.slice(0,4)}`
     await fetch('/api/planning', {
@@ -62,6 +67,17 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
       body: JSON.stringify({ month, title: `Planning Accueil & Intégration — ${monthLabel}` })
     })
     setGenerating(false)
+    await load()
+  }
+
+  async function validatePlanning() {
+    if (!confirm('Valider ce planning ? Il sera marqué comme officiel, et toute modification ultérieure sera signalée.')) return
+    setValidating(true)
+    await fetch('/api/planning/validate', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ planningId: planning.id })
+    })
+    setValidating(false)
     await load()
   }
 
@@ -167,7 +183,7 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
 
   return (
     <div style={{ maxWidth: 900 }}>
-      <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:20, flexWrap:'wrap' }}>
+      <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:12, flexWrap:'wrap' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8, background:'#fff', border:'1px solid #E2E8F0', borderRadius:10, padding:'8px 14px' }}>
           <Calendar size={15} strokeWidth={2} color="#94A3B8" />
           <input type="month" value={month.slice(0,7)} onChange={e => setMonth(e.target.value + '-01')}
@@ -178,9 +194,19 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
             <button onClick={generate} disabled={generating} style={btnPrimary}>
               <RefreshCw size={14} strokeWidth={2} /> {generating ? 'Génération...' : planning ? 'Régénérer' : 'Générer automatiquement'}
             </button>
+            {planning && planning.status === 'draft' && (
+              <button onClick={validatePlanning} disabled={validating} style={{ ...btnPrimary, background:'#16A34A' }}>
+                <Check size={14} strokeWidth={2} /> {validating ? 'Validation...' : 'Valider le planning'}
+              </button>
+            )}
             {planning && (
-              <button onClick={loadHistory} style={btnSecondary}>
+              <button onClick={loadHistory} style={{ ...btnSecondary, position:'relative' }}>
                 <History size={14} strokeWidth={2} /> Historique
+                {totalChanges > 0 && (
+                  <span style={{ background:'#0B3D91', color:'#fff', fontSize:10, fontWeight:700, borderRadius:999, padding:'1px 7px', marginLeft:2 }}>
+                    {totalChanges}
+                  </span>
+                )}
               </button>
             )}
             <button onClick={() => setShowAddPost(true)} style={btnSecondary}>
@@ -189,6 +215,20 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
           </>
         )}
       </div>
+
+      {planning && (
+        <div style={{
+          marginBottom:20, padding:'10px 16px', borderRadius:10, fontSize:13, fontWeight:600,
+          background: planning.status === 'published' ? (modifiedAfterValidation ? '#FFF7ED' : '#F0FDF4') : '#F8FAFC',
+          color: planning.status === 'published' ? (modifiedAfterValidation ? '#C2410C' : '#16A34A') : '#64748B',
+        }}>
+          {planning.status === 'published' ? (
+            modifiedAfterValidation
+              ? `⚠️ Validé par ${planning.validator?.name || '—'} le ${new Date(planning.validated_at).toLocaleDateString('fr-FR')}, mais modifié depuis — pense à revalider si besoin.`
+              : `✅ Validé par ${planning.validator?.name || '—'} le ${new Date(planning.validated_at).toLocaleDateString('fr-FR')}`
+          ) : '📝 Brouillon — pas encore validé'}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ padding:40, textAlign:'center', color:'#94A3B8' }}>Chargement…</div>
@@ -287,8 +327,8 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
             <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:400, overflowY:'auto' }}>
               {history.length === 0 && <div style={{ fontSize:12, color:'#94A3B8' }}>Aucune modification enregistrée pour ce planning.</div>}
               {history.map(h => (
-                <div key={h.id} style={{ fontSize:12, background:'#F8FAFC', padding:'8px 12px', borderRadius:8 }}>
-                  <div style={{ fontWeight:700, color:'#1E293B' }}>{h.action}</div>
+                <div key={h.id} style={{ fontSize:12, background: h.action === 'Planning validé' ? '#F0FDF4' : '#F8FAFC', padding:'8px 12px', borderRadius:8 }}>
+                  <div style={{ fontWeight:700, color: h.action === 'Planning validé' ? '#16A34A' : '#1E293B' }}>{h.action}</div>
                   {h.details?.contexte && (
                     <div style={{ color:'#475569', marginTop:2 }}>
                       {h.details.contexte} {h.details.date ? `(${formatDateShort(h.details.date)})` : ''}

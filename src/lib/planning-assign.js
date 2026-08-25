@@ -2,11 +2,10 @@
 //
 // Logique d'assignation automatique du planning Accueil & Intégration.
 // Pool : profiles actifs avec role equipe_accueil/equipe_suivi (ou
-// secondary_roles), EXCLUANT integrator_status='en_pause' — même règle
-// que auto_assign_integrators côté SQL, pour rester cohérent partout
-// où "disponibilité d'un intégrateur" est évaluée. Exclut aussi les
-// personnes ayant déclaré une indisponibilité pour ce mois
-// (planning_unavailability).
+// secondary_roles), EXCLUANT integrator_status='en_pause'/'inactif' —
+// même champ que celui géré dans Utilisateurs, aucune notion
+// d'indisponibilité séparée pour le planning : une pause déclarée une
+// fois se répercute partout (assignation intégrateurs ET planning).
 
 function shuffle(arr) {
   const a = [...arr]
@@ -38,30 +37,24 @@ function toDateStr(d) {
   return d.toISOString().slice(0, 10)
 }
 
-export async function getEligiblePool(supabase, monthStr) {
+export async function getEligiblePool(supabase) {
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, name, role, secondary_roles, integrator_status, active')
     .eq('active', true)
 
-  const { data: unavailable } = await supabase
-    .from('planning_unavailability')
-    .select('profile_id')
-    .eq('month', monthStr)
-  const unavailableIds = new Set((unavailable || []).map(u => u.profile_id))
-
   return (profiles || []).filter(p => {
     const isEligibleRole = ['equipe_accueil', 'equipe_suivi'].includes(p.role)
       || (p.secondary_roles || []).some(r => ['equipe_accueil', 'equipe_suivi'].includes(r))
     const isAvailable = (p.integrator_status || 'en_service') === 'en_service'
-    return isEligibleRole && isAvailable && !unavailableIds.has(p.id)
+    return isEligibleRole && isAvailable
   })
 }
 
-// Pioche `count` personnes dans le pool en évitant `excludeIds`. Si le
+// Pioche `count` personnes dans le pool en évitant `excludeIds` (ceux
+// qui ont servi le dimanche précédent — règle du battement). Si le
 // pool filtré ne suffit pas, complète en réintégrant les exclus plutôt
-// que de laisser un poste vide — mieux vaut répéter quelqu'un que
-// laisser un trou dans le planning.
+// que de laisser un poste vide.
 function pickFromPool(pool, count, excludeIds) {
   const fresh = shuffle(pool.filter(p => !excludeIds.has(p.id)))
   const picked = fresh.slice(0, count)
@@ -73,7 +66,7 @@ function pickFromPool(pool, count, excludeIds) {
 }
 
 export async function generatePlanningAssignments(supabase, planningId, monthStr) {
-  const pool = await getEligiblePool(supabase, monthStr)
+  const pool = await getEligiblePool(supabase)
   const { data: postTypes } = await supabase
     .from('planning_post_types')
     .select('*')
@@ -106,9 +99,6 @@ export async function generatePlanningAssignments(supabase, planningId, monthStr
     }
     previousSundayIds = usedThisSunday
 
-    // Lundi suivant : prière (3 x 20min) + phoning (1), même pool,
-    // pas de contrainte d'exclusion supplémentaire au-delà du pool
-    // disponible ce mois-ci.
     const mondayDate = nextDay(sundayDate)
     if (mondayDate.getMonth() === sundayDate.getMonth()) {
       const { data: mondayRow } = await supabase

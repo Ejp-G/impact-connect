@@ -1,23 +1,25 @@
 // lib/planning-assign.js
 //
 // Logique d'assignation automatique du planning Accueil & Intégration.
-// Pool : profiles actifs avec role equipe_accueil/equipe_suivi (ou
-// secondary_roles), EXCLUANT integrator_status != 'en_service' — même
-// champ que celui géré dans Utilisateurs.
 //
-// STRUCTURE PAR DIMANCHE (7 personnes au total, pas 13) :
-// - Porte (1) — fait AUSSI Drapeau (même personne, deux postes)
-// - Accueil & Intégration (4) — 2 d'entre elles font Offrandes,
-//   1 fait Collations
-// - Activité Accueil avant culte (2) — les mêmes 2 font aussi
-//   Mise en place de l'espace intégration
-// Total unique par dimanche : 1 (porte/drapeau) + 4 (accueil) + 2
-// (activité/mise en place) = 7.
+// ÉLIGIBILITÉ (calculée PAR DIMANCHE, pas une seule fois pour tout le
+// mois) : role equipe_accueil/equipe_suivi (ou secondary_roles),
+// active=true, planning_participant != false, et disponibilité réelle
+// à CETTE date précise :
+//   - integrator_status = 'inactif' → jamais éligible
+//   - integrator_status = 'en_pause' sans date de fin → jamais éligible
+//   - integrator_status = 'en_pause' avec pause_until < ce dimanche →
+//     éligible (la pause est terminée avant cette date)
+//   - integrator_status = 'en_pause' avec pause_until >= ce dimanche →
+//     pas éligible pour CE dimanche-là, mais peut l'être plus tard
+//     dans le même mois si la pause se termine entre-temps
+//   - integrator_status = 'en_service' (ou vide) → éligible
 //
-// Tout poste personnalisé ajouté plus tard (via "Ajouter un poste")
-// reste piochée indépendamment dans le pool restant, en dehors de
-// cette équipe fixe de 7 — pour rester flexible sur les évolutions
-// futures sans casser cette structure connue.
+// ROULEMENT : pour chaque poste, priorité aux personnes qui n'ont
+// jamais servi ce mois-ci, puis à celles dont le dernier service est
+// le plus ancien. Le dimanche précédent n'est pas "juste exclu" — il
+// est simplement la dernière priorité, ce qui évite les répétitions
+// même quand le pool est petit.
 
 const CORE_NAMES = {
   porte: 'Porte',
@@ -59,35 +61,32 @@ function toDateStr(d) {
   return d.toISOString().slice(0, 10)
 }
 
-export async function getEligiblePool(supabase) {
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, name, role, secondary_roles, integrator_status, active')
-    .eq('active', true)
-
-  return (profiles || []).filter(p => {
-    const isEligibleRole = ['equipe_accueil', 'equipe_suivi'].includes(p.role)
-      || (p.secondary_roles || []).some(r => ['equipe_accueil', 'equipe_suivi'].includes(r))
-    const isAvailable = (p.integrator_status || 'en_service') === 'en_service'
-    return isEligibleRole && isAvailable
-  })
+function isEligibleRole(p) {
+  return ['equipe_accueil', 'equipe_suivi'].includes(p.role)
+    || (p.secondary_roles || []).some(r => ['equipe_accueil', 'equipe_suivi'].includes(r))
 }
 
-// Pioche `count` personnes distinctes du pool, en évitant `excludeIds`.
-// Si le pool filtré ne suffit pas, complète en réintégrant des exclus
-// plutôt que de laisser un poste vide.
-function pickDistinct(pool, count, excludeIds) {
-  const available = shuffle(pool.filter(p => !excludeIds.has(p.id)))
-  const picked = available.slice(0, count)
-  if (picked.length < count) {
-    const fallback = shuffle(pool.filter(p => !picked.some(x => x.id === p.id)))
-    picked.push(...fallback.slice(0, count - picked.length))
+function isEligibleForDate(p, dateStr) {
+  if (!p.active) return false
+  if (p.planning_participant === false) return false
+  const status = p.integrator_status || 'en_service'
+  if (status === 'inactif') return false
+  if (status === 'en_pause') {
+    if (!p.integrator_pause_until) return false
+    return p.integrator_pause_until < dateStr
   }
-  return picked
+  return true
+}
+
+function getPoolForDate(allProfiles, dateStr) {
+  return (allProfiles || []).filter(p => isEligibleRole(p) && isEligibleForDate(p, dateStr))
 }
 
 export async function generatePlanningAssignments(supabase, planningId, monthStr) {
-  const pool = await getEligiblePool(supabase)
+  const { data: allProfiles } = await supabase
+    .from('profiles')
+    .select('id, name, role, secondary_roles, integrator_status, integrator_pause_until, active, planning_participant')
+
   const { data: postTypes } = await supabase
     .from('planning_post_types')
     .select('*')
@@ -99,12 +98,18 @@ export async function generatePlanningAssignments(supabase, planningId, monthStr
   const customPostTypes = (postTypes || []).filter(pt => !coreIds.has(pt.id))
 
   const sundays = getSundaysOfMonth(monthStr)
-  let previousSundayIds = new Set()
+  // Dernier jour de service par personne, mis à jour au fil du mois —
+  // sert de base au roulement par ancienneté (dimanche ET lundi
+  // comptent comme un service).
+  const lastServed = {}
 
   for (const sundayDate of sundays) {
+    const dateStr = toDateStr(sundayDate)
+    const pool = getPoolForDate(allProfiles, dateStr)
+
     const { data: sundayRow } = await supabase
       .from('planning_sundays')
-      .insert({ planning_id: planningId, date: toDateStr(sundayDate) })
+      .insert({ planning_id: planningId, date: dateStr })
       .select().single()
 
     const rows = []
@@ -118,17 +123,28 @@ export async function generatePlanningAssignments(supabase, planningId, monthStr
       }))
     }
 
+    function pickByRecency(count) {
+      const candidates = pool.filter(p => !teamUsed.has(p.id))
+      const sorted = [...candidates].sort((a, b) => {
+        const da = lastServed[a.id] || '0000-00-00'
+        const db = lastServed[b.id] || '0000-00-00'
+        if (da !== db) return da < db ? -1 : 1
+        return Math.random() - 0.5
+      })
+      const picked = sorted.slice(0, count)
+      picked.forEach(p => { teamUsed.add(p.id); lastServed[p.id] = dateStr })
+      return picked
+    }
+
     // 1. Porte (1) — fait aussi Drapeau
-    const [portePerson] = pickDistinct(pool, 1, previousSundayIds)
+    const [portePerson] = pickByRecency(1)
     if (portePerson) {
-      teamUsed.add(portePerson.id)
       addRows(CORE_NAMES.porte, [portePerson])
       addRows(CORE_NAMES.drapeau, [portePerson])
     }
 
     // 2. Accueil & Intégration (4) — dont Offrandes (2) et Collations (1)
-    const accueilPicks = pickDistinct(pool, 4, new Set([...previousSundayIds, ...teamUsed]))
-    accueilPicks.forEach(p => teamUsed.add(p.id))
+    const accueilPicks = pickByRecency(4)
     addRows(CORE_NAMES.accueil, accueilPicks)
 
     const offrandesPicks = shuffle(accueilPicks).slice(0, Math.min(2, accueilPicks.length))
@@ -136,44 +152,53 @@ export async function generatePlanningAssignments(supabase, planningId, monthStr
 
     const remainingForCollation = accueilPicks.filter(p => !offrandesPicks.some(o => o.id === p.id))
     const collationPool = remainingForCollation.length ? remainingForCollation : accueilPicks
-    const collationPick = shuffle(collationPool).slice(0, 1)
-    addRows(CORE_NAMES.collations, collationPick)
+    addRows(CORE_NAMES.collations, shuffle(collationPool).slice(0, 1))
 
     // 3. Activité Accueil avant culte (2) — font aussi Mise en place
-    const activitePicks = pickDistinct(pool, 2, new Set([...previousSundayIds, ...teamUsed]))
-    activitePicks.forEach(p => teamUsed.add(p.id))
+    const activitePicks = pickByRecency(2)
     addRows(CORE_NAMES.activite, activitePicks)
     addRows(CORE_NAMES.miseEnPlace, activitePicks)
 
-    // 4. Postes personnalisés (ajoutés via "Ajouter un poste") — piochés
-    // indépendamment, en dehors de l'équipe fixe de 7 du jour.
+    // 4. Postes personnalisés
     for (const post of customPostTypes) {
-      const picks = pickDistinct(pool, post.default_slots, new Set([...previousSundayIds, ...teamUsed]))
+      const picks = pickByRecency(post.default_slots)
       addRows(post.name, picks)
     }
 
     if (rows.length) await supabase.from('planning_assignments').insert(rows)
 
-    previousSundayIds = teamUsed
-
-    // Lundi suivant : prière (3 x 20min) + phoning (1), pool complet,
-    // pas de contrainte liée à l'équipe du dimanche.
+    // Lundi suivant : prière (3) + phoning (1), même principe de
+    // roulement, éligibilité recalculée pour la date du lundi.
     const mondayDate = nextDay(sundayDate)
     if (mondayDate.getMonth() === sundayDate.getMonth()) {
+      const mondayStr = toDateStr(mondayDate)
+      const mondayPool = getPoolForDate(allProfiles, mondayStr)
       const { data: mondayRow } = await supabase
         .from('planning_mondays')
-        .insert({ planning_id: planningId, date: toDateStr(mondayDate) })
+        .insert({ planning_id: planningId, date: mondayStr })
         .select().single()
 
-      const prayerPicks = pickDistinct(pool, 3, new Set())
+      const mondayTeamUsed = new Set()
+      function pickMondayByRecency(count) {
+        const candidates = mondayPool.filter(p => !mondayTeamUsed.has(p.id))
+        const sorted = [...candidates].sort((a, b) => {
+          const da = lastServed[a.id] || '0000-00-00'
+          const db = lastServed[b.id] || '0000-00-00'
+          if (da !== db) return da < db ? -1 : 1
+          return Math.random() - 0.5
+        })
+        const picked = sorted.slice(0, count)
+        picked.forEach(p => { mondayTeamUsed.add(p.id); lastServed[p.id] = mondayStr })
+        return picked
+      }
+
+      const prayerPicks = pickMondayByRecency(3)
       if (prayerPicks.length) {
         await supabase.from('planning_prayer_assignments').insert(
-          prayerPicks.map((p, i) => ({
-            planning_monday_id: mondayRow.id, profile_id: p.id, position: i + 1,
-          }))
+          prayerPicks.map((p, i) => ({ planning_monday_id: mondayRow.id, profile_id: p.id, position: i + 1 }))
         )
       }
-      const phoningPick = pickDistinct(pool, 1, new Set())
+      const phoningPick = pickMondayByRecency(1)
       if (phoningPick.length) {
         await supabase.from('planning_phoning_assignments').insert({
           planning_monday_id: mondayRow.id, profile_id: phoningPick[0].id,

@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { Calendar, RefreshCw, Copy, Download, UserX, Plus, X, Check } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Calendar, RefreshCw, Copy, Download, History, Plus, X, Check } from 'lucide-react'
 
 const MONTH_NAMES_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 
@@ -24,15 +24,11 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
   const [mondays, setMondays] = useState([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-  const [showUnavail, setShowUnavail] = useState(false)
-  const [unavailList, setUnavailList] = useState([])
-  const [unavailPick, setUnavailPick] = useState('')
-  const [unavailReason, setUnavailReason] = useState('')
+  const [showHistory, setShowHistory] = useState(false)
+  const [history, setHistory] = useState([])
   const [showAddPost, setShowAddPost] = useState(false)
   const [newPost, setNewPost] = useState({ name:'', emoji:'', default_slots:1 })
-  const [postTypesList, setPostTypesList] = useState(postTypes)
   const [copySuccess, setCopySuccess] = useState(false)
-  const canvasRef = useRef(null)
 
   const canEdit = ['admin','responsable_suivi','responsable_integration'].includes(profile?.role)
   const eligiblePeople = allProfiles.filter(eligibleRole)
@@ -47,14 +43,15 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
     setLoading(false)
   }, [month])
 
-  const loadUnavail = useCallback(async () => {
-    const res = await fetch(`/api/planning/unavailability?month=${month}`)
-    const data = await res.json()
-    setUnavailList(data.unavailability || [])
-  }, [month])
-
   useEffect(() => { load() }, [load])
-  useEffect(() => { if (showUnavail) loadUnavail() }, [showUnavail, loadUnavail])
+
+  async function loadHistory() {
+    if (!planning) return
+    const res = await fetch(`/api/planning/history?planningId=${planning.id}`)
+    const data = await res.json()
+    setHistory(data.history || [])
+    setShowHistory(true)
+  }
 
   async function generate() {
     if (planning && !confirm('Un planning existe déjà pour ce mois — le régénérer effacera les assignations actuelles. Continuer ?')) return
@@ -76,38 +73,21 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
     await load()
   }
 
-  async function addUnavailability() {
-    if (!unavailPick) return
-    await fetch('/api/planning/unavailability', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ profile_id: unavailPick, month, reason: unavailReason })
-    })
-    setUnavailPick(''); setUnavailReason('')
-    await loadUnavail()
-  }
-  async function removeUnavailability(id) {
-    await fetch('/api/planning/unavailability', {
-      method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id })
-    })
-    await loadUnavail()
-  }
-
   async function addPostType() {
     if (!newPost.name.trim()) return
     await fetch('/api/planning/post-types', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ ...newPost, sort_order: postTypesList.length + 1 })
+      body: JSON.stringify({ ...newPost, sort_order: postTypes.length + 1 })
     })
     setShowAddPost(false)
     setNewPost({ name:'', emoji:'', default_slots:1 })
-    window.location.reload() // simple : recharge pour récupérer la nouvelle liste server-side
+    window.location.reload()
   }
 
   function personName(a) {
     return a.profile?.name || a.custom_name || '—'
   }
 
-  // Génère le texte WhatsApp dans le format exact utilisé actuellement
   function buildWhatsappText() {
     if (!planning) return ''
     const monthLabel = `${MONTH_NAMES_FR[Number(month.slice(5,7))-1]} ${month.slice(0,4)}`
@@ -152,8 +132,6 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
     setTimeout(() => setCopySuccess(false), 2000)
   }
 
-  // Génère une image PNG du planning via Canvas 2D (pas de dépendance
-  // externe) — rendu simple mais lisible, adapté au partage WhatsApp.
   function downloadImage() {
     const lines = editableText.split('\n')
     const width = 900
@@ -175,7 +153,7 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
     ctx.font = '15px Arial'
     let y = 100
     lines.forEach(line => {
-      const isTitle = line.startsWith('*') 
+      const isTitle = line.startsWith('*')
       ctx.font = isTitle ? 'bold 16px Arial' : '14px Arial'
       ctx.fillStyle = isTitle ? '#0B3D91' : '#1E293B'
       ctx.fillText(line.replace(/\*/g, ''), padding, y)
@@ -200,9 +178,11 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
             <button onClick={generate} disabled={generating} style={btnPrimary}>
               <RefreshCw size={14} strokeWidth={2} /> {generating ? 'Génération...' : planning ? 'Régénérer' : 'Générer automatiquement'}
             </button>
-            <button onClick={() => setShowUnavail(true)} style={btnSecondary}>
-              <UserX size={14} strokeWidth={2} /> Indisponibilités
-            </button>
+            {planning && (
+              <button onClick={loadHistory} style={btnSecondary}>
+                <History size={14} strokeWidth={2} /> Historique
+              </button>
+            )}
             <button onClick={() => setShowAddPost(true)} style={btnSecondary}>
               <Plus size={14} strokeWidth={2} /> Ajouter un poste
             </button>
@@ -297,30 +277,30 @@ export default function PlanningClient({ profile, postTypes, allProfiles }) {
         </div>
       )}
 
-      {showUnavail && (
-        <div style={overlayStyle} onClick={e => e.target===e.currentTarget && setShowUnavail(false)}>
+      {showHistory && (
+        <div style={overlayStyle} onClick={e => e.target===e.currentTarget && setShowHistory(false)}>
           <div style={modalStyle}>
             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:16 }}>
-              <div style={{ fontWeight:700, fontSize:16 }}>Indisponibilités — {MONTH_NAMES_FR[Number(month.slice(5,7))-1]} {month.slice(0,4)}</div>
-              <button onClick={() => setShowUnavail(false)} style={{ border:'none', background:'#F1F5F9', borderRadius:8, width:28, height:28, cursor:'pointer' }}><X size={14} /></button>
+              <div style={{ fontWeight:700, fontSize:16 }}>Historique des modifications</div>
+              <button onClick={() => setShowHistory(false)} style={{ border:'none', background:'#F1F5F9', borderRadius:8, width:28, height:28, cursor:'pointer' }}><X size={14} /></button>
             </div>
-            <div style={{ display:'flex', gap:8, marginBottom:16 }}>
-              <select value={unavailPick} onChange={e => setUnavailPick(e.target.value)} style={{ flex:1, padding:8, borderRadius:8, border:'1px solid #E2E8F0' }}>
-                <option value="">— Choisir une personne —</option>
-                {eligiblePeople.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <input value={unavailReason} onChange={e => setUnavailReason(e.target.value)} placeholder="Raison (optionnel)"
-                style={{ flex:1, padding:8, borderRadius:8, border:'1px solid #E2E8F0' }} />
-              <button onClick={addUnavailability} style={btnPrimary}>Ajouter</button>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {unavailList.map(u => (
-                <div key={u.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:'#F8FAFC', padding:'8px 12px', borderRadius:8 }}>
-                  <span style={{ fontSize:13 }}>{u.profile?.name} {u.reason ? `— ${u.reason}` : ''}</span>
-                  <button onClick={() => removeUnavailability(u.id)} style={{ border:'none', background:'none', cursor:'pointer', color:'#DC2626' }}><X size={14} /></button>
+            <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:400, overflowY:'auto' }}>
+              {history.length === 0 && <div style={{ fontSize:12, color:'#94A3B8' }}>Aucune modification enregistrée pour ce planning.</div>}
+              {history.map(h => (
+                <div key={h.id} style={{ fontSize:12, background:'#F8FAFC', padding:'8px 12px', borderRadius:8 }}>
+                  <div style={{ fontWeight:700, color:'#1E293B' }}>{h.action}</div>
+                  {h.details?.contexte && (
+                    <div style={{ color:'#475569', marginTop:2 }}>
+                      {h.details.contexte} {h.details.date ? `(${formatDateShort(h.details.date)})` : ''}
+                      {h.details.poste ? ` — ${h.details.poste}` : ''}
+                      {h.details.avant !== undefined ? ` : ${h.details.avant} → ${h.details.apres}` : ''}
+                    </div>
+                  )}
+                  <div style={{ color:'#94A3B8', marginTop:2 }}>
+                    {h.performed_by?.name || '—'} · {new Date(h.created_at).toLocaleString('fr-FR')}
+                  </div>
                 </div>
               ))}
-              {unavailList.length === 0 && <div style={{ fontSize:12, color:'#94A3B8' }}>Personne d'indisponible pour ce mois.</div>}
             </div>
           </div>
         </div>

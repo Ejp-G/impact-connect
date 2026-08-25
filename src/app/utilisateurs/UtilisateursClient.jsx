@@ -43,7 +43,7 @@ function formatDateFR(d) {
 export default function UtilisateursClient({ users, fis }) {
   const [showModal, setShowModal] = useState(false)
   const [editUser, setEditUser] = useState(null)
-  const [form, setForm] = useState({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, secondary_roles:[], integrator_status:'en_service', integrator_pause_until:'' })
+  const [form, setForm] = useState({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, secondary_roles:[], integrator_status:'en_service', integrator_pause_until:'', planning_participant:true })
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [openCategories, setOpenCategories] = useState(() => Object.fromEntries(CATEGORY_GROUPS.map(g => [g.key, true])))
@@ -84,6 +84,10 @@ export default function UtilisateursClient({ users, fis }) {
     await fetch('/api/users', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, active:!active}) })
     router.refresh()
   }
+  async function togglePlanningParticipant(id, current) {
+    await fetch('/api/users', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, planning_participant: !current}) })
+    router.refresh()
+  }
   async function quickSetIntegratorStatus(id, status) {
     if (status === 'en_pause') {
       setEditingPauseDateFor(id)
@@ -106,12 +110,12 @@ export default function UtilisateursClient({ users, fis }) {
   }
   function openEdit(user) {
     setEditUser(user)
-    setForm({ name:user.name, email:user.email, password:'', role:user.role, sex:user.sex||'F', fi_id:user.fi_id||'', active:user.active, secondary_roles:user.secondary_roles||[], integrator_status: user.integrator_status || 'en_service', integrator_pause_until: user.integrator_pause_until || '' })
+    setForm({ name:user.name, email:user.email, password:'', role:user.role, sex:user.sex||'F', fi_id:user.fi_id||'', active:user.active, secondary_roles:user.secondary_roles||[], integrator_status: user.integrator_status || 'en_service', integrator_pause_until: user.integrator_pause_until || '', planning_participant: user.planning_participant !== false })
     setShowModal(true)
   }
   function openAdd() {
     setEditUser(null)
-    setForm({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, secondary_roles:[], integrator_status:'en_service', integrator_pause_until:'' })
+    setForm({ name:'', email:'', password:'', role:'equipe_suivi', sex:'F', fi_id:'', active:true, secondary_roles:[], integrator_status:'en_service', integrator_pause_until:'', planning_participant:true })
     setShowModal(true)
   }
   const btnLabel = saving ? 'Enregistrement...' : editUser ? 'Mettre a jour' : 'Creer le compte'
@@ -146,6 +150,7 @@ export default function UtilisateursClient({ users, fis }) {
                 <table>
                   <thead><tr><th>Utilisateur</th><th>Email</th><th>FI</th>
                     {g.users.some(u => isServiceRole(u.role, u.secondary_roles)) && <th>Statut de service</th>}
+                    {g.users.some(u => isServiceRole(u.role, u.secondary_roles)) && <th>Planning</th>}
                     <th>Actif</th><th>Actions</th></tr></thead>
                   <tbody>
                     {g.users.map(u=>{
@@ -197,6 +202,26 @@ export default function UtilisateursClient({ users, fis }) {
                                     <span onClick={()=>endPauseNow(u.id)} style={{ cursor:'pointer', textDecoration:'underline' }}>reprendre maintenant</span>
                                   </span>
                                 )}
+                              </div>
+                            )}
+                          </td>
+                        )}
+                        {g.users.some(x => isServiceRole(x.role, x.secondary_roles)) && (
+                          <td>
+                            {!eligible ? (
+                              <span style={{fontSize:11,color:'var(--gy)'}}>—</span>
+                            ) : (
+                              <div
+                                onClick={() => togglePlanningParticipant(u.id, u.planning_participant !== false)}
+                                style={{
+                                  cursor:'pointer', fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:8,
+                                  display:'inline-block',
+                                  color: u.planning_participant !== false ? '#16A34A' : '#94A3B8',
+                                  background: u.planning_participant !== false ? '#F0FDF4' : '#F8FAFC',
+                                }}
+                                title="Clique pour inclure/exclure du planning Accueil & Intégration"
+                              >
+                                {u.planning_participant !== false ? '✓ Inclus' : '✕ Exclu'}
                               </div>
                             )}
                           </td>
@@ -300,6 +325,23 @@ export default function UtilisateursClient({ users, fis }) {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {formIsServiceRole && (
+              <div className="form-group">
+                <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.planning_participant}
+                    onChange={e => setForm({...form, planning_participant: e.target.checked})}
+                    style={{ width:16, height:16 }}
+                  />
+                  Participe au planning Accueil & Intégration
+                </label>
+                <div style={{ fontSize:11, color:'var(--gy)', marginTop:4 }}>
+                  Décoche pour exclure définitivement cette personne de l'assignation automatique du planning (ex: un admin qui ne sert pas physiquement), sans toucher à son statut de service ni à son accès à l'application.
+                </div>
               </div>
             )}
 

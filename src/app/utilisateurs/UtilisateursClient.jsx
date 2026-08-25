@@ -15,9 +15,11 @@ const CATEGORY_GROUPS = [
   { key:'autres',  label:'Autres',                        roles:['superviseur','responsable_jeunesse'] },
 ]
 
-// Statuts d'intégrateur (chantier 2) : contrôle l'éligibilité à
-// l'assignation automatique (auto_assign_agent / auto_assign_integrators
-// en base) ET aux sélecteurs manuels (ContactDetailModal.jsx).
+// Statuts de service : contrôle l'éligibilité à l'assignation
+// automatique de nouveaux visiteurs (auto_assign_integrators) ET à
+// l'assignation automatique du planning Accueil & Intégration.
+// Une pause déclarée ici se répercute partout — aucun bouton
+// "indisponible" séparé n'existe ailleurs dans l'app.
 const INTEGRATOR_STATUSES = [
   { value: 'en_service', label: '🟢 En service', color: '#16A34A', bg: '#F0FDF4' },
   { value: 'en_pause',   label: '🟠 En pause',    color: '#C2410C', bg: '#FFF7ED' },
@@ -25,9 +27,12 @@ const INTEGRATOR_STATUSES = [
 ]
 const INTEGRATOR_STATUS_MAP = Object.fromEntries(INTEGRATOR_STATUSES.map(s => [s.value, s]))
 
-function isIntegratorRole(role, secondaryRoles = []) {
-  return ['equipe_suivi', 'responsable_suivi'].includes(role)
-    || (secondaryRoles || []).includes('equipe_suivi')
+// Étendu à equipe_accueil : ils font partie du pool du planning
+// Accueil & Intégration, donc leur statut de service doit aussi être
+// pilotable ici pour que la pause se répercute sur le planning.
+function isServiceRole(role, secondaryRoles = []) {
+  return ['equipe_suivi', 'responsable_suivi', 'equipe_accueil'].includes(role)
+    || (secondaryRoles || []).some(r => ['equipe_suivi', 'equipe_accueil'].includes(r))
 }
 
 function formatDateFR(d) {
@@ -42,9 +47,6 @@ export default function UtilisateursClient({ users, fis }) {
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [openCategories, setOpenCategories] = useState(() => Object.fromEntries(CATEGORY_GROUPS.map(g => [g.key, true])))
-  // Ligne dont le sélecteur rapide de date de pause est ouvert (id
-  // utilisateur), pour ne pas avoir à ouvrir le formulaire complet
-  // juste pour modifier/annuler une date.
   const [editingPauseDateFor, setEditingPauseDateFor] = useState(null)
   const [quickPauseDate, setQuickPauseDate] = useState('')
   const router = useRouter()
@@ -70,8 +72,6 @@ export default function UtilisateursClient({ users, fis }) {
     setSaving(true)
     const method = editUser ? 'PATCH' : 'POST'
     const payload = { ...form }
-    // pause_until n'a de sens que si le statut est en_pause — on nettoie
-    // sinon, pour ne pas laisser une date orpheline en base.
     if (payload.integrator_status !== 'en_pause') payload.integrator_pause_until = null
     if (payload.integrator_pause_until === '') payload.integrator_pause_until = null
     const body = editUser ? { id: editUser.id, ...payload } : payload
@@ -84,10 +84,6 @@ export default function UtilisateursClient({ users, fis }) {
     await fetch('/api/users', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, active:!active}) })
     router.refresh()
   }
-  // Bascule rapide du statut depuis le tableau. Passer à "en_pause"
-  // ouvre le sélecteur de date au lieu d'enregistrer immédiatement ;
-  // les deux autres statuts s'enregistrent tout de suite et effacent
-  // toute date de pause existante.
   async function quickSetIntegratorStatus(id, status) {
     if (status === 'en_pause') {
       setEditingPauseDateFor(id)
@@ -104,8 +100,6 @@ export default function UtilisateursClient({ users, fis }) {
     setEditingPauseDateFor(null)
     router.refresh()
   }
-  // Annuler la pause plus tôt que prévu = repasser en service tout de
-  // suite, sans attendre le cron quotidien.
   async function endPauseNow(id) {
     await fetch('/api/users', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, integrator_status: 'en_service', integrator_pause_until: null}) })
     router.refresh()
@@ -121,7 +115,7 @@ export default function UtilisateursClient({ users, fis }) {
     setShowModal(true)
   }
   const btnLabel = saving ? 'Enregistrement...' : editUser ? 'Mettre a jour' : 'Creer le compte'
-  const formIsIntegratorRole = isIntegratorRole(form.role, form.secondary_roles)
+  const formIsServiceRole = isServiceRole(form.role, form.secondary_roles)
 
   return (
     <div style={{maxWidth:1000}}>
@@ -151,11 +145,11 @@ export default function UtilisateursClient({ users, fis }) {
               ) : (
                 <table>
                   <thead><tr><th>Utilisateur</th><th>Email</th><th>FI</th>
-                    {g.users.some(u => isIntegratorRole(u.role, u.secondary_roles)) && <th>Statut intégrateur</th>}
+                    {g.users.some(u => isServiceRole(u.role, u.secondary_roles)) && <th>Statut de service</th>}
                     <th>Actif</th><th>Actions</th></tr></thead>
                   <tbody>
                     {g.users.map(u=>{
-                      const eligible = isIntegratorRole(u.role, u.secondary_roles)
+                      const eligible = isServiceRole(u.role, u.secondary_roles)
                       const statusInfo = INTEGRATOR_STATUS_MAP[u.integrator_status] || INTEGRATOR_STATUS_MAP.en_service
                       const isEditingPause = editingPauseDateFor === u.id
                       return (
@@ -173,7 +167,7 @@ export default function UtilisateursClient({ users, fis }) {
                         </div></td>
                         <td style={{fontSize:12,color:'var(--gd)'}}>{u.email}</td>
                         <td style={{fontSize:12,color:u.fi?'var(--gr)':'var(--gy)'}}>{u.fi?.name||'—'}</td>
-                        {g.users.some(x => isIntegratorRole(x.role, x.secondary_roles)) && (
+                        {g.users.some(x => isServiceRole(x.role, x.secondary_roles)) && (
                           <td>
                             {!eligible ? (
                               <span style={{fontSize:11,color:'var(--gy)'}}>—</span>
@@ -278,11 +272,11 @@ export default function UtilisateursClient({ users, fis }) {
               </div>
             </div>
 
-            {formIsIntegratorRole && (
+            {formIsServiceRole && (
               <div className="form-group">
-                <label className="form-label">Statut intégrateur</label>
+                <label className="form-label">Statut de service</label>
                 <div style={{ fontSize:11, color:'var(--gy)', marginBottom:8 }}>
-                  Contrôle l'éligibilité à l'assignation automatique de nouveaux visiteurs, ainsi que la sélection manuelle d'intégrateur sur une fiche.
+                  Contrôle l'éligibilité à l'assignation automatique de nouveaux visiteurs (intégrateurs) ET à l'assignation automatique du planning Accueil &amp; Intégration. Une pause déclarée ici s'applique partout — pas besoin de la signaler ailleurs.
                 </div>
                 <div style={{ display:'flex', gap:8, marginBottom: form.integrator_status === 'en_pause' ? 10 : 0 }}>
                   {INTEGRATOR_STATUSES.map(s => (

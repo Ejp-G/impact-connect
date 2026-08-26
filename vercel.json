@@ -45,6 +45,14 @@
       "schedule": "0 12 * * *"
     },
     {
+      "path": "/api/cron/push-planning-lundi",
+      "schedule": "0 13 * * 1"
+    },
+    {
+      "path": "/api/cron/push-planning-vendredi",
+      "schedule": "0 20 * * 5"
+    },
+    {
       "path": "/api/cron/daily-backup",
       "schedule": "0 23 * * *"
     },

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { FI_JOURNAL_TYPES } from '@/lib/constants'
@@ -109,6 +109,40 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
   function canManage(fi) {
     return isAdmin || profile?.id === fi.pilot_id || profile?.id === fi.copilot_id
   }
+
+  // "Mon tableau de bord" : les FIJ que je pilote ou co-pilote, avec leurs
+  // stats chargees automatiquement au chargement de la page (pas besoin
+  // de cliquer sur la carte pour les voir). Reutilise DashboardTab.
+  const myFis = useMemo(() => fis.filter(fi => canManage(fi) && (fi.pilot_id === profile?.id || fi.copilot_id === profile?.id)), [fis, profile])
+  const [myFisData, setMyFisData] = useState({})
+
+  useEffect(() => {
+    myFis.forEach(fi => {
+      if (myFisData[fi.id]) return
+      setMyFisData(prev => ({ ...prev, [fi.id]: { loading: true } }))
+      Promise.all([
+        supabase.from('contacts')
+          .select('id,first_name,last_name,fi_contacted,alert_level,assignment_date')
+          .eq('fi_id', fi.id),
+        supabase.from('fi_attendance').select('date,present').eq('fi_id', fi.id).order('date', { ascending: true }),
+        supabase.from('fi_journal').select('id,type,content,created_at,contact:contacts(first_name,last_name)')
+          .eq('fi_id', fi.id).order('created_at', { ascending: false }).limit(5),
+      ]).then(([membersRes, attRes, journalRes]) => {
+        setMyFisData(prev => ({
+          ...prev,
+          [fi.id]: {
+            loading: false,
+            members: membersRes.data || [],
+            attendanceHistory: attRes.data || [],
+            journal: journalRes.data || [],
+          }
+        }))
+      })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myFis])
+
+  const firstName = (profile?.name || '').split(' ')[0]
 
   function openCreate() {
     setEditingFi(null)
@@ -408,6 +442,35 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
 
   return (
     <div style={{ maxWidth: 1100 }}>
+      {myFis.length > 0 && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Bonjour {firstName || ''} 👋</div>
+          <div style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>
+            {myFis.length === 1 ? 'Voici où en est ta FIJ.' : `Voici où en sont tes ${myFis.length} FIJ.`}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {myFis.map(fi => {
+              const d = myFisData[fi.id]
+              return (
+                <div key={fi.id} className="card" style={{ border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800 }}>{fi.name}</div>
+                      <div style={{ fontSize: 12, color: '#64748B' }}>{fi.commune_name} · {fi.day} à {fi.time}</div>
+                    </div>
+                    <button onClick={() => openDetail(fi)} style={secondaryBtnStyle}>Ouvrir la FIJ</button>
+                  </div>
+                  {!d || d.loading ? (
+                    <div style={{ fontSize: 13, color: '#94A3B8' }}>Chargement…</div>
+                  ) : (
+                    <DashboardTab detailFi={fi} members={d.members} attendanceHistory={d.attendanceHistory} journal={d.journal} />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <div className="g3">
         {[...fis].sort((a, b) => {
           const mineA = profile?.id === a.pilot_id || profile?.id === a.copilot_id

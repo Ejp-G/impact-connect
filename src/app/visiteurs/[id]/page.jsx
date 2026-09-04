@@ -27,6 +27,28 @@ export default async function ContactProfilePage({ params }) {
     .select('position, integrator:profiles(id,name,email,phone)')
     .eq('contact_id', contactId).order('position')
 
+  // Determine si le secteur (quartier, sinon commune) du contact est
+  // couvert par une FIJ. Calcule a l'affichage a partir des donnees
+  // existantes (commune_fi_mapping), aucune colonne supplementaire.
+  let noFiCoverage = false
+  if (contact.commune_id) {
+    const { data: mappingRows } = await supabase.from('commune_fi_mapping')
+      .select('quartier').eq('commune_id', contact.commune_id)
+    const hasAnyMappingForCommune = (mappingRows || []).length > 0
+    if (!hasAnyMappingForCommune) {
+      noFiCoverage = true
+    } else if (contact.quartier) {
+      const q = contact.quartier.trim().toLowerCase()
+      const matchesQuartier = (mappingRows || []).some(row =>
+        (row.quartier || '').split(',').some(part => {
+          const p = part.trim().toLowerCase()
+          return p && (q.includes(p) || p.includes(q))
+        })
+      )
+      noFiCoverage = !matchesQuartier
+    }
+  }
+
   const [
     { data: auditRows },
     { data: reportRows },
@@ -84,6 +106,7 @@ export default async function ContactProfilePage({ params }) {
         communications={commRows || []}
         reports={reportRows || []}
         profile={profile}
+        noFiCoverage={noFiCoverage}
       />
     </AppLayout>
   )

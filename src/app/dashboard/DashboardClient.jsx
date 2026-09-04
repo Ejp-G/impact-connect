@@ -5,6 +5,7 @@ import { STAGES, STAGE_LABEL, STAGE_COLOR } from '@/lib/constants'
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { createClient } from '@/lib/supabase/client'
 import TreatAlertModal from '@/components/dashboard/TreatAlertModal'
+import { firstNameOf } from '@/lib/name-utils'
 import { Users, Home, AlertCircle, CheckSquare, UserPlus, Phone, Compass, Clock, ArrowLeft, ChevronLeft, ChevronRight, Download, CheckCircle2, BookOpen, TrendingUp, TrendingDown } from '@/lib/icons'
 
 const ACTIVITY_ICON_MAP = {
@@ -53,28 +54,19 @@ export default function DashboardClient({ stats, profile }) {
   const currentYear = new Date().getFullYear()
   const YEAR_OPTIONS = [currentYear - 5, currentYear - 4, currentYear - 3, currentYear - 2, currentYear - 1, currentYear]
   const [viewYear, setViewYear] = useState(currentYear)
-  const [yearData, setYearData] = useState(null) // null = utiliser stats (annee en cours), sinon {visitors:[], integrations:[], accueil:[]}
-  const [prevYearTotal, setPrevYearTotal] = useState(null) // total visiteurs de l'année N-1, pour la carte "Progression"
+  const [yearData, setYearData] = useState(null)
+  const [prevYearTotal, setPrevYearTotal] = useState(null)
   const [drillLevel, setDrillLevel] = useState('year')
   const [drillMonth, setDrillMonth] = useState(null)
-  // NOUVEAU : source de la vue mensuelle en cours — 'visitors' (fiches
-  // individuelles, table contacts) ou 'accueil' (comptage manuel par
-  // culte, table cultes). Les deux séries n'ont pas la même nature :
-  // Visiteurs ouvre une liste de personnes cliquables, Accueil ouvre
-  // uniquement les totaux saisis par date de culte (pas de fiche
-  // individuelle derrière un chiffre de comptage).
   const [drillSource, setDrillSource] = useState('visitors')
   const [drillDay, setDrillDay] = useState(null)
   const [drillDayContacts, setDrillDayContacts] = useState([])
   const [loadingDrill, setLoadingDrill] = useState(false)
 
-  // Traitement d'alerte directement depuis le dashboard (sections 10-17)
   const [treatingTaskId, setTreatingTaskId] = useState(null)
 
   useRealtimeRefresh(['contacts', 'tasks', 'familles_impact'])
 
-  // Charge les 12 mois d'une annee differente de l'annee en cours (celle-ci
-  // est deja fournie via stats, calculee cote serveur au chargement initial).
   async function loadYear(year) {
     setLoadingDrill(true)
     const yearStart = `${year}-01-01`
@@ -94,11 +86,6 @@ export default function DashboardClient({ stats, profile }) {
     setLoadingDrill(false)
   }
 
-  // Total visiteurs de l'année précédente — requête légère (count only),
-  // uniquement pour calculer la progression réelle affichée sous le
-  // graphique. Si l'année précédente n'a aucune donnée, la carte
-  // "Progression" l'indique proprement plutôt que d'afficher un chiffre
-  // inventé (section 28 : gérer le cas où l'année N-1 vaut 0 ou n'existe pas).
   async function loadPrevYearTotal(year) {
     const { count } = await supabase.from('contacts')
       .select('*', { count: 'exact', head: true })
@@ -117,12 +104,6 @@ export default function DashboardClient({ stats, profile }) {
 
   useEffect(() => { loadPrevYearTotal(currentYear) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Vue mensuelle — deux sources possibles :
-  // - 'visitors' : une ligne par jour où au moins un visiteur est arrivé
-  //   (table contacts, cliquable ensuite pour voir les fiches du jour).
-  // - 'accueil' : une ligne par date de culte où un comptage a été saisi
-  //   (table cultes, nouveaux_comptes) — pas de drill jour par jour,
-  //   puisqu'il n'y a pas de fiche individuelle derrière ce chiffre.
   async function openMonth(monthIndex, source = 'visitors') {
     setLoadingDrill(true)
     const start = new Date(viewYear, monthIndex, 1).toISOString().slice(0, 10)
@@ -160,8 +141,6 @@ export default function DashboardClient({ stats, profile }) {
   const [drillMonthData, setDrillMonthData] = useState([])
 
   async function openDay(dateStr) {
-    // Pas de drill jour par jour pour Comptage Accueil — voir commentaire
-    // sur openMonth.
     if (drillSource !== 'visitors') return
     setLoadingDrill(true)
     const { data } = await supabase.from('contacts')
@@ -230,25 +209,14 @@ export default function DashboardClient({ stats, profile }) {
     return () => { cancelled = true; pieChartInstance.current?.destroy() }
   }, [stats])
 
-  // Totaux réels de l'année affichée — base des cartes de synthèse
-  // sous le graphique (section 27). Jamais de valeur inventée : si une
-  // série n'a pas de données, son total est simplement 0.
   const visitorsData = yearData ? yearData.visitors : (stats.monthlyVisitors || Array(12).fill(0))
   const integrationsData = yearData ? yearData.integrations : (stats.monthlyIntegrations || Array(12).fill(0))
   const accueilData = yearData ? yearData.accueil : (stats.monthlyAccueil || Array(12).fill(0))
   const yearVisitorsTotal = visitorsData.reduce((s, v) => s + v, 0)
   const yearIntegrationsTotal = integrationsData.reduce((s, v) => s + v, 0)
-  // Progression vs année précédente (section 28) : calcul réel uniquement
-  // si l'année N-1 a des données ; sinon affichage neutre "—" plutôt
-  // qu'un pourcentage fabriqué.
   const growthPct = (prevYearTotal !== null && prevYearTotal > 0)
     ? Math.round(((yearVisitorsTotal - prevYearTotal) / prevYearTotal) * 100)
     : null
-  // NOUVEAU : la comparaison devient peu fiable si l'année précédente
-  // n'a que très peu de données par rapport à l'année en cours — signe
-  // probable d'une année de référence incomplète (migration, démarrage
-  // de la saisie en cours d'année...) plutôt qu'une vraie explosion de
-  // fréquentation. Seuil arbitraire mais raisonnable : N-1 < 20% de N.
   const growthUnreliable = growthPct !== null && prevYearTotal > 0 && prevYearTotal < yearVisitorsTotal * 0.2
 
   useEffect(() => {
@@ -277,13 +245,6 @@ export default function DashboardClient({ stats, profile }) {
                 borderSkipped: false, order: 3, barPercentage: .7, categoryPercentage: .8
               },
               {
-                // Traité différemment des deux barres ci-dessus : ligne
-                // fine + aire translucide plutôt qu'une 3e barre, car le
-                // Comptage Accueil n'est pas de même nature (saisie
-                // manuelle par culte, pas une fiche par personne). Aucun
-                // point visible au repos — seulement au survol — pour un
-                // rendu plus sobre. pointHitRadius élargi pour que le
-                // clic reste détectable malgré pointRadius: 0.
                 type: 'line', label: 'Comptage Accueil', data: accueilData,
                 borderColor: '#F97316', backgroundColor: 'rgba(249,115,22,.10)',
                 borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 5, pointHitRadius: 12,
@@ -302,9 +263,6 @@ export default function DashboardClient({ stats, profile }) {
             onClick: (evt, elements) => {
               const bar = elements.find(e => e.datasetIndex <= 1)
               if (bar) { openMonth(bar.index, 'visitors'); return }
-              // NOUVEAU : clic sur la ligne Comptage Accueil (datasetIndex
-              // 2) — ouvre la vue mensuelle correspondante, sourcée sur
-              // cultes plutôt que contacts.
               const accueilPoint = elements.find(e => e.datasetIndex === 2)
               if (accueilPoint) openMonth(accueilPoint.index, 'accueil')
             },
@@ -341,8 +299,6 @@ export default function DashboardClient({ stats, profile }) {
           },
           options: {
             responsive: true, maintainAspectRatio: false,
-            // Pas de drill jour par jour pour Comptage Accueil — voir
-            // commentaire sur openDay.
             onClick: (evt, elements) => { if (isAccueil) return; if (elements.length) openDay(drillMonthData[elements[0].index].date) },
             plugins: { legend: { display: false } },
             scales: {
@@ -357,7 +313,7 @@ export default function DashboardClient({ stats, profile }) {
     return () => { cancelled = true; growthChartInstance.current?.destroy() }
   }, [drillLevel, drillMonth, drillMonthData, drillSource, yearData, stats.monthlyVisitors, stats.monthlyIntegrations, stats.monthlyAccueil, viewYear])
 
-  const firstName = profile?.name?.split(' ')[0] || 'Pasteur'
+  const firstName = firstNameOf(profile?.name) || 'Pasteur'
 
   const statCards = [
     { Icon: Users, label: 'Total contacts', value: stats.totalContacts || 0, color: '#0B3D91', sub: null, href: '/visiteurs' },
@@ -562,7 +518,6 @@ export default function DashboardClient({ stats, profile }) {
               </div>
             </div>
 
-            {/* Sélecteur d'année en pills (section 23) */}
             {drillLevel === 'year' && (
               <div style={{ display:'flex', gap:6, marginBottom:14, flexWrap:'wrap' }}>
                 {YEAR_OPTIONS.map(y => (
@@ -633,9 +588,6 @@ export default function DashboardClient({ stats, profile }) {
               <div style={{ height:260 }}><canvas ref={growthRef} /></div>
             )}
 
-            {/* Cartes de synthèse (section 27) — uniquement en vue année,
-                jamais de chiffre inventé : "—" si la donnée n'est pas
-                disponible plutôt qu'un pourcentage fabriqué. */}
             {drillLevel === 'year' && !loadingDrill && (
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px,1fr))', gap:10, marginTop:18, paddingTop:18, borderTop:'1px solid #F1F5F9' }}>
                 <SummaryCard label="Visiteurs cette année" value={yearVisitorsTotal} color="#0B3D91" />

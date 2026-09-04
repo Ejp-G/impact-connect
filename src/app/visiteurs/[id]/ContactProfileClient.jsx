@@ -322,7 +322,7 @@ function DeleteVisitorModal({ contact, onClose, onDeleted }) {
   )
 }
 
-export default function ContactProfileClient({ contact, integratorPair, timeline, needs, communications, reports, profile }) {
+export default function ContactProfileClient({ contact, integratorPair, timeline, needs, communications, reports, profile, noFiCoverage = false }) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const [tab, setTab] = useState('apercu')
@@ -451,6 +451,11 @@ export default function ContactProfileClient({ contact, integratorPair, timeline
             {contact.hors_territoire && (
               <span className="badge" style={{ background: '#FFF7ED', color: '#9A3412', fontWeight: 700 }}>
                 📍 Hors territoire
+              </span>
+            )}
+            {noFiCoverage && !contact.hors_territoire && (
+              <span className="badge" style={{ background: '#FFF7ED', color: '#9A3412', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <AlertTriangle size={11} strokeWidth={2} /> Pas encore de FIJ dans son secteur
               </span>
             )}
             <CompletenessBadge missingCount={missingFields.length} total={COMPLETENESS_FIELDS.length} />

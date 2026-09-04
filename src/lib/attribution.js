@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { Resend } from 'resend'
+import { sendPushToUser } from '@/lib/push-send'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -51,8 +52,8 @@ async function notifyFiPilot(supabase, fiId, contactId) {
   const { data: fi } = await supabase.from('familles_impact')
     .select(`
       name,
-      pilot:profiles!familles_impact_pilot_id_fkey(name,email,phone),
-      copilot:profiles!familles_impact_copilot_id_fkey(name,email,phone)
+      pilot:profiles!familles_impact_pilot_id_fkey(id,name,email,phone),
+      copilot:profiles!familles_impact_copilot_id_fkey(id,name,email,phone)
     `)
     .eq('id', fiId).single()
   if (!fi) return
@@ -73,6 +74,18 @@ async function notifyFiPilot(supabase, fiId, contactId) {
   const waLink = waNumber ? `https://wa.me/${waNumber}?text=${waMessage}` : null
 
   const recipients = [fi.pilot, fi.copilot].filter(p => p?.email)
+
+  // Notification push, independamment de l'email (un pilote peut avoir
+  // l'un, l'autre, ou les deux abonnements actifs).
+  const pushRecipients = [fi.pilot, fi.copilot].filter(p => p?.id)
+  for (const person of pushRecipients) {
+    sendPushToUser(supabase, person.id, {
+      title: `Nouveau dans ta FIJ ${fi.name}`,
+      body: `${contact.first_name} ${contact.last_name} vient d'être rattaché(e) à ta FIJ.${contact.commune ? ` (${contact.commune})` : ''}`,
+      url: `/fi`,
+    }).catch(console.error)
+  }
+
   if (!recipients.length) return
 
   for (const person of recipients) {

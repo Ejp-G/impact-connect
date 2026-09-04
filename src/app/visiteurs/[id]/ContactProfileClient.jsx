@@ -49,6 +49,7 @@ const TIMELINE_STYLE = {
   communication: { Icon: MessageCircle, color: '#8B5CF6' },
   need:          { Icon: Compass,       color: '#F97316' },
   attendance:    { Icon: CheckCircle2,  color: '#22C55E' },
+  fi_journal:    { Icon: FileText,      color: '#0369A1' },
 }
 
 const NEED_STATUS_LABEL = { a_traiter: 'À traiter', en_cours: 'En cours', termine: 'Terminé' }

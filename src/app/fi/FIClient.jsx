@@ -409,20 +409,30 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
   return (
     <div style={{ maxWidth: 1100 }}>
       <div className="g3">
-        {fis.map(fi => {
+        {[...fis].sort((a, b) => {
+          const mineA = profile?.id === a.pilot_id || profile?.id === a.copilot_id
+          const mineB = profile?.id === b.pilot_id || profile?.id === b.copilot_id
+          return mineA === mineB ? 0 : mineA ? -1 : 1
+        }).map(fi => {
           const pct = Math.round((fi.memberCount / fi.capacity) * 100)
           const st = statusInfo(fi.status)
           const StatusIcon = FI_STATUS_ICON_MAP[fi.status] || FI_STATUS_ICON_MAP.en_developpement
+          const isMine = profile?.id === fi.pilot_id || profile?.id === fi.copilot_id
           return (
-            <div key={fi.id} onClick={() => openDetail(fi)} className="card" style={{ cursor: 'pointer', overflow: 'hidden', padding: 0, opacity: st.dim ? .6 : 1 }}>
+            <div key={fi.id} onClick={() => openDetail(fi)} className="card" style={{ cursor: 'pointer', overflow: 'hidden', padding: 0, opacity: st.dim ? .6 : 1, border: isMine ? '2px solid #16A34A' : undefined }}>
               <div style={{ padding: '20px 20px 44px', background: 'linear-gradient(135deg,var(--nd) 0%,var(--n) 100%)', color: '#fff', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', right: -20, top: -20, width: 100, height: 100, borderRadius: '50%', border: '2px solid rgba(255,255,255,.1)' }} />
                 <div style={{ fontSize: 10, opacity: .7, letterSpacing: 1, fontWeight: 600, textTransform: 'uppercase' }}>{fi.commune_name}</div>
                 <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4 }}>{fi.name}</div>
-                <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+                <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 10, background: 'rgba(255,255,255,.2)', padding: '2px 8px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <StatusIcon size={11} strokeWidth={2} /> {st.label}
                   </span>
+                  {isMine && (
+                    <span style={{ fontSize: 10, background: '#16A34A', padding: '2px 8px', borderRadius: 999, fontWeight: 700 }}>
+                      ★ {profile?.id === fi.pilot_id ? 'Ma FIJ (pilote)' : 'Ma FIJ (co-pilote)'}
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ padding: 20, marginTop: -24, position: 'relative', zIndex: 1 }}>

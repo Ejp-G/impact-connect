@@ -47,6 +47,13 @@ async function clearOldFiPilotAssignment(supabase, userId, oldFiId) {
     await supabase.from('familles_impact').update({ copilot_id: null }).eq('id', oldFiId)
   }
 }
+// pilote_fi peut etre le role principal OU un role secondaire (une
+// personne de l'equipe suivi ou accueil peut aussi piloter une FIJ) —
+// dans les deux cas, l'assignation doit se declencher.
+function hasPiloteFiRole(role, secondaryRoles) {
+  return role === 'pilote_fi' || (secondaryRoles || []).includes('pilote_fi')
+}
+
 export async function GET() {
   const supabase = createClient()
   if (!await checkAdmin(supabase)) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
@@ -75,7 +82,7 @@ export async function POST(request) {
     await supabase.from('profiles').update(postCreatePatch).eq('id', authUser.user.id)
   }
   let warning = null
-  if (role === 'pilote_fi' && fi_id) {
+  if (hasPiloteFiRole(role, secondary_roles) && fi_id) {
     warning = await syncFiPilotAssignment(supabase, authUser.user.id, fi_id)
   }
   return NextResponse.json({ data: authUser.user, warning }, { status: 201 })
@@ -95,24 +102,30 @@ export async function PATCH(request) {
       profileUpdates[field] = null
     }
   }
-  // Si le fi_id change, on recupere l'ancien pour pouvoir liberer son
-  // slot pilote/co-pilote avant d'assigner le nouveau.
+  // On a besoin de l'etat actuel (role, fi_id, roles secondaires) des que
+  // fi_id OU secondary_roles change, pour savoir si "pilote_fi" s'active
+  // ou se desactive et s'il faut liberer/assigner une FIJ en consequence.
   let oldFiId = null
-  let currentRole = null
-  if ('fi_id' in profileUpdates) {
-    const { data: current } = await supabase.from('profiles').select('fi_id,role').eq('id', id).single()
+  let effectiveRole = null
+  let effectiveSecondaryRoles = null
+  const touchesPiloteFiStatus = 'fi_id' in profileUpdates || 'secondary_roles' in profileUpdates || 'role' in profileUpdates
+  if (touchesPiloteFiStatus) {
+    const { data: current } = await supabase.from('profiles').select('fi_id,role,secondary_roles').eq('id', id).single()
     oldFiId = current?.fi_id || null
-    currentRole = profileUpdates.role || current?.role || null
+    effectiveRole = 'role' in profileUpdates ? profileUpdates.role : current?.role
+    effectiveSecondaryRoles = 'secondary_roles' in profileUpdates ? profileUpdates.secondary_roles : (current?.secondary_roles || [])
   }
   const { data, error } = await supabase.from('profiles').update(profileUpdates).eq('id', id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   let warning = null
-  if ('fi_id' in profileUpdates && currentRole === 'pilote_fi') {
-    if (oldFiId && oldFiId !== profileUpdates.fi_id) {
+  const isPiloteFiNow = hasPiloteFiRole(effectiveRole, effectiveSecondaryRoles)
+  const newFiId = 'fi_id' in profileUpdates ? profileUpdates.fi_id : oldFiId
+  if (touchesPiloteFiStatus) {
+    if (!isPiloteFiNow || (oldFiId && oldFiId !== newFiId)) {
       await clearOldFiPilotAssignment(supabase, id, oldFiId)
     }
-    if (profileUpdates.fi_id) {
-      warning = await syncFiPilotAssignment(supabase, id, profileUpdates.fi_id)
+    if (isPiloteFiNow && newFiId) {
+      warning = await syncFiPilotAssignment(supabase, id, newFiId)
     }
   }
   return NextResponse.json({ data, warning })

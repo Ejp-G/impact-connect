@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { Resend } from 'resend'
 import { sendPushToUser } from '@/lib/push-send'
+import { firstNameOf } from '@/lib/name-utils'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -99,7 +100,7 @@ async function notifyFiPilot(supabase, fiId, contactId) {
             <div style="text-align: center; margin-bottom: 24px;">
               <div style="display:inline-block;background:#0B3D91;color:#fff;font-size:18px;font-weight:800;padding:10px 20px;border-radius:12px;">EJP Guadeloupe</div>
             </div>
-            <p style="font-size:16px;">Salut ${(person.name || '').split(' ')[0]},</p>
+            <p style="font-size:16px;">Salut ${firstNameOf(person.name)},</p>
             <p style="font-size:16px;line-height:1.7;">Une nouvelle personne vient d'être rattachée à ta FIJ <strong>${fi.name}</strong> :</p>
             <div style="background:#F8FAFC;border-radius:12px;padding:16px 20px;margin:20px 0;font-size:14px;line-height:1.9;">
               <div><strong>${contact.first_name} ${contact.last_name}</strong></div>

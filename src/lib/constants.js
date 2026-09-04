@@ -11,6 +11,14 @@ export const STAGES = [
   { id:'leader_pot',  label:'Leader Potentiel',   color:'#EF4444' },
   { id:'leader',      label:'Leader',             color:'#0B3D91' },
 ]
+export const FI_JOURNAL_TYPES = {
+  priere:     { label: 'Prière',            color: '#7C3AED' },
+  besoin:     { label: 'Besoin',             color: '#DC2626' },
+  difficulte: { label: 'Difficulté',         color: '#D97706' },
+  remarque:   { label: 'Remarque',           color: '#0369A1' },
+  action:     { label: 'Action réalisée',    color: '#16A34A' },
+  decision:   { label: 'Décision',           color: '#334155' },
+}
 export const ROLES = {
   admin:                   'Administrateur général',
   equipe_accueil:          'Équipe Accueil',

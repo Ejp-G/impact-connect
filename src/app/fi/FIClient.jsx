@@ -2,6 +2,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { FI_JOURNAL_TYPES } from '@/lib/constants'
 import {
   FI_STATUS_ICON_MAP, JOURNAL_TYPE_ICON_MAP,
   BarChart3, Users, Calendar, FileText, Settings, Clock, CheckCircle2,
@@ -13,7 +14,7 @@ const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dima
 const emptyForm = {
   name: '', commune_id: '', address: '', quartiers: '',
   pilot_id: '', copilot_id: '', day: 'Jeudi', time: '19:00',
-  capacity: 15, status: 'en_developpement', notes: ''
+  capacity: 15, status: 'active', notes: ''
 }
 
 const ABSENCE_REASONS = [
@@ -26,14 +27,7 @@ const ABSENCE_REASONS = [
   { value: 'autre', label: 'Autre' }
 ]
 
-const JOURNAL_TYPES = {
-  priere: { label: 'Prière', color: '#7C3AED' },
-  besoin: { label: 'Besoin', color: '#DC2626' },
-  difficulte: { label: 'Difficulté', color: '#D97706' },
-  remarque: { label: 'Remarque', color: '#0369A1' },
-  action: { label: 'Action réalisée', color: '#16A34A' },
-  decision: { label: 'Décision', color: '#334155' }
-}
+const JOURNAL_TYPES = FI_JOURNAL_TYPES
 
 const TABS = [
   { id: 'dashboard', label: 'Tableau de bord', Icon: BarChart3 },
@@ -53,7 +47,7 @@ function statusInfo(status) {
   if (status === 'active') return { label: 'Active', dim: false, color: '#16A34A' }
   if (status === 'en_pause') return { label: 'En pause', dim: true, color: '#D97706' }
   if (status === 'fermee') return { label: 'Fermée', dim: true, color: '#DC2626' }
-  return { label: 'En développement', dim: false, color: '#0369A1' }
+  return { label: 'Active', dim: false, color: '#16A34A' }
 }
 
 function hoursSince(dateStr) {
@@ -135,7 +129,7 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
       day: fi.day || 'Jeudi',
       time: fi.time || '19:00',
       capacity: fi.capacity || 15,
-      status: fi.status || 'en_developpement',
+      status: fi.status || 'active',
       notes: fi.notes || ''
     })
     setFormError('')
@@ -517,7 +511,6 @@ export default function FIClient({ fis, profile, profiles = [], communes = [] })
 
               <Field label="Statut">
                 <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} style={inputStyle}>
-                  <option value="en_developpement">En développement</option>
                   <option value="active">Active</option>
                   <option value="en_pause">En pause (fermeture temporaire)</option>
                   <option value="fermee">Fermée définitivement</option>

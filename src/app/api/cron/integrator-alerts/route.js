@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { Resend } from 'resend'
+import { firstNameOf } from '@/lib/name-utils'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -80,7 +81,7 @@ export async function GET(request) {
     if (hoursElapsed >= 120 && !c.integrator_reminder_120h_sent) {
       for (const p of allSuivi || []) {
         await sendEmail(p.email, `🚨🚨 ${fullName} sans contact depuis 5 jours`, emailWrapper(
-          `Salut ${(p.name || '').split(' ')[0]},`,
+          `Salut ${firstNameOf(p.name)},`,
           `<p style="font-size:15px;line-height:1.7;"><strong>${fullName}</strong> n'a toujours pas été contacté(e) depuis 5 jours par son binôme d'intégrateurs. Toute l'équipe Suivi est notifiée pour qu'aucune personne ne soit oubliée.</p>`
         ))
       }
@@ -92,7 +93,7 @@ export async function GET(request) {
     } else if (hoursElapsed >= 96 && !c.integrator_reminder_96h_sent) {
       for (const r of responsables || []) {
         await sendEmail(r.email, `🚨 ${fullName} toujours sans contact (96h)`, emailWrapper(
-          `Salut ${(r.name || '').split(' ')[0]},`,
+          `Salut ${firstNameOf(r.name)},`,
           `<p style="font-size:15px;line-height:1.7;"><strong>${fullName}</strong> n'a toujours pas été contacté(e) après 96h par son binôme d'intégrateurs. Une intervention est nécessaire.</p>`
         ))
       }
@@ -104,7 +105,7 @@ export async function GET(request) {
     } else if (hoursElapsed >= 72 && !c.integrator_reminder_72h_sent) {
       for (const p of pairEmails) {
         await sendEmail(p.email, `🚨 URGENT : ${fullName} sans contact depuis 72h`, emailWrapper(
-          `Salut ${(p.name || '').split(' ')[0]},`,
+          `Salut ${firstNameOf(p.name)},`,
           `<p style="font-size:15px;line-height:1.7;"><strong>${fullName}</strong> attend un premier contact depuis 72h. Merci d'agir rapidement.</p>`
         ))
       }
@@ -116,7 +117,7 @@ export async function GET(request) {
     } else if (hoursElapsed >= 48 && !c.integrator_reminder_48h_sent) {
       for (const p of pairEmails) {
         await sendEmail(p.email, `⏰ Relance : ${fullName} n'a pas encore été contacté(e)`, emailWrapper(
-          `Salut ${(p.name || '').split(' ')[0]},`,
+          `Salut ${firstNameOf(p.name)},`,
           `<p style="font-size:15px;line-height:1.7;"><strong>${fullName}</strong> vous a été confié(e) il y a 48h et le premier contact n'a pas encore été confirmé dans Prodiges Connect. Merci de le/la contacter dès que possible.</p>`
         ))
       }

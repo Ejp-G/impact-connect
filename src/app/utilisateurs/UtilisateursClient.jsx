@@ -346,7 +346,7 @@ export default function UtilisateursClient({ users, fis }) {
               </div>
             )}
 
-            {form.role === 'pilote_fi' && (
+            {(form.role === 'pilote_fi' || form.secondary_roles.includes('pilote_fi')) && (
               <div className="form-group"><label className="form-label">Famille Impact assignee</label>
                 <select className="form-input" value={form.fi_id} onChange={e=>setForm({...form,fi_id:e.target.value})}>
                   <option value="">Selectionner...</option>

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import AppLayout from '@/components/layout/AppLayout'
 import ContactProfileClient from './ContactProfileClient'
+import { FI_JOURNAL_TYPES } from '@/lib/constants'
 
 export default async function ContactProfilePage({ params }) {
   const supabase = createClient()
@@ -32,6 +33,7 @@ export default async function ContactProfilePage({ params }) {
     { data: commRows },
     { data: needRows },
     attendanceResult,
+    journalResult,
   ] = await Promise.all([
     supabase.from('audit_log').select('id,action,details,created_at,performed_by:profiles(name)')
       .eq('entity_type', 'contact').eq('entity_id', contactId).order('created_at', { ascending: false }).limit(30),
@@ -44,8 +46,16 @@ export default async function ContactProfilePage({ params }) {
     contact.fi_id
       ? supabase.from('fi_attendance').select('date,present,notes').eq('contact_id', contactId).order('date', { ascending: false })
       : Promise.resolve({ data: [] }),
+    // Comptes-rendus des pilotes/co-pilotes FIJ concernant specifiquement
+    // ce contact (onglet "Journal" de la page /fi). Sans nouvelle table :
+    // fi_journal existe deja, on l'integre juste a la timeline unifiee.
+    contact.fi_id
+      ? supabase.from('fi_journal').select('id,type,content,created_at,author:profiles(name)')
+          .eq('contact_id', contactId).order('created_at', { ascending: false })
+      : Promise.resolve({ data: [] }),
   ])
   const attendanceRows = attendanceResult.data
+  const journalRows = journalResult.data
 
   // Timeline unifiee : fusionne toutes les sources existantes, aucune
   // nouvelle table necessaire. C'est le coeur de la vue "HubSpot-like".
@@ -55,6 +65,13 @@ export default async function ContactProfilePage({ params }) {
     ...(commRows || []).map(r => ({ type: 'communication', date: r.sent_at, title: `Message ${r.channel}`, sub: r.direction, details: r.content })),
     ...(needRows || []).map(r => ({ type: 'need', date: r.detected_at, title: 'Besoin détecté', sub: r.detected_by?.name, details: r.note, category: r.category })),
     ...(attendanceRows || []).map(r => ({ type: 'attendance', date: r.date, title: r.present ? 'Présent à la FIJ' : 'Absent à la FIJ', sub: null, details: r.notes })),
+    ...(journalRows || []).map(r => ({
+      type: 'fi_journal',
+      date: r.created_at,
+      title: `Compte-rendu FIJ · ${FI_JOURNAL_TYPES[r.type]?.label || r.type}`,
+      sub: r.author?.name,
+      details: r.content,
+    })),
   ].filter(e => e.date).sort((a, b) => new Date(b.date) - new Date(a.date))
 
   return (

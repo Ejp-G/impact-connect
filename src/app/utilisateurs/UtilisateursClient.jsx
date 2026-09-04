@@ -76,9 +76,10 @@ export default function UtilisateursClient({ users, fis }) {
     if (payload.integrator_pause_until === '') payload.integrator_pause_until = null
     const body = editUser ? { id: editUser.id, ...payload } : payload
     const res = await fetch('/api/users', { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
-    const { error } = await res.json()
+    const { error, warning } = await res.json()
     if (error) { alert(error); setSaving(false); return }
     setShowModal(false); setSaving(false); router.refresh()
+    if (warning) alert(warning)
   }
   async function toggleActive(id, active) {
     await fetch('/api/users', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, active:!active}) })
@@ -351,6 +352,9 @@ export default function UtilisateursClient({ users, fis }) {
                   <option value="">Selectionner...</option>
                   {fis.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
                 </select>
+                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
+                  L'assigne comme pilote (ou co-pilote si un pilote existe deja) de cette FIJ.
+                </div>
               </div>
             )}
             <div style={{display:'flex',gap:12,marginTop:8}}>

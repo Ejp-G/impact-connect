@@ -29,23 +29,25 @@ const PARCOURS_TOKEN_KEY = 'ic_parcours_token'
 function isValidEmail(v) { return !!v && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) }
 function isValidPhone(v) { return !v || /^[\d\s+().-]{6,}$/.test(v) }
 
-export default function QRFormClient({ welcomeTeam = [] }) {
+export default function QRFormClient({ welcomeTeam = [], communes = [], communeQuartiers = {} }) {
   const [step, setStep] = useState(0)
   const [sent, setSent] = useState(false)
   const [saving, setSaving] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [errors, setErrors] = useState({})
   const [token, setToken] = useState(null)
+  const [quartierFreeText, setQuartierFreeText] = useState(false)
   const initRef = useRef(false)
 
   const [form, setForm] = useState({
     firstName:'', lastName:'', sex:'F', dateOfBirth:'', phone:'', whatsapp:'', email:'',
-    commune:'', quartier:'', address:'', firstVisit:true, salvationCall:false, wantsFI:true,
+    commune:'', communeId:'', quartier:'', address:'', firstVisit:true, salvationCall:false, wantsFI:true,
     howFound:'', prayerRequest:'', parentLastName:'', parentFirstName:'', parentPhone:'', parentEmail:'', parentRelation:'',
     availability:[], contactPreference:'whatsapp', invitedBy:'', cameAlone:false,
     integratorWelcome:'', welcomedByOther:'', prayerCategories:[]
   })
   const isMinor = form.dateOfBirth && new Date(form.dateOfBirth) > new Date(new Date().setFullYear(new Date().getFullYear()-18))
+  const quartierOptions = communeQuartiers[form.communeId] || []
 
   // Création du parcours dès l'entrée dans le formulaire, ou reprise
   // d'un parcours existant. Priorité : lien de reprise envoyé par le
@@ -311,11 +313,42 @@ export default function QRFormClient({ welcomeTeam = [] }) {
               </div>
               <div className="form-group">
                 <label className="form-label">Commune *</label>
-                <input className="form-input" autoComplete="address-level2" name="address-level2" value={form.commune} onChange={e=>setForm({...form,commune:e.target.value})} placeholder="ex: Pointe-a-Pitre, Abymes..." style={errors.commune ? { borderColor:'var(--re)' } : undefined} />
+                {communes.length > 0 ? (
+                  <select
+                    className="form-input"
+                    autoComplete="address-level2"
+                    name="address-level2"
+                    value={form.communeId}
+                    onChange={e=>{
+                      const opt = e.target.options[e.target.selectedIndex]
+                      setForm({...form, communeId:e.target.value, commune:e.target.value ? opt.text : '', quartier:''})
+                      setQuartierFreeText(false)
+                    }}
+                    style={errors.commune ? { borderColor:'var(--re)' } : undefined}
+                  >
+                    <option value="">Sélectionner une commune...</option>
+                    {communes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                ) : (
+                  <input className="form-input" autoComplete="address-level2" name="address-level2" value={form.commune} onChange={e=>setForm({...form,commune:e.target.value})} placeholder="ex: Pointe-a-Pitre, Abymes..." style={errors.commune ? { borderColor:'var(--re)' } : undefined} />
+                )}
                 {errors.commune && <div style={errStyle}>{errors.commune}</div>}
               </div>
-              <div className="form-group"><label className="form-label">Quartier</label>
-                <input className="form-input" value={form.quartier} onChange={e=>setForm({...form,quartier:e.target.value})} />
+              <div className="form-group">
+                <label className="form-label">Quartier</label>
+                {quartierOptions.length > 0 && !quartierFreeText ? (
+                  <>
+                    <select className="form-input" value={form.quartier} onChange={e=>setForm({...form,quartier:e.target.value})}>
+                      <option value="">Sélectionner un quartier...</option>
+                      {quartierOptions.map(q => <option key={q} value={q}>{q}</option>)}
+                    </select>
+                    <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4, cursor: 'pointer' }} onClick={()=>{ setQuartierFreeText(true); setForm({...form, quartier:''}) }}>
+                      Mon quartier n&apos;est pas dans la liste
+                    </div>
+                  </>
+                ) : (
+                  <input className="form-input" value={form.quartier} onChange={e=>setForm({...form,quartier:e.target.value})} placeholder="ex: Bergevin, Chauvel..." />
+                )}
               </div>
               <div className="form-group"><label className="form-label">Comment nous avez-vous connu ?</label>
                 <select className="form-input" value={form.howFound} onChange={e=>setForm({...form,howFound:e.target.value})}>

@@ -337,15 +337,18 @@ export default function QRFormClient({ welcomeTeam = [], communes = [], communeQ
               <div className="form-group">
                 <label className="form-label">Quartier</label>
                 {quartierOptions.length > 0 && !quartierFreeText ? (
-                  <>
-                    <select className="form-input" value={form.quartier} onChange={e=>setForm({...form,quartier:e.target.value})}>
-                      <option value="">Sélectionner un quartier...</option>
-                      {quartierOptions.map(q => <option key={q} value={q}>{q}</option>)}
-                    </select>
-                    <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4, cursor: 'pointer' }} onClick={()=>{ setQuartierFreeText(true); setForm({...form, quartier:''}) }}>
-                      Mon quartier n&apos;est pas dans la liste
-                    </div>
-                  </>
+                  <select
+                    className="form-input"
+                    value={form.quartier}
+                    onChange={e=>{
+                      if (e.target.value === '__autre__') { setQuartierFreeText(true); setForm({...form, quartier:''}) }
+                      else setForm({...form, quartier:e.target.value})
+                    }}
+                  >
+                    <option value="">Sélectionner un quartier...</option>
+                    {quartierOptions.map(q => <option key={q} value={q}>{q}</option>)}
+                    <option value="__autre__">Autre (préciser)</option>
+                  </select>
                 ) : (
                   <input className="form-input" value={form.quartier} onChange={e=>setForm({...form,quartier:e.target.value})} placeholder="ex: Bergevin, Chauvel..." />
                 )}
